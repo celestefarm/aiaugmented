@@ -31,7 +31,7 @@ class WorkspaceResponse(BaseModel):
         json_encoders={ObjectId: str}
     )
     
-    id: Optional[PyObjectId] = Field(default=None, alias="_id")
+    id: str  # Change to plain string instead of PyObjectId with alias
     title: str
     owner_id: PyObjectId
     created_at: datetime
@@ -52,7 +52,8 @@ class WorkspaceInDB(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
         arbitrary_types_allowed=True,
-        json_encoders={ObjectId: str}
+        json_encoders={ObjectId: str},
+        by_alias=True  # This ensures the alias is used in serialization
     )
     
     id: Optional[PyObjectId] = Field(default=None, alias="_id")
@@ -66,7 +67,7 @@ class WorkspaceInDB(BaseModel):
     def to_response(self) -> WorkspaceResponse:
         """Convert to response model"""
         return WorkspaceResponse(
-            id=self.id,
+            id=str(self.id),  # Convert to string explicitly
             title=self.title,
             owner_id=self.owner_id,
             created_at=self.created_at,

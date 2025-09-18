@@ -12,6 +12,7 @@ class AgentCreateRequest(BaseModel):
     ai_role: str = Field(..., min_length=1, max_length=500, description="AI capabilities description")
     human_role: str = Field(..., min_length=1, max_length=500, description="Human collaboration description")
     full_description: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Detailed agent information")
+    model_name: Optional[str] = Field(default=None, description="AI model to use for this agent")
 
 
 class AgentResponse(BaseModel):
@@ -22,7 +23,7 @@ class AgentResponse(BaseModel):
         json_encoders={ObjectId: str}
     )
     
-    id: Optional[PyObjectId] = Field(default=None, alias="_id")
+    id: Optional[str] = Field(default=None)  # Change to plain string
     agent_id: str
     name: str
     ai_role: str
@@ -30,6 +31,7 @@ class AgentResponse(BaseModel):
     is_custom: bool
     is_active: bool
     full_description: Dict[str, Any] = Field(default_factory=dict)
+    model_name: Optional[str] = Field(default=None)
 
 
 class AgentListResponse(BaseModel):
@@ -55,18 +57,20 @@ class AgentInDB(BaseModel):
     is_custom: bool
     is_active: bool
     full_description: Dict[str, Any] = Field(default_factory=dict)
+    model_name: Optional[str] = Field(default=None)
 
     def to_response(self) -> AgentResponse:
         """Convert to response model"""
         return AgentResponse(
-            id=self.id,
+            id=str(self.id) if self.id else None,  # Convert to string explicitly
             agent_id=self.agent_id,
             name=self.name,
             ai_role=self.ai_role,
             human_role=self.human_role,
             is_custom=self.is_custom,
             is_active=self.is_active,
-            full_description=self.full_description
+            full_description=self.full_description,
+            model_name=self.model_name
         )
 
 
@@ -79,3 +83,4 @@ class AgentCreate(BaseModel):
     is_custom: bool
     is_active: bool
     full_description: Dict[str, Any] = Field(default_factory=dict)
+    model_name: Optional[str] = Field(default=None)

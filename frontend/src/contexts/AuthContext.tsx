@@ -22,34 +22,33 @@ interface AuthProviderProps {
 
 // Auth provider component
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  // TEMPORARY: Mock user for bypassing authentication
-  const mockUser: User = {
-    id: 'mock-user-id',
-    email: 'demo@example.com',
-    name: 'Demo User',
-    created_at: new Date().toISOString(),
-    last_login: new Date().toISOString(),
-    is_active: true
-  };
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [user, setUser] = useState<User | null>(mockUser);
-  const [isLoading, setIsLoading] = useState(false); // Set to false to skip loading
+  const isAuthenticated = apiClient.isAuthenticated() && user !== null;
 
-  // TEMPORARY: Always return true for authentication bypass
-  const isAuthenticated = true;
-
-  // Initialize auth state on mount - bypassed for demo
+  // Initialize auth state on mount
   useEffect(() => {
-    // Skip initialization for demo mode
-    setUser(mockUser);
-    setIsLoading(false);
+    initializeAuth();
   }, []);
 
-  // Initialize authentication state - bypassed
+  // Initialize authentication state
   const initializeAuth = async () => {
-    // Bypassed for demo mode
-    setUser(mockUser);
-    setIsLoading(false);
+    try {
+      setIsLoading(true);
+      if (apiClient.isAuthenticated()) {
+        const currentUser = await apiClient.getCurrentUser();
+        setUser(currentUser);
+      } else {
+        setUser(null);
+      }
+    } catch (error) {
+      console.error('Failed to initialize auth:', error);
+      setUser(null);
+      apiClient.clearAuth();
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Login function

@@ -28,19 +28,8 @@ interface WorkspaceProviderProps {
 
 // Workspace provider component
 export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }) => {
-  // TEMPORARY: Mock workspace for bypassing authentication
-  const mockWorkspace: Workspace = {
-    id: 'mock-workspace-id',
-    title: 'Agentic Boardroom',
-    owner_id: 'mock-user-id',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    settings: {},
-    transform: { x: 0, y: 0, scale: 1 }
-  };
-
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([mockWorkspace]);
-  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(mockWorkspace);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -170,10 +159,20 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
 
   // Initialize workspace state on mount
   useEffect(() => {
-    // TEMPORARY: Skip localStorage and API calls for demo mode
-    // Set mock workspace as current
-    setCurrentWorkspace(mockWorkspace);
-    setWorkspaces([mockWorkspace]);
+    // Try to restore current workspace from localStorage
+    const savedWorkspace = localStorage.getItem('currentWorkspace');
+    if (savedWorkspace) {
+      try {
+        const workspace = JSON.parse(savedWorkspace);
+        setCurrentWorkspace(workspace);
+      } catch (error) {
+        console.error('Failed to parse saved workspace:', error);
+        localStorage.removeItem('currentWorkspace');
+      }
+    }
+    
+    // Load workspaces from API
+    loadWorkspaces();
   }, []);
 
   // Context value

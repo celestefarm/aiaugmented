@@ -31,14 +31,20 @@ app = FastAPI(
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000,http://localhost:5137").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development
+    allow_origins=cors_origins + ["http://localhost:5137"],  # Ensure frontend origin is allowed
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
+# Root endpoint
+@app.get("/")
+async def root():
+    """Root endpoint that returns server status"""
+    return {"message": "Server is running"}
+
 # Import routers
-from routers import health, auth, workspaces, nodes, edges, agents, messages, documents
+from routers import health, auth, workspaces, nodes, edges, agents, messages, documents, interactions
 
 # Include routers
 app.include_router(health.router, prefix="/api/v1")
@@ -47,6 +53,7 @@ app.include_router(workspaces.router, prefix="/api/v1")
 app.include_router(nodes.router, prefix="/api/v1")
 app.include_router(edges.router, prefix="/api/v1")
 app.include_router(agents.router, prefix="/api/v1")
+app.include_router(interactions.router, prefix="/api/v1")
 app.include_router(messages.router, prefix="/api/v1")
 app.include_router(documents.router, prefix="/api/v1")
 

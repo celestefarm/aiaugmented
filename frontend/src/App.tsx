@@ -20,10 +20,21 @@ function App() {
               <Router>
                 <Routes>
                   <Route path="/auth" element={<Auth />} />
-                  {/* TEMPORARY: Direct access to canvas without authentication */}
-                  <Route path="/" element={<Index />} />
-                  <Route path="/workspace" element={<Index />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/" element={
+                    <ProtectedRoute>
+                      <Index />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/workspace" element={
+                    <ProtectedRoute>
+                      <Index />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/dashboard" element={
+                    <ProtectedRoute>
+                      <Dashboard />
+                    </ProtectedRoute>
+                  } />
                 </Routes>
               </Router>
             </DocumentProvider>

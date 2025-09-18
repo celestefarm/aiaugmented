@@ -10,6 +10,7 @@ import { useMap } from '@/contexts/MapContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useAgentChat, Agent, ChatMessage } from '@/contexts/AgentChatContext';
 import { Node, Edge, NodeCreateRequest, NodeUpdateRequest, EdgeCreateRequest } from '@/lib/api';
+import SparringSession from './SparringSession';
 
 interface CustomAgentData {
   name: string;
@@ -45,16 +46,11 @@ const ExplorationMap: React.FC = () => {
   const {
     agents,
     activeAgents,
-    messages,
     isLoadingAgents,
-    isLoadingMessages,
     agentError,
-    chatError,
     activateAgent,
     deactivateAgent,
-    sendMessage,
-    addMessageToMap,
-    clearMessages
+    addMessageToMap
   } = useAgentChat();
   
   // Canvas interaction state - FIXED
@@ -65,7 +61,6 @@ const ExplorationMap: React.FC = () => {
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   
   // UI state
-  const [chatMessage, setChatMessage] = useState('');
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
   const [showCustomAgentDialog, setShowCustomAgentDialog] = useState(false);
@@ -312,19 +307,6 @@ const ExplorationMap: React.FC = () => {
       showNotification('Failed to add message to map');
     }
   }, [addMessageToMap, showNotification]);
-
-  // Send chat message with AI response
-  const sendChatMessage = useCallback(async () => {
-    if (!chatMessage.trim()) return;
-    
-    try {
-      await sendMessage(chatMessage);
-      setChatMessage('');
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      showNotification('Failed to send message');
-    }
-  }, [chatMessage, sendMessage, showNotification]);
 
   // Zoom functionality - FIXED
   const handleZoom = useCallback((delta: number, centerX?: number, centerY?: number) => {
@@ -726,7 +708,7 @@ const ExplorationMap: React.FC = () => {
 
   return (
     <TooltipProvider>
-      <div className="flex-1 relative overflow-hidden h-full bg-[#0A0A0A] text-[#E5E7EB]">
+      <div className="w-full h-screen flex relative overflow-hidden bg-[#0A0A0A] text-[#E5E7EB]">
         {/* Notification */}
         {notification && (
           <div className="absolute top-4 right-4 z-50 glass-pane px-4 py-2 text-sm text-[#E5E7EB] border border-[#6B6B3A]/30 rounded-lg">
@@ -785,16 +767,141 @@ const ExplorationMap: React.FC = () => {
           </div>
         )}
 
-        {/* Map Area - FIXED CANVAS */}
+        {/* Left Sidebar - Agents */}
+        <div
+          className={`flex-shrink-0 h-[calc(100vh-4rem)] mt-16 glass-pane border-r border-gray-800/50 transition-all duration-300 ease-in-out ${
+            leftSidebarCollapsed ? 'w-12' : 'w-64'
+          }`}
+          style={{ zIndex: 30 }}
+        >
+          {leftSidebarCollapsed ? (
+            <div className="p-2 h-full flex flex-col items-center">
+              <button
+                onClick={toggleLeftSidebar}
+                className="w-8 h-8 rounded bg-[#6B6B3A]/20 text-[#E5E7EB] hover:bg-[#6B6B3A]/30 flex items-center justify-center transition-colors"
+                aria-label="Expand agents panel"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="p-4 h-full flex flex-col">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-semibold text-[#E5E7EB]">Agents</h2>
+                <button
+                  onClick={toggleLeftSidebar}
+                  className="w-6 h-6 rounded bg-[#6B6B3A]/20 text-[#E5E7EB] hover:bg-[#6B6B3A]/30 flex items-center justify-center transition-colors"
+                  aria-label="Collapse agents panel"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex-grow overflow-y-auto space-y-2 mb-4 pb-32">
+                {agents.map(agent => (
+                  <div
+                    key={agent.id}
+                    className={`p-2 rounded-md transition-colors ${
+                      activeAgents.includes(agent.agent_id)
+                        ? agent.is_custom
+                          ? 'bg-blue-500/20 border border-blue-400/30'
+                          : 'bg-[#6B6B3A]/20 border border-[#6B6B3A]/30'
+                        : 'hover:bg-gray-800/30'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center space-x-2 flex-1">
+                        <span className={`text-xs font-medium leading-tight ${
+                          activeAgents.includes(agent.agent_id)
+                            ? agent.is_custom
+                              ? 'text-blue-300'
+                              : 'glow-olive-text'
+                            : 'text-[#E5E7EB]'
+                        }`}>
+                          {agent.name}
+                        </span>
+                        
+                        <button
+                          onClick={() => openAgentDetailsModal(agent.agent_id)}
+                          className="text-gray-400 hover:text-[#6B6B3A] transition-colors"
+                          aria-label={`View details for ${agent.name}`}
+                        >
+                          <User className="w-3 h-3" />
+                        </button>
+                      </div>
+                      
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={activeAgents.includes(agent.agent_id)}
+                          onChange={() => toggleAgent(agent.agent_id)}
+                          className="sr-only peer"
+                          aria-label={`Toggle ${agent.name}`}
+                        />
+                        <div className={`w-8 h-4 rounded-full peer-focus:outline-none transition-colors after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-full ${
+                          activeAgents.includes(agent.agent_id)
+                            ? agent.is_custom
+                              ? 'bg-blue-500'
+                              : 'bg-[#6B6B3A]'
+                            : 'bg-gray-600'
+                        }`}></div>
+                      </label>
+                    </div>
+                    
+                    {activeAgents.includes(agent.agent_id) && (
+                      <div className="space-y-0.5 text-[10px] leading-tight">
+                        <div>
+                          <span className={`font-medium ${
+                            agent.is_custom ? 'text-blue-300' : 'text-[#E5E7EB]'
+                          }`}>AI:</span>
+                          <span className="text-gray-400 ml-1">{agent.ai_role}</span>
+                        </div>
+                        <div>
+                          <span className={`font-medium ${
+                            agent.is_custom ? 'text-blue-300' : 'text-[#E5E7EB]'
+                          }`}>Human:</span>
+                          <span className="text-gray-400 ml-1">{agent.human_role}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Navigation removed - now handled by Header component */}
+
+              {/* Footer */}
+              <div className="absolute bottom-0 left-0 right-0 p-4 pt-3 border-t border-gray-800/50 glass-pane">
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => window.location.href = '/dashboard'}
+                    className="flex-1 px-4 py-2 text-sm font-medium text-[#E5E7EB] bg-[#6B6B3A]/20 hover:bg-[#6B6B3A]/30 border border-[#6B6B3A]/30 rounded-lg transition-colors"
+                  >
+                    Dashboard
+                  </button>
+                  <button
+                    onClick={() => window.location.href = '/'}
+                    className="flex-1 px-4 py-2 text-sm font-medium text-[#E5E7EB] bg-[#6B6B3A]/20 hover:bg-[#6B6B3A]/30 border border-[#6B6B3A]/30 rounded-lg transition-colors"
+                  >
+                    Home
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Map Area - RESPONSIVE CANVAS */}
         <div
           ref={canvasRef}
-          className={`w-full h-full select-none overflow-hidden ${
-            isDragging ? 'cursor-grabbing' : 
+          className={`flex-1 select-none overflow-hidden relative mt-16 ${
+            isDragging ? 'cursor-grabbing' :
             isCreatingConnection ? 'cursor-crosshair' :
             'cursor-grab'
           }`}
           style={{
             boxShadow: 'inset 0 0 40px -10px rgba(107, 107, 58, 0.3)',
+            height: 'calc(100vh - 4rem)',
           }}
           onMouseDown={handleCanvasMouseDown}
           onMouseMove={handleCanvasMouseMove}
@@ -1044,8 +1151,8 @@ const ExplorationMap: React.FC = () => {
               <div
                 key={node.id}
                 className={getNodeStyle(
-                  node.type, 
-                  selectedNode === node.id, 
+                  node.type,
+                  selectedNode === node.id,
                   focusedNode === node.id,
                   isValidConnectionTarget(node.id)
                 )}
@@ -1118,221 +1225,10 @@ const ExplorationMap: React.FC = () => {
           </div>
         </div>
 
-        {/* Left Sidebar - Agents */}
-        <div 
-          className={`absolute top-0 left-0 h-full glass-pane border-r border-gray-800/50 transition-all duration-300 ease-in-out ${
-            leftSidebarCollapsed ? 'w-12' : 'w-72'
-          }`}
-          style={{ zIndex: 30 }}
-        >
-          {leftSidebarCollapsed ? (
-            <div className="p-2 h-full flex flex-col items-center">
-              <button
-                onClick={toggleLeftSidebar}
-                className="w-8 h-8 rounded bg-[#6B6B3A]/20 text-[#E5E7EB] hover:bg-[#6B6B3A]/30 flex items-center justify-center transition-colors"
-                aria-label="Expand agents panel"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          ) : (
-            <div className="p-4 h-full flex flex-col">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-semibold text-[#E5E7EB]">Agents</h2>
-                <button
-                  onClick={toggleLeftSidebar}
-                  className="w-6 h-6 rounded bg-[#6B6B3A]/20 text-[#E5E7EB] hover:bg-[#6B6B3A]/30 flex items-center justify-center transition-colors"
-                  aria-label="Collapse agents panel"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="flex-grow overflow-y-auto space-y-2 mb-4 pb-32">
-                {agents.map(agent => (
-                  <div
-                    key={agent.id}
-                    className={`p-2 rounded-md transition-colors ${
-                      activeAgents.includes(agent.agent_id)
-                        ? agent.is_custom
-                          ? 'bg-blue-500/20 border border-blue-400/30'
-                          : 'bg-[#6B6B3A]/20 border border-[#6B6B3A]/30'
-                        : 'hover:bg-gray-800/30'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center space-x-2 flex-1">
-                        <span className={`text-xs font-medium leading-tight ${
-                          activeAgents.includes(agent.agent_id)
-                            ? agent.is_custom
-                              ? 'text-blue-300'
-                              : 'glow-olive-text'
-                            : 'text-[#E5E7EB]'
-                        }`}>
-                          {agent.name}
-                        </span>
-                        
-                        <button
-                          onClick={() => openAgentDetailsModal(agent.agent_id)}
-                          className="text-gray-400 hover:text-[#6B6B3A] transition-colors"
-                          aria-label={`View details for ${agent.name}`}
-                        >
-                          <User className="w-3 h-3" />
-                        </button>
-                      </div>
-                      
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={activeAgents.includes(agent.agent_id)}
-                          onChange={() => toggleAgent(agent.agent_id)}
-                          className="sr-only peer"
-                          aria-label={`Toggle ${agent.name}`}
-                        />
-                        <div className={`w-8 h-4 rounded-full peer-focus:outline-none transition-colors after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-full ${
-                          activeAgents.includes(agent.agent_id)
-                            ? agent.is_custom
-                              ? 'bg-blue-500'
-                              : 'bg-[#6B6B3A]'
-                            : 'bg-gray-600'
-                        }`}></div>
-                      </label>
-                    </div>
-                    
-                    {activeAgents.includes(agent.agent_id) && (
-                      <div className="space-y-0.5 text-[10px] leading-tight">
-                        <div>
-                          <span className={`font-medium ${
-                            agent.is_custom ? 'text-blue-300' : 'text-[#E5E7EB]'
-                          }`}>AI:</span>
-                          <span className="text-gray-400 ml-1">{agent.ai_role}</span>
-                        </div>
-                        <div>
-                          <span className={`font-medium ${
-                            agent.is_custom ? 'text-blue-300' : 'text-[#E5E7EB]'
-                          }`}>Human:</span>
-                          <span className="text-gray-400 ml-1">{agent.human_role}</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Navigation removed - now handled by Header component */}
-
-              {/* Footer */}
-              <div className="absolute bottom-0 left-0 right-0 p-4 pt-3 border-t border-gray-800/50 glass-pane">
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => window.location.href = '/dashboard'}
-                    className="flex-1 px-4 py-2 text-sm font-medium text-[#E5E7EB] bg-[#6B6B3A]/20 hover:bg-[#6B6B3A]/30 border border-[#6B6B3A]/30 rounded-lg transition-colors"
-                  >
-                    Dashboard
-                  </button>
-                  <button
-                    onClick={() => window.location.href = '/'}
-                    className="flex-1 px-4 py-2 text-sm font-medium text-[#E5E7EB] bg-[#6B6B3A]/20 hover:bg-[#6B6B3A]/30 border border-[#6B6B3A]/30 rounded-lg transition-colors"
-                  >
-                    Home
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Right Sidebar - Chat */}
-        <div className="absolute top-0 right-0 w-72 h-full glass-pane border-l border-gray-800/50" style={{ zIndex: 30 }}>
-          <div className="p-4 h-full flex flex-col">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-[#E5E7EB]">Sparring Session</h2>
-              <button
-                onClick={() => clearMessages()}
-                className="text-xs px-2 py-1 bg-[#6B6B3A]/20 text-[#E5E7EB] rounded hover:bg-[#6B6B3A]/30 transition-colors border border-[#6B6B3A]/30"
-                aria-label="Clear chat messages"
-              >
-                Clear Chat
-              </button>
-            </div>
-
-            <div className="flex-1 space-y-4 overflow-y-auto mb-4 pr-2">
-              {messages.map(message => (
-                <div
-                  key={message.id}
-                  className={`flex ${message.type === 'human' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`max-w-[85%] glass-pane rounded-lg p-3 ${
-                      message.type === 'human'
-                        ? 'border-[#6B6B3A]/30'
-                        : 'border-blue-400/30'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className={`text-xs font-medium ${
-                        message.type === 'human' ? 'glow-olive-text' : 'text-blue-300'
-                      }`}>
-                        {message.author}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {formatTimestamp(message.created_at)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-[#E5E7EB] mb-2 leading-relaxed">{message.content}</p>
-                    
-                    {/* Add to Map button with check icon */}
-                    {message.added_to_map ? (
-                      <div className="flex items-center space-x-1 text-[10px] px-2 py-1 bg-green-500/20 text-green-300 rounded border border-green-500/30">
-                        <Check className="w-3 h-3" />
-                        <span>Added to Map</span>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => addIdeaToMapLocal(message.id)}
-                        className="text-[10px] px-2 py-1 bg-[#6B6B3A]/20 text-[#E5E7EB] rounded hover:bg-[#6B6B3A]/30 transition-colors"
-                        aria-label={`Add message from ${message.author} to map`}
-                      >
-                        Add to Map
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex-shrink-0">
-              <div className="relative">
-                <textarea
-                  value={chatMessage}
-                  onChange={(e) => setChatMessage(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      sendChatMessage();
-                    }
-                  }}
-                  placeholder="Type your message..."
-                  className="w-full glass-pane rounded-lg p-3 pr-16 text-xs text-[#E5E7EB] placeholder-gray-400 resize-none focus:outline-none focus:ring-1 focus:ring-[#6B6B3A] transition-colors"
-                  rows={3}
-                  aria-label="Chat message input"
-                />
-                <div className="absolute bottom-2 right-2 flex space-x-2">
-                  <button 
-                    className="text-gray-400 hover:text-[#6B6B3A] transition-colors"
-                    aria-label="Voice input"
-                  >
-                    <Mic className="w-4 h-4" />
-                  </button>
-                  <button 
-                    className="text-gray-400 hover:text-[#6B6B3A] transition-colors"
-                    aria-label="Upload file"
-                  >
-                    <Upload className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
+        {/* Right Sidebar - Sparring Session */}
+        <div className="flex-shrink-0 w-80 h-[calc(100vh-4rem)] mt-16 glass-pane border-l border-gray-800/50 overflow-hidden" style={{ zIndex: 30 }}>
+          <div className="p-3 h-full overflow-hidden">
+            <SparringSession onAddToMap={addIdeaToMapLocal} />
           </div>
         </div>
 

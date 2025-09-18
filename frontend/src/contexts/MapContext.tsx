@@ -34,73 +34,8 @@ interface MapProviderProps {
 
 // Map provider component
 export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
-  // TEMPORARY: Mock data for demo mode
-  const mockNodes: Node[] = [
-    {
-      id: 'node-1',
-      workspace_id: 'mock-workspace-id',
-      title: 'Market Research',
-      description: 'Analyze target market and customer needs',
-      type: 'human',
-      x: 200,
-      y: 150,
-      confidence: 0.8,
-      feasibility: 'high',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    },
-    {
-      id: 'node-2',
-      workspace_id: 'mock-workspace-id',
-      title: 'Product Development',
-      description: 'Build MVP based on research findings',
-      type: 'ai',
-      x: 400,
-      y: 200,
-      confidence: 0.7,
-      feasibility: 'medium',
-      source_agent: 'Product Manager',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    },
-    {
-      id: 'node-3',
-      workspace_id: 'mock-workspace-id',
-      title: 'Launch Strategy',
-      description: 'Plan go-to-market strategy',
-      type: 'decision',
-      x: 600,
-      y: 150,
-      confidence: 0.6,
-      feasibility: 'high',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }
-  ];
-
-  const mockEdges: Edge[] = [
-    {
-      id: 'edge-1',
-      workspace_id: 'mock-workspace-id',
-      from_node_id: 'node-1',
-      to_node_id: 'node-2',
-      type: 'support',
-      description: 'Research informs product development',
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 'edge-2',
-      workspace_id: 'mock-workspace-id',
-      from_node_id: 'node-2',
-      to_node_id: 'node-3',
-      type: 'dependency',
-      description: 'Product must be ready before launch',
-      created_at: new Date().toISOString()
-    }
-  ];
-
-  const [nodes, setNodes] = useState<Node[]>(mockNodes);
-  const [edges, setEdges] = useState<Edge[]>(mockEdges);
+  const [nodes, setNodes] = useState<Node[]>([]);
+  const [edges, setEdges] = useState<Edge[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -113,16 +48,28 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
       return;
     }
 
-    // TEMPORARY: Use mock data instead of API calls
-    setIsLoading(true);
-    setError(null);
-    
-    // Simulate loading delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    setNodes(mockNodes);
-    setEdges(mockEdges);
-    setIsLoading(false);
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Load nodes and edges from API
+      const [nodesResponse, edgesResponse] = await Promise.all([
+        apiClient.getNodes(currentWorkspace.id),
+        apiClient.getEdges(currentWorkspace.id)
+      ]);
+      
+      setNodes(nodesResponse.nodes);
+      setEdges(edgesResponse.edges);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load map data';
+      setError(errorMessage);
+      console.error('Failed to load map data:', err);
+      // Set empty arrays on error
+      setNodes([]);
+      setEdges([]);
+    } finally {
+      setIsLoading(false);
+    }
   }, [currentWorkspace]);
 
   // Create a new node
@@ -156,8 +103,7 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
       setError(null);
       const updatedNode = await apiClient.updateNode(currentWorkspace.id, nodeId, data);
       
-      // Update in local state
-      setNodes(prev => prev.map(node => 
+      setNodes(prev => prev.map(node =>
         node.id === nodeId ? updatedNode : node
       ));
       
@@ -181,9 +127,9 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
       setError(null);
       await apiClient.deleteNode(currentWorkspace.id, nodeId);
       
-      // Remove from local state (also removes connected edges on backend)
+      // Remove from local state
       setNodes(prev => prev.filter(node => node.id !== nodeId));
-      setEdges(prev => prev.filter(edge => 
+      setEdges(prev => prev.filter(edge =>
         edge.from_node_id !== nodeId && edge.to_node_id !== nodeId
       ));
     } catch (err) {
@@ -224,8 +170,6 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
     try {
       setError(null);
       await apiClient.deleteEdge(currentWorkspace.id, edgeId);
-      
-      // Remove from local state
       setEdges(prev => prev.filter(edge => edge.id !== edgeId));
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete edge';
@@ -249,10 +193,12 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
 
   // Load map data when workspace changes
   useEffect(() => {
-    // TEMPORARY: Always load mock data for demo
-    setNodes(mockNodes);
-    setEdges(mockEdges);
-  }, [currentWorkspace]);
+    if (currentWorkspace) {
+      loadMapData();
+    } else {
+      clearMapData();
+    }
+  }, [currentWorkspace, loadMapData]);
 
   // Context value
   const value: MapContextType = {

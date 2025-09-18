@@ -32,12 +32,15 @@ async def list_workspaces(current_user: UserResponse = Depends(get_current_activ
     database = get_database()
     
     # Find all workspaces owned by the current user
-    cursor = database.workspaces.find({"owner_id": ObjectId(current_user.id)})
+    cursor = database.workspaces.find({"owner_id": current_user.id})
     workspace_docs = await cursor.to_list(length=None)
     
     # Convert to response models
     workspaces = []
     for doc in workspace_docs:
+        # Convert ObjectId to string for Pydantic compatibility
+        if doc and "_id" in doc:
+            doc["_id"] = str(doc["_id"])
         workspace_in_db = WorkspaceInDB(**doc)
         workspaces.append(workspace_in_db.to_response())
     
@@ -69,7 +72,7 @@ async def create_workspace(
     now = datetime.utcnow()
     workspace_create = WorkspaceCreate(
         title=workspace_data.title,
-        owner_id=ObjectId(current_user.id),
+        owner_id=current_user.id,  # Keep as string (PyObjectId)
         created_at=now,
         updated_at=now,
         settings=workspace_data.settings or {},
@@ -82,6 +85,11 @@ async def create_workspace(
     
     # Get the created workspace
     workspace_doc = await database.workspaces.find_one({"_id": workspace_id})
+    
+    # Convert ObjectId to string for Pydantic compatibility
+    if workspace_doc and "_id" in workspace_doc:
+        workspace_doc["_id"] = str(workspace_doc["_id"])
+    
     workspace_in_db = WorkspaceInDB(**workspace_doc)
     
     return workspace_in_db.to_response()
@@ -118,7 +126,7 @@ async def get_workspace(
     # Find workspace by ID and owner
     workspace_doc = await database.workspaces.find_one({
         "_id": ObjectId(workspace_id),
-        "owner_id": ObjectId(current_user.id)
+        "owner_id": current_user.id
     })
     
     if not workspace_doc:
@@ -126,6 +134,10 @@ async def get_workspace(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Workspace not found"
         )
+    
+    # Convert ObjectId to string for Pydantic compatibility
+    if workspace_doc and "_id" in workspace_doc:
+        workspace_doc["_id"] = str(workspace_doc["_id"])
     
     workspace_in_db = WorkspaceInDB(**workspace_doc)
     return workspace_in_db.to_response()
@@ -164,7 +176,7 @@ async def update_workspace(
     # Check if workspace exists and user owns it
     existing_workspace = await database.workspaces.find_one({
         "_id": ObjectId(workspace_id),
-        "owner_id": ObjectId(current_user.id)
+        "owner_id": current_user.id
     })
     
     if not existing_workspace:
@@ -199,6 +211,11 @@ async def update_workspace(
     
     # Get updated workspace data
     workspace_doc = await database.workspaces.find_one({"_id": ObjectId(workspace_id)})
+    
+    # Convert ObjectId to string for Pydantic compatibility
+    if workspace_doc and "_id" in workspace_doc:
+        workspace_doc["_id"] = str(workspace_doc["_id"])
+    
     workspace_in_db = WorkspaceInDB(**workspace_doc)
     
     return workspace_in_db.to_response()
@@ -232,7 +249,7 @@ async def delete_workspace(
     # Delete workspace (only if owned by current user)
     result = await database.workspaces.delete_one({
         "_id": ObjectId(workspace_id),
-        "owner_id": ObjectId(current_user.id)
+        "owner_id": current_user.id
     })
     
     if result.deleted_count == 0:

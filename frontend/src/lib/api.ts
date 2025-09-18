@@ -187,6 +187,35 @@ export interface AddToMapResponse {
   message: string;
 }
 
+// Agent interaction types
+export interface AgentInteractionRequest {
+  agent_id: string;
+  prompt: string;
+  context?: Record<string, any>;
+}
+
+export interface AgentInteractionResponse {
+  agent_id: string;
+  agent_name: string;
+  response: string;
+  model_used?: string;
+}
+
+export interface AgentInfoResponse {
+  agent_id: string;
+  name: string;
+  ai_role: string;
+  human_role: string;
+  model_name?: string;
+  is_active: boolean;
+  is_custom: boolean;
+  full_description: Record<string, any>;
+  capabilities: {
+    can_interact: boolean;
+    supported_models: string[];
+  };
+}
+
 // Document generation types
 export interface GenerateBriefResponse {
   content: string;
@@ -212,8 +241,7 @@ class ApiClient {
 
   // Get stored token from localStorage
   private getToken(): string | null {
-    // TEMPORARY: Return mock token for demo mode
-    return 'mock-demo-token';
+    return localStorage.getItem('auth_token');
   }
 
   // Set token in localStorage
@@ -400,6 +428,18 @@ class ApiClient {
     });
   }
 
+  // Agent interaction methods
+  async interactWithAgent(data: AgentInteractionRequest): Promise<AgentInteractionResponse> {
+    return await this.request<AgentInteractionResponse>('/agents/interact', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getAgentInfo(agentId: string): Promise<AgentInfoResponse> {
+    return await this.request<AgentInfoResponse>(`/agents/${agentId}/info`);
+  }
+
   // Message methods
   async getMessages(workspaceId: string): Promise<MessageListResponse> {
     return await this.request<MessageListResponse>(`/workspaces/${workspaceId}/messages`);
@@ -476,8 +516,8 @@ class ApiClient {
 
   // Check if user is authenticated
   isAuthenticated(): boolean {
-    // TEMPORARY: Always return true for demo mode
-    return true;
+    const token = this.getToken();
+    return token !== null && token !== '';
   }
 
   // Clear authentication state
@@ -511,6 +551,8 @@ export const {
   getAgents,
   activateAgent,
   deactivateAgent,
+  interactWithAgent,
+  getAgentInfo,
   getMessages,
   sendMessage,
   addMessageToMap,

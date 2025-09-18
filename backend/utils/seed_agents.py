@@ -13,6 +13,7 @@ DEFAULT_AGENTS = [
         "human_role": "Define success metrics, apply contextual judgment",
         "is_custom": False,
         "is_active": True,
+        "model_name": "openai/gpt-4",
         "full_description": {
             "role": "Strategic Options Architect",
             "mission": "Transform complex business challenges into clear, actionable strategic pathways",
@@ -185,6 +186,9 @@ async def get_all_agents() -> List[AgentInDB]:
     agents = []
     
     async for agent_doc in agents_cursor:
+        # Convert ObjectId to string for Pydantic compatibility
+        if agent_doc and "_id" in agent_doc:
+            agent_doc["_id"] = str(agent_doc["_id"])
         agent = AgentInDB(**agent_doc)
         agents.append(agent)
     
@@ -201,6 +205,9 @@ async def get_agent_by_id(agent_id: str) -> AgentInDB | None:
     agent_doc = await agents_collection.find_one({"agent_id": agent_id})
     
     if agent_doc:
+        # Convert ObjectId to string for Pydantic compatibility
+        if agent_doc and "_id" in agent_doc:
+            agent_doc["_id"] = str(agent_doc["_id"])
         return AgentInDB(**agent_doc)
     return None
 
@@ -223,7 +230,7 @@ async def create_custom_agent(agent_data: AgentCreate) -> AgentInDB | None:
         agent_doc = agent_in_db.model_dump(by_alias=True, exclude={"id"})
         
         result = await agents_collection.insert_one(agent_doc)
-        agent_doc["_id"] = result.inserted_id
+        agent_doc["_id"] = str(result.inserted_id)  # Convert to string
         
         return AgentInDB(**agent_doc)
         

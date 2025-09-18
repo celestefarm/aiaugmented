@@ -13,7 +13,7 @@ const Index: React.FC = () => {
   // Redirect to dashboard if no workspace is selected
   useEffect(() => {
     if (!currentWorkspace) {
-      navigate('/');
+      navigate('/dashboard');
     }
   }, [currentWorkspace, navigate]);
 
@@ -41,7 +41,7 @@ const Index: React.FC = () => {
   }
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-[#0A0A0A] text-[#E5E7EB] overflow-hidden">
+    <div className="h-screen w-screen flex flex-col bg-[#0A0A0A] text-[#E5E7EB] overflow-hidden fixed inset-0">
       <Header
         currentView={currentView}
         onViewChange={setCurrentView}
@@ -49,7 +49,7 @@ const Index: React.FC = () => {
         onTitleChange={handleTitleChange}
       />
       
-      <main className="flex-1 overflow-hidden">
+      <main className="flex-1 overflow-hidden relative">
         {currentView === 'exploration' ? (
           <ExplorationMap />
         ) : (
