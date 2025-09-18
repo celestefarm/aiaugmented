@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { apiClient, AgentInteractionRequest, AgentInteractionResponse } from '../lib/api';
 import { useWorkspace } from './WorkspaceContext';
+import { useMap } from './MapContext';
 
 // Agent types
 export interface Agent {
@@ -86,15 +87,10 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
   const [chatError, setChatError] = useState<string | null>(null);
   
   const { currentWorkspace } = useWorkspace();
+  const { refreshMapData } = useMap();
 
   // Load all available agents
   const loadAgents = useCallback(async (): Promise<void> => {
-    if (!currentWorkspace) {
-      setAgents([]);
-      setActiveAgents([]);
-      return;
-    }
-
     try {
       setIsLoadingAgents(true);
       setAgentError(null);
@@ -103,8 +99,12 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
       setAgents(response.agents);
       
       // Get active agents from workspace settings or default to strategist
-      const activeAgentIds = currentWorkspace.settings?.active_agents || ['strategist'];
-      setActiveAgents(activeAgentIds);
+      if (currentWorkspace) {
+        const activeAgentIds = currentWorkspace.settings?.active_agents || ['strategist'];
+        setActiveAgents(activeAgentIds);
+      } else {
+        setActiveAgents([]);
+      }
     } catch (error) {
       console.error('Failed to load agents:', error);
       setAgentError(error instanceof Error ? error.message : 'Failed to load agents');
@@ -117,7 +117,7 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
 
   // Activate an agent for the current workspace
   const activateAgent = useCallback(async (agentId: string): Promise<void> => {
-    if (!currentWorkspace) {
+    if (!currentWorkspace?.id) {
       setAgentError('No workspace selected');
       return;
     }
@@ -142,7 +142,7 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
 
   // Deactivate an agent for the current workspace
   const deactivateAgent = useCallback(async (agentId: string): Promise<void> => {
-    if (!currentWorkspace) {
+    if (!currentWorkspace?.id) {
       setAgentError('No workspace selected');
       return;
     }
@@ -162,7 +162,7 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
 
   // Load chat messages for current workspace
   const loadMessages = useCallback(async (): Promise<void> => {
-    if (!currentWorkspace) {
+    if (!currentWorkspace?.id) {
       setMessages([]);
       return;
     }
@@ -184,7 +184,7 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
 
   // Send a message and get AI responses
   const sendMessage = useCallback(async (content: string): Promise<ChatMessage[]> => {
-    if (!currentWorkspace) {
+    if (!currentWorkspace?.id) {
       setChatError('No workspace selected');
       return [];
     }
@@ -194,6 +194,12 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
       
       // Send message to backend and get responses
       const responseMessages = await apiClient.sendMessage(currentWorkspace.id, { content });
+      
+      // Debug logging
+      console.log('Received messages from API:', responseMessages);
+      responseMessages.forEach((msg, index) => {
+        console.log(`Message ${index}:`, { id: msg.id, type: typeof msg.id, content: msg.content.substring(0, 50) });
+      });
       
       // Update local state with all messages (human + AI responses)
       setMessages(prev => [...prev, ...responseMessages]);
@@ -207,13 +213,13 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
     }
   }, [currentWorkspace]);
 
-  // Add a message to the map
+  // Add a message to the map - NEW IMPLEMENTATION
   const addMessageToMap = useCallback(async (
     messageId: string,
     nodeTitle?: string,
     nodeType?: string
   ): Promise<boolean> => {
-    if (!currentWorkspace) {
+    if (!currentWorkspace?.id) {
       setChatError('No workspace selected');
       return false;
     }
@@ -221,27 +227,82 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
     try {
       setChatError(null);
       
-      const response = await apiClient.addMessageToMap(currentWorkspace.id, messageId, {
-        node_title: nodeTitle,
-        node_type: nodeType
-      });
+      // Enhanced debug logging for new implementation
+      console.log('=== NEW CONTEXT ADD TO MAP DEBUG ===');
+      console.log('Current workspace:', currentWorkspace);
+      console.log('Workspace ID:', currentWorkspace.id);
+      console.log('Message ID:', messageId);
+      console.log('Message ID type:', typeof messageId);
+      console.log('Node title:', nodeTitle);
+      console.log('Node type:', nodeType);
       
-      if (response.success) {
-        // Update message state to mark as added to map
-        setMessages(prev => prev.map(msg =>
-          msg.id === messageId ? { ...msg, added_to_map: true } : msg
-        ));
-        return true;
+      // Find message in local state
+      const localMessage = messages.find(m => m.id === messageId);
+      console.log('Local message found:', localMessage);
+      
+      // Check if already added to map locally
+      if (localMessage?.added_to_map) {
+        console.log('Message already marked as added to map locally');
+        setChatError('Message has already been added to map');
+        return false;
       }
       
-      return false;
+      console.log('Making API call to new addMessageToMap endpoint...');
+      const response = await apiClient.addMessageToMap(currentWorkspace.id, messageId, {
+        node_title: nodeTitle,
+        node_type: nodeType || 'ai'
+      });
+      
+      console.log('New API response:', response);
+      
+      if (response.success) {
+        console.log('New API call successful! Node ID:', response.node_id);
+        
+        // Update message state to mark as added to map
+        setMessages(prev => {
+          const updated = prev.map(msg =>
+            msg.id === messageId ? { ...msg, added_to_map: true } : msg
+          );
+          console.log('Updated messages with new implementation:', updated);
+          return updated;
+        });
+        
+        // Refresh map data to show the new node
+        console.log('Refreshing map data with new implementation...');
+        try {
+          await refreshMapData();
+          console.log('Map data refreshed successfully with new implementation');
+        } catch (mapError) {
+          console.error('Failed to refresh map data:', mapError);
+          // Don't fail the whole operation if map refresh fails
+        }
+        
+        return true;
+      } else {
+        console.error('New API call returned success: false');
+        setChatError('Failed to add message to map');
+        return false;
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to add message to map';
       setChatError(errorMessage);
-      console.error('Failed to add message to map:', err);
+      console.error('Failed to add message to map with new implementation - full error:', err);
+      console.error('Error message:', errorMessage);
+      console.error('Error stack:', err instanceof Error ? err.stack : 'No stack trace');
+      
+      // Handle specific error cases
+      if (errorMessage.includes('already been added')) {
+        // Update local state to reflect server state
+        setMessages(prev =>
+          prev.map(msg =>
+            msg.id === messageId ? { ...msg, added_to_map: true } : msg
+          )
+        );
+      }
+      
       return false;
     }
-  }, [currentWorkspace]);
+  }, [currentWorkspace, messages, refreshMapData]);
 
   // Clear chat messages
   const clearMessages = useCallback((): void => {
@@ -256,15 +317,14 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
 
   // Load data when workspace changes
   useEffect(() => {
+    // Always load agents (they're global)
+    loadAgents();
+    
     if (currentWorkspace) {
-      loadAgents();
       loadMessages();
     } else {
-      // Clear data when no workspace is selected
-      setAgents([]);
-      setActiveAgents([]);
+      // Clear workspace-specific data when no workspace is selected
       setMessages([]);
-      setAgentError(null);
       setChatError(null);
     }
   }, [currentWorkspace, loadAgents, loadMessages]);

@@ -19,8 +19,8 @@ class MessageResponse(BaseModel):
         json_encoders={ObjectId: str}
     )
     
-    id: Optional[PyObjectId] = Field(default=None, alias="_id")
-    workspace_id: PyObjectId
+    id: str = Field(..., description="Message ID as string")
+    workspace_id: str = Field(..., description="Workspace ID as string")
     author: str
     type: str  # "human" or "ai"
     content: str
@@ -66,9 +66,15 @@ class MessageInDB(BaseModel):
 
     def to_response(self) -> MessageResponse:
         """Convert to response model"""
+        # Ensure ID is always a valid string - should never be None if properly created
+        if not self.id:
+            raise ValueError("Message ID cannot be None when converting to response")
+        if not self.workspace_id:
+            raise ValueError("Workspace ID cannot be None when converting to response")
+            
         return MessageResponse(
-            id=self.id,
-            workspace_id=self.workspace_id,
+            id=str(self.id),
+            workspace_id=str(self.workspace_id),
             author=self.author,
             type=self.type,
             content=self.content,

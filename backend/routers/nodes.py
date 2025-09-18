@@ -37,7 +37,7 @@ async def verify_workspace_access(workspace_id: str, current_user: UserResponse)
     database = get_database()
     workspace = await database.workspaces.find_one({
         "_id": ObjectId(workspace_id),
-        "owner_id": ObjectId(current_user.id)
+        "owner_id": current_user.id
     })
     
     if not workspace:
@@ -68,13 +68,29 @@ async def get_nodes(
     # Get database instance
     database = get_database()
     
-    # Find all nodes in the workspace
-    cursor = database.nodes.find({"workspace_id": ObjectId(workspace_id)})
+    # Find all nodes in the workspace (handle both string and ObjectId formats)
+    cursor = database.nodes.find({
+        "$or": [
+            {"workspace_id": workspace_id},  # String format
+            {"workspace_id": ObjectId(workspace_id)}  # ObjectId format
+        ]
+    })
     node_docs = await cursor.to_list(length=None)
+    
+    print(f"=== NODES API DEBUG ===")
+    print(f"Workspace ID: {workspace_id}")
+    print(f"Found {len(node_docs)} nodes")
+    for doc in node_docs:
+        print(f"  - Node ID: {doc['_id']}, workspace_id: {doc['workspace_id']} (type: {type(doc['workspace_id'])})")
     
     # Convert to response models
     nodes = []
     for doc in node_docs:
+        # Convert ObjectId to string for serialization
+        doc['_id'] = str(doc['_id'])
+        if isinstance(doc.get('workspace_id'), ObjectId):
+            doc['workspace_id'] = str(doc['workspace_id'])
+        
         node_in_db = NodeInDB(**doc)
         nodes.append(node_in_db.to_response())
     
@@ -291,3 +307,105 @@ async def delete_node(
         )
     
     return None
+
+
+@router.post("/workspaces/{workspace_id}/nodes/auto-arrange", status_code=status.HTTP_200_OK)
+async def auto_arrange_nodes(
+    workspace_id: str,
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Auto-arrange all nodes in a workspace to prevent overlapping.
+    Uses a grid layout for clean organization.
+    
+    Args:
+        workspace_id: Workspace ID
+        current_user: Current authenticated user (from dependency)
+        
+    Returns:
+        Success message
+        
+    Raises:
+        HTTPException: If workspace not found or access denied
+    """
+    # Verify workspace access
+    await verify_workspace_access(workspace_id, current_user)
+    
+    # Get database instance
+    database = get_database()
+    
+    # Get all nodes in the workspace
+    cursor = database.nodes.find({
+        "$or": [
+            {"workspace_id": workspace_id},  # String format
+            {"workspace_id": ObjectId(workspace_id)}  # ObjectId format
+        ]
+    })
+    node_docs = await cursor.to_list(length=None)
+    
+    if not node_docs:
+        return {"message": "No nodes to arrange"}
+    
+    # Canvas and node dimensions
+    CANVAS_WIDTH = 1200
+    CANVAS_HEIGHT = 800
+    NODE_WIDTH = 280
+    NODE_HEIGHT = 200
+    SPACING = 50
+    
+    # Calculate grid dimensions
+    cols = max(1, int((CANVAS_WIDTH - SPACING) / (NODE_WIDTH + SPACING)))
+    rows = max(1, int((CANVAS_HEIGHT - SPACING) / (NODE_HEIGHT + SPACING)))
+    
+    # Starting position (with margin)
+    start_x = SPACING + NODE_WIDTH / 2
+    start_y = SPACING + NODE_HEIGHT / 2
+    
+    print(f"=== AUTO-ARRANGE DEBUG ===")
+    print(f"Arranging {len(node_docs)} nodes in {cols}x{rows} grid")
+    print(f"Canvas: {CANVAS_WIDTH}x{CANVAS_HEIGHT}, Node: {NODE_WIDTH}x{NODE_HEIGHT}")
+    
+    # Arrange nodes in grid pattern
+    updates = []
+    for i, node_doc in enumerate(node_docs):
+        row = i // cols
+        col = i % cols
+        
+        # Calculate position
+        x = start_x + col * (NODE_WIDTH + SPACING)
+        y = start_y + row * (NODE_HEIGHT + SPACING)
+        
+        # Ensure we don't go outside canvas bounds
+        if x > CANVAS_WIDTH - NODE_WIDTH / 2:
+            x = CANVAS_WIDTH - NODE_WIDTH / 2
+        if y > CANVAS_HEIGHT - NODE_HEIGHT / 2:
+            y = CANVAS_HEIGHT - NODE_HEIGHT / 2
+        
+        print(f"  Node {i+1}: ({x}, {y})")
+        
+        # Prepare update
+        updates.append({
+            "filter": {"_id": node_doc["_id"]},
+            "update": {
+                "$set": {
+                    "x": x,
+                    "y": y,
+                    "updated_at": datetime.utcnow()
+                }
+            }
+        })
+    
+    # Perform bulk update
+    if updates:
+        for update in updates:
+            await database.nodes.update_one(
+                update["filter"],
+                update["update"]
+            )
+    
+    print(f"Successfully arranged {len(updates)} nodes")
+    
+    return {
+        "message": f"Successfully arranged {len(node_docs)} nodes",
+        "arranged_count": len(node_docs)
+    }

@@ -50,12 +50,68 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
 
   const handleAddToMap = async (messageId: string) => {
     try {
-      const success = await addMessageToMap(messageId);
-      if (success && onAddToMap) {
-        onAddToMap(messageId);
+      // Enhanced debug logging for new implementation
+      console.log('=== NEW ADD TO MAP IMPLEMENTATION ===');
+      console.log('Message ID:', messageId);
+      console.log('Message ID type:', typeof messageId);
+      console.log('Is valid ObjectId format?', /^[0-9a-fA-F]{24}$/.test(messageId));
+      
+      // Find the message in our local state
+      const message = messages.find(m => m.id === messageId);
+      console.log('Found message in local state:', message);
+      
+      // Validate message ID format
+      if (!messageId || typeof messageId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(messageId)) {
+        console.error('Invalid message ID detected:', { messageId, type: typeof messageId });
+        alert('Error: Invalid message ID format. Please refresh the page and try again.');
+        return;
+      }
+      
+      // Check if message is already added to map
+      if (message?.added_to_map) {
+        console.log('Message already added to map');
+        alert('This message has already been added to the map.');
+        return;
+      }
+      
+      console.log('Calling new addMessageToMap implementation...');
+      
+      // Call the API with enhanced error handling
+      const success = await addMessageToMap(messageId, undefined, 'ai');
+      console.log('New addMessageToMap result:', success);
+      
+      if (success) {
+        console.log('Successfully added to map with new implementation!');
+        // Show success feedback
+        alert('Message successfully added to map! Check the canvas to see the new node.');
+        
+        // Call the callback if provided
+        if (onAddToMap) {
+          onAddToMap(messageId);
+        }
+      } else {
+        console.error('New addMessageToMap returned false');
+        alert('Failed to add message to map. The message may already be added or there was a server error.');
       }
     } catch (error) {
-      console.error('Failed to add message to map:', error);
+      console.error('Failed to add message to map with new implementation:', error);
+      
+      // Enhanced error messaging
+      let errorMessage = 'Unknown error occurred';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        
+        // Handle specific error cases
+        if (errorMessage.includes('already been added')) {
+          errorMessage = 'This message has already been added to the map.';
+        } else if (errorMessage.includes('not found')) {
+          errorMessage = 'Message not found. Please refresh the page and try again.';
+        } else if (errorMessage.includes('workspace')) {
+          errorMessage = 'Workspace error. Please check your workspace selection.';
+        }
+      }
+      
+      alert(`Error adding to map: ${errorMessage}`);
     }
   };
 
@@ -110,7 +166,12 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
       {/* Error Display */}
       {chatError && (
         <div className="mb-2 p-2 bg-red-500/10 border border-red-500/20 rounded-md">
-          <p className="text-xs text-red-400">{chatError}</p>
+          <p className="text-xs text-red-400">
+            {chatError === 'No workspace selected'
+              ? 'Please select or create a workspace to start chatting'
+              : chatError
+            }
+          </p>
         </div>
       )}
 
@@ -164,7 +225,7 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
                   {message.content}
                 </p>
                 
-                {/* Add to Map Button */}
+                {/* New Add to Map Button Implementation */}
                 {message.type === 'ai' && (
                   message.added_to_map ? (
                     <div className="flex items-center space-x-1 text-[10px] px-2 py-1 bg-green-500/20 text-green-300 rounded border border-green-500/30">
@@ -174,10 +235,11 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
                   ) : (
                     <button
                       onClick={() => handleAddToMap(message.id)}
-                      className="text-[10px] px-2 py-1 bg-[#6B6B3A]/20 text-[#E5E7EB] rounded hover:bg-[#6B6B3A]/30 transition-colors border border-[#6B6B3A]/20"
-                      aria-label={`Add message from ${message.author} to map`}
+                      className="text-[10px] px-2 py-1 bg-blue-500/20 text-blue-300 rounded hover:bg-blue-500/30 transition-colors border border-blue-500/30 font-medium"
+                      aria-label={`Add message from ${message.author} to exploration map`}
+                      title="Convert this AI response into a visual node on the exploration canvas"
                     >
-                      Add to Map
+                      ➕ Add to Map
                     </button>
                   )
                 )}

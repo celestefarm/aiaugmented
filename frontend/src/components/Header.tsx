@@ -154,25 +154,35 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, title, onTit
         </div>
 
         {/* Center Section - View Toggle */}
-        <div className="glass-pane rounded-full p-1">
+        <div className="glass-pane rounded-full p-1 relative z-50">
           <div className="flex">
             <button
-              onClick={() => onViewChange('exploration')}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+              onClick={() => {
+                console.log('Exploration Map clicked, current view:', currentView);
+                alert('Exploration Map clicked! Current view: ' + currentView);
+                onViewChange('exploration');
+              }}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-all cursor-pointer ${
                 currentView === 'exploration'
                   ? 'bg-[#6B6B3A]/30 text-white'
                   : 'text-[#9CA3AF] bg-transparent hover:text-white'
               }`}
+              style={{ pointerEvents: 'auto' }}
             >
               Exploration Map
             </button>
             <button
-              onClick={() => onViewChange('brief')}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+              onClick={() => {
+                console.log('Last-Mile Brief clicked, current view:', currentView);
+                alert('Last-Mile Brief clicked! Current view: ' + currentView);
+                onViewChange('brief');
+              }}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-all cursor-pointer ${
                 currentView === 'brief'
                   ? 'bg-[#6B6B3A]/30 text-white'
                   : 'text-[#9CA3AF] bg-transparent hover:text-white'
               }`}
+              style={{ pointerEvents: 'auto' }}
             >
               Last-Mile Brief
             </button>

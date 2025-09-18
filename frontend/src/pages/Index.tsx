@@ -7,15 +7,50 @@ import LastMileBrief from '../components/LastMileBrief';
 
 const Index: React.FC = () => {
   const navigate = useNavigate();
-  const { currentWorkspace, updateWorkspace } = useWorkspace();
+  const { currentWorkspace, updateWorkspace, workspaces, isLoading, createWorkspace, selectWorkspace } = useWorkspace();
   const [currentView, setCurrentView] = useState<'exploration' | 'brief'>('exploration');
+  const [isCreatingDefaultWorkspace, setIsCreatingDefaultWorkspace] = useState(false);
 
-  // Redirect to dashboard if no workspace is selected
+  // Handle workspace initialization
   useEffect(() => {
-    if (!currentWorkspace) {
-      navigate('/dashboard');
-    }
-  }, [currentWorkspace, navigate]);
+    const initializeWorkspace = async () => {
+      // If we have a current workspace, we're good
+      if (currentWorkspace?.id) {
+        return;
+      }
+
+      // If we're still loading, wait
+      if (isLoading) {
+        return;
+      }
+
+      // If we have existing workspaces but no current one selected, select the first one
+      if (workspaces.length > 0) {
+        selectWorkspace(workspaces[0]);
+        return;
+      }
+
+      // If no workspaces exist, create a default one
+      if (workspaces.length === 0 && !isCreatingDefaultWorkspace) {
+        setIsCreatingDefaultWorkspace(true);
+        try {
+          const defaultWorkspace = await createWorkspace({
+            title: 'My First Workspace',
+            settings: { active_agents: ['strategist'] },
+            transform: { x: 0, y: 0, scale: 1 }
+          });
+          selectWorkspace(defaultWorkspace);
+        } catch (error) {
+          console.error('Failed to create default workspace:', error);
+          navigate('/dashboard');
+        } finally {
+          setIsCreatingDefaultWorkspace(false);
+        }
+      }
+    };
+
+    initializeWorkspace();
+  }, [currentWorkspace, workspaces, isLoading, navigate, createWorkspace, selectWorkspace, isCreatingDefaultWorkspace]);
 
   // Handle workspace title change
   const handleTitleChange = async (newTitle: string) => {
@@ -34,7 +69,9 @@ const Index: React.FC = () => {
       <div className="h-screen w-screen flex items-center justify-center bg-[#0A0A0A] text-[#E5E7EB]">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-[#6B6B3A] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-400">Loading workspace...</p>
+          <p className="text-gray-400">
+            {isCreatingDefaultWorkspace ? 'Creating your workspace...' : 'Loading workspace...'}
+          </p>
         </div>
       </div>
     );
@@ -44,17 +81,30 @@ const Index: React.FC = () => {
     <div className="h-screen w-screen flex flex-col bg-[#0A0A0A] text-[#E5E7EB] overflow-hidden fixed inset-0">
       <Header
         currentView={currentView}
-        onViewChange={setCurrentView}
+        onViewChange={(view) => {
+          console.log('Index.tsx: View change requested to:', view);
+          console.log('Index.tsx: Current view before change:', currentView);
+          setCurrentView(view);
+          console.log('Index.tsx: setCurrentView called with:', view);
+        }}
         title={currentWorkspace.title}
         onTitleChange={handleTitleChange}
       />
       
       <main className="flex-1 overflow-hidden relative">
-        {currentView === 'exploration' ? (
-          <ExplorationMap />
-        ) : (
-          <LastMileBrief />
-        )}
+        {/* Debug indicator */}
+        <div className="absolute top-4 left-4 z-50 bg-red-500 text-white px-3 py-1 rounded text-sm">
+          Current View: {currentView}
+        </div>
+        
+        {(() => {
+          console.log('Index.tsx: Rendering view:', currentView);
+          if (currentView === 'exploration') {
+            return <ExplorationMap key="exploration" />;
+          } else {
+            return <LastMileBrief key="brief" />;
+          }
+        })()}
       </main>
     </div>
   );

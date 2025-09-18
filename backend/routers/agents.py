@@ -9,7 +9,7 @@ from models.agent import (
 )
 from models.workspace import WorkspaceInDB
 from models.user import UserInDB
-from utils.dependencies import get_current_user
+from utils.dependencies import get_current_active_user
 from utils.seed_agents import get_all_agents, get_agent_by_id, create_custom_agent
 from database import get_database
 from bson import ObjectId
@@ -19,7 +19,7 @@ router = APIRouter(tags=["agents"])
 
 
 @router.get("/agents", response_model=AgentListResponse)
-async def list_agents(current_user: UserInDB = Depends(get_current_user)):
+async def list_agents(current_user: UserInDB = Depends(get_current_active_user)):
     """
     List all available agents (both default and custom).
     """
@@ -42,7 +42,7 @@ async def list_agents(current_user: UserInDB = Depends(get_current_user)):
 async def activate_agent(
     workspace_id: str,
     agent_id: str,
-    current_user: UserInDB = Depends(get_current_user)
+    current_user: UserInDB = Depends(get_current_active_user)
 ):
     """
     Activate an agent for a specific workspace.
@@ -84,6 +84,8 @@ async def activate_agent(
             )
         
         # Get current workspace settings
+        # Convert ObjectId to string for Pydantic validation
+        workspace_doc["_id"] = str(workspace_doc["_id"])
         workspace = WorkspaceInDB(**workspace_doc)
         current_settings = workspace.settings or {}
         active_agents = current_settings.get("active_agents", [])
@@ -124,7 +126,7 @@ async def activate_agent(
 async def deactivate_agent(
     workspace_id: str,
     agent_id: str,
-    current_user: UserInDB = Depends(get_current_user)
+    current_user: UserInDB = Depends(get_current_active_user)
 ):
     """
     Deactivate an agent for a workspace.
@@ -166,6 +168,8 @@ async def deactivate_agent(
             )
         
         # Get current workspace settings
+        # Convert ObjectId to string for Pydantic validation
+        workspace_doc["_id"] = str(workspace_doc["_id"])
         workspace = WorkspaceInDB(**workspace_doc)
         current_settings = workspace.settings or {}
         active_agents = current_settings.get("active_agents", [])
@@ -205,7 +209,7 @@ async def deactivate_agent(
 @router.post("/agents/custom", response_model=AgentResponse)
 async def create_custom_agent_endpoint(
     agent_request: AgentCreateRequest,
-    current_user: UserInDB = Depends(get_current_user)
+    current_user: UserInDB = Depends(get_current_active_user)
 ):
     """
     Allow users to create a new custom agent.

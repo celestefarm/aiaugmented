@@ -216,6 +216,47 @@ export interface AgentInfoResponse {
   };
 }
 
+// Cognitive Analysis types
+export interface RelationshipSuggestion {
+  from_node_id: string;
+  to_node_id: string;
+  relationship_type: 'support' | 'contradiction' | 'dependency' | 'ai-relationship';
+  strength: number;
+  reasoning: string;
+  keywords: string[];
+}
+
+export interface CognitiveCluster {
+  type: string;
+  name: string;
+  nodes: string[];
+  description: string;
+}
+
+export interface CognitiveAnalysisResponse {
+  suggestions: RelationshipSuggestion[];
+  clusters: CognitiveCluster[];
+  insights: string[];
+}
+
+export interface NodeRelationshipRequest {
+  workspace_id: string;
+  node_ids?: string[];
+}
+
+export interface AutoConnectResponse {
+  success: boolean;
+  connections_created: number;
+  connections: Array<{
+    id: string;
+    from_node_id: string;
+    to_node_id: string;
+    type: string;
+    reasoning: string;
+  }>;
+  message: string;
+}
+
 // Document generation types
 export interface GenerateBriefResponse {
   content: string;
@@ -393,6 +434,12 @@ class ApiClient {
     });
   }
 
+  async autoArrangeNodes(workspaceId: string): Promise<{ message: string; arranged_count: number }> {
+    return await this.request<{ message: string; arranged_count: number }>(`/workspaces/${workspaceId}/nodes/auto-arrange`, {
+      method: 'POST',
+    });
+  }
+
   // Edge methods
   async getEdges(workspaceId: string): Promise<EdgeListResponse> {
     return await this.request<EdgeListResponse>(`/workspaces/${workspaceId}/edges`);
@@ -514,6 +561,31 @@ class ApiClient {
     }
   }
 
+  // Cognitive analysis methods
+  async analyzeCognitiveRelationships(workspaceId: string, nodeIds?: string[]): Promise<CognitiveAnalysisResponse> {
+    const requestData: NodeRelationshipRequest = {
+      workspace_id: workspaceId,
+      ...(nodeIds && { node_ids: nodeIds })
+    };
+    
+    return await this.request<CognitiveAnalysisResponse>(
+      `/workspaces/${workspaceId}/cognitive-analysis`,
+      {
+        method: 'POST',
+        body: JSON.stringify(requestData),
+      }
+    );
+  }
+
+  async autoConnectNodes(workspaceId: string): Promise<AutoConnectResponse> {
+    return await this.request<AutoConnectResponse>(
+      `/workspaces/${workspaceId}/auto-connect`,
+      {
+        method: 'POST',
+      }
+    );
+  }
+
   // Check if user is authenticated
   isAuthenticated(): boolean {
     const token = this.getToken();
@@ -556,8 +628,11 @@ export const {
   getMessages,
   sendMessage,
   addMessageToMap,
+  autoArrangeNodes,
   generateBrief,
   exportWorkspace,
   isAuthenticated,
   clearAuth,
+  analyzeCognitiveRelationships,
+  autoConnectNodes,
 } = apiClient;

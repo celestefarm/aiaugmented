@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Info, Mic, Paperclip, Plus, Upload, ChevronLeft, ChevronRight, X, Clock, User, Target, Users, Briefcase, Edit, Trash2, Undo, Redo, Save, ZoomIn, ZoomOut, Check, Link, MoreVertical } from 'lucide-react';
+import { Info, Mic, Paperclip, Plus, Upload, ChevronLeft, ChevronRight, X, Clock, User, Target, Users, Briefcase, Edit, Trash2, Undo, Redo, Save, ZoomIn, ZoomOut, Check, Link, MoreVertical, Grid3X3 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,8 +9,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useMap } from '@/contexts/MapContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useAgentChat, Agent, ChatMessage } from '@/contexts/AgentChatContext';
-import { Node, Edge, NodeCreateRequest, NodeUpdateRequest, EdgeCreateRequest } from '@/lib/api';
+import { Node, Edge, NodeCreateRequest, NodeUpdateRequest, EdgeCreateRequest, RelationshipSuggestion } from '@/lib/api';
 import SparringSession from './SparringSession';
+import { CognitiveAnalysis } from './CognitiveAnalysis';
 
 interface CustomAgentData {
   name: string;
@@ -37,7 +38,8 @@ const ExplorationMap: React.FC = () => {
     updateNode: updateNodeAPI,
     deleteNode: deleteNodeAPI,
     createEdge: createEdgeAPI,
-    deleteEdge: deleteEdgeAPI
+    deleteEdge: deleteEdgeAPI,
+    autoArrangeNodes
   } = useMap();
   
   const { currentWorkspace } = useWorkspace();
@@ -59,6 +61,7 @@ const ExplorationMap: React.FC = () => {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [draggedNode, setDraggedNode] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [draggedNodePosition, setDraggedNodePosition] = useState<{ x: number; y: number } | null>(null);
   
   // UI state
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
@@ -203,7 +206,7 @@ const ExplorationMap: React.FC = () => {
       return newNode;
     } catch (error) {
       console.error('Failed to create node:', error);
-      showNotification('Failed to create node');
+      showNotification(`Failed to create node: ${error instanceof Error ? error.message : 'Unknown error'}`);
       return null;
     }
   }, [currentWorkspace, saveToHistory, snapToGrid, showNotification, createNodeAPI]);
@@ -454,12 +457,12 @@ const ExplorationMap: React.FC = () => {
     }
     
     if (draggedNode) {
-      // Handle node dragging - update position via API when drag ends
+      // Handle node dragging with real-time visual updates
       const canvasPos = screenToCanvas(e.clientX, e.clientY);
       const snappedPos = snapToGrid(canvasPos.x - dragOffset.x, canvasPos.y - dragOffset.y);
       
-      // For now, we'll handle the position update in handleCanvasMouseUp
-      // This is a temporary visual update that will be synced with API on mouse up
+      // Update the dragged node's position for real-time visual feedback
+      setDraggedNodePosition(snappedPos);
     } else if (isDragging) {
       // Handle canvas panning
       const deltaX = e.clientX - dragStart.x;
@@ -475,17 +478,40 @@ const ExplorationMap: React.FC = () => {
     }
   }, [draggedNode, isDragging, dragStart, dragOffset, screenToCanvas, snapToGrid, isCreatingConnection, connectionStart]);
 
-  const handleCanvasMouseUp = useCallback((e: React.MouseEvent) => {
+  const handleCanvasMouseUp = useCallback(async (e: React.MouseEvent) => {
     e.preventDefault();
     
-    if (draggedNode) {
-      saveToHistory();
+    if (draggedNode && draggedNodePosition) {
+      // Update node position in backend
+      try {
+        const node = nodes.find(n => n.id === draggedNode);
+        if (node) {
+          const updateData: NodeUpdateRequest = {
+            title: node.title,
+            description: node.description,
+            type: node.type,
+            x: draggedNodePosition.x,
+            y: draggedNodePosition.y,
+            confidence: node.confidence,
+            feasibility: node.feasibility,
+            source_agent: node.source_agent
+          };
+          
+          await updateNodeAPI(draggedNode, updateData);
+          showNotification(`Moved ${node.title}`);
+        }
+      } catch (error) {
+        console.error('Failed to update node position:', error);
+        showNotification('Failed to update node position');
+      }
     }
     
+    // Clean up drag state
     setIsDragging(false);
     setDraggedNode(null);
     setDragOffset({ x: 0, y: 0 });
-  }, [draggedNode, saveToHistory]);
+    setDraggedNodePosition(null);
+  }, [draggedNode, draggedNodePosition, nodes, updateNodeAPI, showNotification]);
 
   const handleCanvasDoubleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -630,6 +656,29 @@ const ExplorationMap: React.FC = () => {
     });
   };
 
+  // Cognitive analysis handlers
+  const handleRelationshipSuggestion = useCallback(async (suggestion: RelationshipSuggestion) => {
+    try {
+      // Create the suggested connection
+      const connection = await createConnection(
+        suggestion.from_node_id,
+        suggestion.to_node_id,
+        suggestion.relationship_type
+      );
+      
+      if (connection) {
+        showNotification(`Created ${suggestion.relationship_type} connection (${Math.round(suggestion.strength * 100)}% confidence)`);
+      }
+    } catch (error) {
+      console.error('Failed to create suggested connection:', error);
+      showNotification('Failed to create suggested connection');
+    }
+  }, [createConnection, showNotification]);
+
+  const handleConnectionsCreated = useCallback((count: number) => {
+    showNotification(`Auto-connected ${count} node${count !== 1 ? 's' : ''} based on AI analysis`);
+  }, [showNotification]);
+
   // Navigation functions - removed since we now have proper workspace management
 
   // Utility functions
@@ -638,18 +687,46 @@ const ExplorationMap: React.FC = () => {
   const openAgentDetailsModal = (agentId: string) => setShowAgentDetailsModal(agentId);
   const closeAgentDetailsModal = () => setShowAgentDetailsModal(null);
 
-  const getEdgeStyle = (type: string) => {
+  const getEdgeStyle = (type: string, strength?: number) => {
+    const baseOpacity = strength ? Math.max(0.4, strength) : 0.6;
+    const strokeWidth = strength ? Math.max(1.5, strength * 3) : 2;
+    
     switch (type) {
       case 'support':
-        return { stroke: 'rgba(255, 255, 255, 0.6)', strokeWidth: 2, strokeDasharray: 'none' };
+        return {
+          stroke: `rgba(34, 197, 94, ${baseOpacity})`,
+          strokeWidth,
+          strokeDasharray: 'none',
+          filter: strength && strength > 0.8 ? 'drop-shadow(0 0 4px rgba(34, 197, 94, 0.5))' : 'none'
+        };
       case 'contradiction':
-        return { stroke: 'rgba(239, 68, 68, 0.7)', strokeWidth: 2, strokeDasharray: '8,4' };
+        return {
+          stroke: `rgba(239, 68, 68, ${baseOpacity})`,
+          strokeWidth,
+          strokeDasharray: '8,4',
+          filter: strength && strength > 0.8 ? 'drop-shadow(0 0 4px rgba(239, 68, 68, 0.5))' : 'none'
+        };
       case 'dependency':
-        return { stroke: 'rgba(156, 163, 175, 0.6)', strokeWidth: 1.5, strokeDasharray: '4,4' };
+        return {
+          stroke: `rgba(156, 163, 175, ${baseOpacity})`,
+          strokeWidth,
+          strokeDasharray: '4,4',
+          filter: strength && strength > 0.8 ? 'drop-shadow(0 0 4px rgba(156, 163, 175, 0.5))' : 'none'
+        };
       case 'ai-relationship':
-        return { stroke: 'rgba(59, 130, 246, 0.6)', strokeWidth: 1.5, strokeDasharray: '6,3' };
+        return {
+          stroke: `rgba(147, 51, 234, ${baseOpacity})`,
+          strokeWidth,
+          strokeDasharray: '6,3',
+          filter: strength && strength > 0.8 ? 'drop-shadow(0 0 4px rgba(147, 51, 234, 0.5))' : 'none'
+        };
       default:
-        return { stroke: 'rgba(255, 255, 255, 0.4)', strokeWidth: 1.5, strokeDasharray: 'none' };
+        return {
+          stroke: `rgba(255, 255, 255, ${baseOpacity * 0.7})`,
+          strokeWidth: strokeWidth * 0.8,
+          strokeDasharray: 'none',
+          filter: 'none'
+        };
     }
   };
 
@@ -666,20 +743,56 @@ const ExplorationMap: React.FC = () => {
     }
     
     if (isValidTarget) {
-      additionalStyles += ' ring-2 ring-green-400 ring-opacity-70 shadow-lg shadow-green-400/20';
+      additionalStyles += ' ring-2 ring-green-400 ring-opacity-70 shadow-lg shadow-green-400/20 animate-pulse';
     }
     
     switch (type) {
       case 'human':
-        return `${baseStyle} pulse-glow border-[#6B6B3A]/30 ${additionalStyles}`;
+        return `${baseStyle} pulse-glow border-[#6B6B3A]/30 bg-gradient-to-br from-[#6B6B3A]/5 to-[#6B6B3A]/10 ${additionalStyles}`;
       case 'ai':
-        return `${baseStyle} bg-blue-500/10 border-blue-400/40 ${additionalStyles}`;
+        return `${baseStyle} bg-gradient-to-br from-blue-500/10 to-purple-500/10 border-blue-400/40 shadow-lg shadow-blue-500/10 ${additionalStyles}`;
       case 'risk':
-        return `${baseStyle} bg-red-500/10 border-red-400/40 ${additionalStyles}`;
+        return `${baseStyle} bg-gradient-to-br from-red-500/10 to-orange-500/10 border-red-400/40 shadow-lg shadow-red-500/10 ${additionalStyles}`;
       case 'dependency':
-        return `${baseStyle} bg-gray-500/10 border-gray-400/40 ${additionalStyles}`;
+        return `${baseStyle} bg-gradient-to-br from-gray-500/10 to-slate-500/10 border-gray-400/40 shadow-lg shadow-gray-500/10 ${additionalStyles}`;
+      case 'decision':
+        return `${baseStyle} bg-gradient-to-br from-yellow-500/10 to-amber-500/10 border-yellow-400/40 shadow-lg shadow-yellow-500/10 ${additionalStyles}`;
       default:
-        return `${baseStyle} ${additionalStyles}`;
+        return `${baseStyle} bg-gradient-to-br from-gray-400/5 to-gray-500/10 border-gray-400/30 ${additionalStyles}`;
+    }
+  };
+
+  const getNodeIcon = (type: string) => {
+    switch (type) {
+      case 'human':
+        return <User className="w-4 h-4 text-[#6B6B3A]" />;
+      case 'ai':
+        return <Target className="w-4 h-4 text-blue-400" />;
+      case 'risk':
+        return <X className="w-4 h-4 text-red-400" />;
+      case 'dependency':
+        return <Link className="w-4 h-4 text-gray-400" />;
+      case 'decision':
+        return <Check className="w-4 h-4 text-yellow-400" />;
+      default:
+        return <Info className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
+  const getNodeTypeColor = (type: string) => {
+    switch (type) {
+      case 'human':
+        return 'glow-olive-text';
+      case 'ai':
+        return 'text-blue-300';
+      case 'risk':
+        return 'text-red-300';
+      case 'dependency':
+        return 'text-gray-300';
+      case 'decision':
+        return 'text-yellow-300';
+      default:
+        return 'text-gray-300';
     }
   };
 
@@ -705,6 +818,33 @@ const ExplorationMap: React.FC = () => {
       return () => document.removeEventListener('click', handleClickOutside);
     }
   }, [showContextMenu]);
+
+  // Show loading state if map is loading
+  if (mapLoading && nodes.length === 0) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center bg-[#0A0A0A] text-[#E5E7EB]">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-[#6B6B3A] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading exploration map...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state if there's a map error
+  if (mapError) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center bg-[#0A0A0A] text-[#E5E7EB]">
+        <div className="text-center">
+          <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
+            <X className="w-6 h-6 text-red-400" />
+          </div>
+          <p className="text-red-300 mb-2">Failed to load map</p>
+          <p className="text-gray-400 text-sm">{mapError}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <TooltipProvider>
@@ -769,10 +909,10 @@ const ExplorationMap: React.FC = () => {
 
         {/* Left Sidebar - Agents */}
         <div
-          className={`flex-shrink-0 h-[calc(100vh-4rem)] mt-16 glass-pane border-r border-gray-800/50 transition-all duration-300 ease-in-out ${
+          className={`flex-shrink-0 h-screen glass-pane border-r border-gray-800/50 transition-all duration-300 ease-in-out ${
             leftSidebarCollapsed ? 'w-12' : 'w-64'
           }`}
-          style={{ zIndex: 30 }}
+          style={{ zIndex: 30, paddingTop: '4rem' }}
         >
           {leftSidebarCollapsed ? (
             <div className="p-2 h-full flex flex-col items-center">
@@ -785,7 +925,7 @@ const ExplorationMap: React.FC = () => {
               </button>
             </div>
           ) : (
-            <div className="p-4 h-full flex flex-col">
+            <div className="p-4 h-full flex flex-col" style={{ height: 'calc(100vh - 4rem)' }}>
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-lg font-semibold text-[#E5E7EB]">Agents</h2>
                 <button
@@ -797,7 +937,7 @@ const ExplorationMap: React.FC = () => {
                 </button>
               </div>
 
-              <div className="flex-grow overflow-y-auto space-y-2 mb-4 pb-32">
+              <div className="flex-grow overflow-y-auto space-y-2 mb-4">
                 {agents.map(agent => (
                   <div
                     key={agent.id}
@@ -868,10 +1008,11 @@ const ExplorationMap: React.FC = () => {
                 ))}
               </div>
 
+
               {/* Navigation removed - now handled by Header component */}
 
               {/* Footer */}
-              <div className="absolute bottom-0 left-0 right-0 p-4 pt-3 border-t border-gray-800/50 glass-pane">
+              <div className="mt-auto p-4 pt-3 border-t border-gray-800/50 glass-pane">
                 <div className="flex space-x-2">
                   <button
                     onClick={() => window.location.href = '/dashboard'}
@@ -894,14 +1035,15 @@ const ExplorationMap: React.FC = () => {
         {/* Map Area - RESPONSIVE CANVAS */}
         <div
           ref={canvasRef}
-          className={`flex-1 select-none overflow-hidden relative mt-16 ${
+          className={`flex-1 select-none overflow-hidden relative ${
             isDragging ? 'cursor-grabbing' :
             isCreatingConnection ? 'cursor-crosshair' :
             'cursor-grab'
           }`}
           style={{
             boxShadow: 'inset 0 0 40px -10px rgba(107, 107, 58, 0.3)',
-            height: 'calc(100vh - 4rem)',
+            height: '100vh',
+            paddingTop: '4rem',
           }}
           onMouseDown={handleCanvasMouseDown}
           onMouseMove={handleCanvasMouseMove}
@@ -914,6 +1056,16 @@ const ExplorationMap: React.FC = () => {
           role="application"
           aria-label="Strategy mapping canvas"
         >
+          {/* Debug Info - Node Count Display */}
+          <div className="absolute top-4 right-4 glass-pane px-4 py-2 text-sm text-[#E5E7EB] z-50">
+            <div className="text-xs">
+              <div>Nodes: {nodes.length}</div>
+              <div>Edges: {edges.length}</div>
+              <div>Loading: {mapLoading ? 'Yes' : 'No'}</div>
+              {mapError && <div className="text-red-400">Error: {mapError}</div>}
+            </div>
+          </div>
+
           {/* Top Toolbar */}
           <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex space-x-2 z-40">
             <Tooltip>
@@ -955,6 +1107,29 @@ const ExplorationMap: React.FC = () => {
                 </button>
               </TooltipTrigger>
               <TooltipContent>Connect Nodes (C)</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={async () => {
+                    try {
+                      await autoArrangeNodes();
+                      showNotification('Nodes auto-arranged successfully');
+                    } catch (error) {
+                      console.error('Failed to auto-arrange nodes:', error);
+                      showNotification('Failed to auto-arrange nodes');
+                    }
+                  }}
+                  disabled={nodes.length === 0}
+                  className="glass-pane px-4 py-2 text-sm font-medium text-[#E5E7EB] hover:text-[#6B6B3A] transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Auto-arrange nodes to prevent overlapping"
+                >
+                  <Grid3X3 className="w-4 h-4" />
+                  <span>Auto-Arrange</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Auto-Arrange Nodes</TooltipContent>
             </Tooltip>
 
             <div className="flex space-x-1">
@@ -1147,21 +1322,30 @@ const ExplorationMap: React.FC = () => {
             </svg>
 
             {/* Nodes Layer - FIXED */}
-            {nodes.map(node => (
-              <div
-                key={node.id}
-                className={getNodeStyle(
-                  node.type,
-                  selectedNode === node.id,
-                  focusedNode === node.id,
-                  isValidConnectionTarget(node.id)
-                )}
-                style={{
-                  position: 'absolute',
-                  left: node.x,
-                  top: node.y,
-                  zIndex: 20,
-                }}
+            {nodes.map(node => {
+              // Use dragged position if this node is being dragged, otherwise use stored position
+              const nodePosition = draggedNode === node.id && draggedNodePosition
+                ? draggedNodePosition
+                : { x: node.x, y: node.y };
+              
+              return (
+                <div
+                  key={node.id}
+                  className={getNodeStyle(
+                    node.type,
+                    selectedNode === node.id,
+                    focusedNode === node.id,
+                    isValidConnectionTarget(node.id)
+                  )}
+                  style={{
+                    position: 'absolute',
+                    left: nodePosition.x,
+                    top: nodePosition.y,
+                    zIndex: draggedNode === node.id ? 30 : 20, // Bring dragged node to front
+                    opacity: draggedNode === node.id ? 0.8 : 1, // Slight transparency while dragging
+                    transform: draggedNode === node.id ? 'scale(1.05)' : 'scale(1)', // Slight scale while dragging
+                    transition: draggedNode === node.id ? 'none' : 'transform 0.2s ease', // Disable transition while dragging
+                  }}
                 onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
                 onDoubleClick={(e) => handleNodeDoubleClick(e, node.id)}
                 onContextMenu={(e) => handleNodeRightClick(e, node.id)}
@@ -1180,14 +1364,12 @@ const ExplorationMap: React.FC = () => {
                     </div>
                   )}
                   
-                  <h3 className={`font-bold text-sm mb-2 ${
-                    node.type === 'ai' ? 'text-blue-300' :
-                    node.type === 'risk' ? 'text-red-300' :
-                    node.type === 'dependency' ? 'text-gray-300' :
-                    'glow-olive-text'
-                  }`}>
-                    {node.title}
-                  </h3>
+                  <div className="flex items-center gap-2 mb-2">
+                    {getNodeIcon(node.type)}
+                    <h3 className={`font-bold text-sm ${getNodeTypeColor(node.type)}`}>
+                      {node.title}
+                    </h3>
+                  </div>
                   
                   <p
                     id={`node-desc-${node.id}`}
@@ -1197,37 +1379,67 @@ const ExplorationMap: React.FC = () => {
                   </p>
                   
                   <div className="flex justify-between items-center text-xs">
-                    {node.confidence && (
-                      <span className="text-[#6B6B3A]">
-                        {node.confidence}%
+                    <div className="flex items-center gap-2">
+                      {node.confidence && (
+                        <span className="text-[#6B6B3A] bg-[#6B6B3A]/10 px-1.5 py-0.5 rounded">
+                          {node.confidence}%
+                        </span>
+                      )}
+                      <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                        node.type === 'human' ? 'bg-[#6B6B3A]/20 text-[#6B6B3A]' :
+                        node.type === 'ai' ? 'bg-blue-500/20 text-blue-300' :
+                        node.type === 'risk' ? 'bg-red-500/20 text-red-300' :
+                        node.type === 'dependency' ? 'bg-gray-500/20 text-gray-300' :
+                        node.type === 'decision' ? 'bg-yellow-500/20 text-yellow-300' :
+                        'bg-gray-400/20 text-gray-300'
+                      }`}>
+                        {node.type}
                       </span>
-                    )}
+                    </div>
                     <span className="text-gray-500">
                       {formatTimestamp(node.created_at)}
                     </span>
                   </div>
 
-                  {/* Enhanced Tooltip */}
+                  {/* Enhanced Tooltip with Cognitive Context */}
                   {hoveredNode === node.id && (
-                    <div className="absolute bottom-full left-0 mb-2 w-64 glass-pane p-3 text-xs z-50 pointer-events-none">
-                      <div className="font-medium text-[#6B6B3A] mb-1">
-                        {node.source_agent ? `${node.source_agent} Insight` : 'Node Details'}
+                    <div className="absolute bottom-full left-0 mb-2 w-72 glass-pane p-4 text-xs z-50 pointer-events-none border border-gray-600/50 rounded-lg shadow-xl">
+                      <div className="flex items-center gap-2 mb-2">
+                        {getNodeIcon(node.type)}
+                        <div className="font-medium text-[#6B6B3A]">
+                          {node.source_agent ? `${node.source_agent} Insight` : `${node.type.charAt(0).toUpperCase() + node.type.slice(1)} Node`}
+                        </div>
                       </div>
-                      <div className="text-gray-300 mb-2">{node.description}</div>
-                      <div className="text-gray-500 text-xs">
-                        Created {formatTimestamp(node.created_at)}
+                      <div className="text-gray-300 mb-3 leading-relaxed">{node.description}</div>
+                      
+                      {/* Connection count */}
+                      <div className="flex items-center justify-between text-xs border-t border-gray-600/30 pt-2">
+                        <div className="flex items-center gap-4">
+                          <span className="text-gray-400">
+                            {edges.filter(e => e.from_node_id === node.id || e.to_node_id === node.id).length} connections
+                          </span>
+                          {node.confidence && (
+                            <span className="text-[#6B6B3A]">
+                              {node.confidence}% confidence
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-gray-500">
+                          {formatTimestamp(node.created_at)}
+                        </span>
                       </div>
                     </div>
                   )}
                 </div>
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
         </div>
 
         {/* Right Sidebar - Sparring Session */}
-        <div className="flex-shrink-0 w-80 h-[calc(100vh-4rem)] mt-16 glass-pane border-l border-gray-800/50 overflow-hidden" style={{ zIndex: 30 }}>
-          <div className="p-3 h-full overflow-hidden">
+        <div className="flex-shrink-0 w-80 h-screen glass-pane border-l border-gray-800/50 overflow-hidden" style={{ zIndex: 30, paddingTop: '4rem' }}>
+          <div className="p-3 h-full overflow-hidden" style={{ height: 'calc(100vh - 4rem)' }}>
             <SparringSession onAddToMap={addIdeaToMapLocal} />
           </div>
         </div>

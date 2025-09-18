@@ -36,7 +36,7 @@ async def verify_workspace_access(workspace_id: str, current_user: UserResponse)
     database = get_database()
     workspace = await database.workspaces.find_one({
         "_id": ObjectId(workspace_id),
-        "owner_id": ObjectId(current_user.id)
+        "owner_id": current_user.id
     })
     
     if not workspace:

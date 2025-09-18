@@ -22,6 +22,7 @@ interface MapContextType {
   // Utility actions
   clearMapData: () => void;
   refreshMapData: () => Promise<void>;
+  autoArrangeNodes: () => Promise<void>;
 }
 
 // Create context
@@ -43,7 +44,7 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
 
   // Load map data (nodes and edges) for current workspace
   const loadMapData = useCallback(async (): Promise<void> => {
-    if (!currentWorkspace) {
+    if (!currentWorkspace?.id) {
       clearMapData();
       return;
     }
@@ -57,6 +58,12 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
         apiClient.getNodes(currentWorkspace.id),
         apiClient.getEdges(currentWorkspace.id)
       ]);
+      
+      console.log('=== MAP CONTEXT DEBUG ===');
+      console.log('Loaded nodes:', nodesResponse.nodes);
+      console.log('Node count:', nodesResponse.nodes.length);
+      console.log('Loaded edges:', edgesResponse.edges);
+      console.log('Edge count:', edgesResponse.edges.length);
       
       setNodes(nodesResponse.nodes);
       setEdges(edgesResponse.edges);
@@ -74,7 +81,7 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
 
   // Create a new node
   const createNode = useCallback(async (data: NodeCreateRequest): Promise<Node | null> => {
-    if (!currentWorkspace) {
+    if (!currentWorkspace?.id) {
       setError('No workspace selected');
       return null;
     }
@@ -94,7 +101,7 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
 
   // Update an existing node
   const updateNode = useCallback(async (nodeId: string, data: NodeUpdateRequest): Promise<Node | null> => {
-    if (!currentWorkspace) {
+    if (!currentWorkspace?.id) {
       setError('No workspace selected');
       return null;
     }
@@ -118,7 +125,7 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
 
   // Delete a node
   const deleteNode = useCallback(async (nodeId: string): Promise<void> => {
-    if (!currentWorkspace) {
+    if (!currentWorkspace?.id) {
       setError('No workspace selected');
       return;
     }
@@ -142,7 +149,7 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
 
   // Create a new edge
   const createEdge = useCallback(async (data: EdgeCreateRequest): Promise<Edge | null> => {
-    if (!currentWorkspace) {
+    if (!currentWorkspace?.id) {
       setError('No workspace selected');
       return null;
     }
@@ -162,7 +169,7 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
 
   // Delete an edge
   const deleteEdge = useCallback(async (edgeId: string): Promise<void> => {
-    if (!currentWorkspace) {
+    if (!currentWorkspace?.id) {
       setError('No workspace selected');
       return;
     }
@@ -191,6 +198,27 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
     await loadMapData();
   }, [loadMapData]);
 
+  // Auto-arrange nodes to prevent overlapping
+  const autoArrangeNodes = useCallback(async (): Promise<void> => {
+    if (!currentWorkspace?.id) {
+      setError('No workspace selected');
+      return;
+    }
+
+    try {
+      setError(null);
+      const response = await apiClient.autoArrangeNodes(currentWorkspace.id);
+      console.log('Auto-arrange result:', response);
+      
+      // Refresh the map data to show the new positions
+      await loadMapData();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to auto-arrange nodes';
+      setError(errorMessage);
+      console.error('Failed to auto-arrange nodes:', err);
+    }
+  }, [currentWorkspace, loadMapData]);
+
   // Load map data when workspace changes
   useEffect(() => {
     if (currentWorkspace) {
@@ -214,6 +242,7 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
     deleteEdge,
     clearMapData,
     refreshMapData,
+    autoArrangeNodes,
   };
 
   return (
