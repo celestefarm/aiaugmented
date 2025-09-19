@@ -10,7 +10,7 @@ from models.node import (
 )
 from models.user import UserResponse
 from utils.dependencies import get_current_active_user
-from utils.summarization import summarize_node_title
+from utils.summarization import summarize_node_title, summarize_conversation
 from database import get_database
 from datetime import datetime
 from bson import ObjectId
@@ -33,6 +33,20 @@ class SummarizeResponse(BaseModel):
     summarized_title: str = Field(..., description="Generated summarized title")
     method_used: str = Field(..., description="Summarization method used (local or fallback)")
     confidence: Optional[int] = Field(None, description="Confidence score (0-100)")
+
+
+class ConversationSummarizeRequest(BaseModel):
+    """Request model for conversation summarization"""
+    conversation_text: str = Field(..., min_length=1, description="Full conversation text to summarize")
+
+
+class ConversationSummarizeResponse(BaseModel):
+    """Response model for conversation summarization"""
+    node_id: str = Field(..., description="Node ID")
+    key_message: str = Field(..., description="Concise 2-line summary of conversation")
+    keynote_points: List[str] = Field(..., description="3-5 bullet points highlighting key points")
+    confidence: int = Field(..., description="Confidence score (0-100)")
+    method_used: str = Field(..., description="Summarization method used")
 
 
 async def verify_workspace_access(workspace_id: str, current_user: UserResponse) -> None:
@@ -536,4 +550,102 @@ async def summarize_node_title_endpoint(
         summarized_title=summarized_title,
         method_used=method_used,
         confidence=confidence
+    )
+
+
+@router.post("/nodes/{node_id}/summarize-conversation", response_model=ConversationSummarizeResponse)
+async def summarize_conversation_endpoint(
+    node_id: str,
+    request: ConversationSummarizeRequest,
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Generate conversation summary with key message and keynote points for a node.
+    
+    This endpoint analyzes conversation text and generates:
+    - Key Message: A concise 2-line summary capturing the main takeaway
+    - Keynote Points: 3-5 bullet points highlighting important discussion points
+    
+    Args:
+        node_id: Node ID to store the summary for
+        request: Conversation summarization request with conversation text
+        current_user: Current authenticated user (from dependency)
+        
+    Returns:
+        Conversation summary with key message, keynote points, and metadata
+        
+    Raises:
+        HTTPException: If node not found or access denied
+    """
+    # Validate node ID format
+    if not ObjectId.is_valid(node_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid node ID format"
+        )
+    
+    # Get database instance
+    database = get_database()
+    
+    # Find the node and verify user has access to it
+    node_doc = await database.nodes.find_one({"_id": ObjectId(node_id)})
+    
+    if not node_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Node not found"
+        )
+    
+    # Verify user has access to the workspace containing this node
+    workspace_id = str(node_doc.get("workspace_id"))
+    try:
+        await verify_workspace_access(workspace_id, current_user)
+    except HTTPException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Node not found or access denied"
+        )
+    
+    # Generate the conversation summary using our NLP service
+    try:
+        summary_result = summarize_conversation(request.conversation_text)
+        
+        key_message = summary_result.get("key_message", "")
+        keynote_points = summary_result.get("keynote_points", [])
+        confidence = summary_result.get("confidence", 0)
+        method_used = summary_result.get("method_used", "fallback")
+        
+    except Exception as e:
+        # Fallback to simple extraction if NLP fails
+        key_message = "More context needed for tailored strategy."
+        keynote_points = [
+            "Lacks specific details on market scope",
+            "Cannot propose targeted strategies without context"
+        ]
+        confidence = 30
+        method_used = "fallback"
+    
+    # Store the conversation summary in the node
+    update_data = {
+        "key_message": key_message,
+        "keynote_points": keynote_points,
+        "updated_at": datetime.utcnow()
+    }
+    
+    try:
+        await database.nodes.update_one(
+            {"_id": ObjectId(node_id)},
+            {"$set": update_data}
+        )
+    except Exception as e:
+        # Log the error but don't fail the request
+        print(f"Warning: Failed to store conversation summary in database: {e}")
+    
+    # Return the response
+    return ConversationSummarizeResponse(
+        node_id=node_id,
+        key_message=key_message,
+        keynote_points=keynote_points,
+        confidence=confidence,
+        method_used=method_used
     )

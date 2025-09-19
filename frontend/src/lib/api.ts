@@ -4,6 +4,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000
 // Types for API responses
 export interface User {
   id: string;
+  _id?: string; // Backend returns _id, frontend uses id
   email: string;
   name: string;
   created_at: string;
@@ -86,6 +87,8 @@ export interface Node {
   feasibility?: string;
   source_agent?: string;
   summarized_titles?: Record<string, string>;
+  key_message?: string;
+  keynote_points?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -404,12 +407,29 @@ class ApiClient {
   }
 
   async login(data: LoginRequest): Promise<TokenResponse> {
+    console.log('=== API CLIENT LOGIN DEBUG ===');
+    console.log('Login data:', data);
+    console.log('API Base URL:', this.baseUrl);
+    
     const response = await this.request<TokenResponse>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(data),
     });
     
+    console.log('Raw login response:', response);
+    
+    // Fix user data structure mismatch: backend returns "_id" but frontend expects "id"
+    if (response.user && response.user._id) {
+      console.log('Fixing user ID field from _id to id');
+      console.log('Original user._id:', response.user._id);
+      (response.user as any).id = response.user._id;
+      console.log('Fixed user.id:', (response.user as any).id);
+    }
+    
+    console.log('Final response user:', response.user);
+    
     this.setToken(response.access_token);
+    console.log('Token set successfully');
     return response;
   }
 
@@ -425,7 +445,14 @@ class ApiClient {
   }
 
   async getCurrentUser(): Promise<User> {
-    return await this.request<User>('/auth/me');
+    const user = await this.request<User>('/auth/me');
+    
+    // Fix user data structure mismatch: backend returns "_id" but frontend expects "id"
+    if (user && user._id && !user.id) {
+      (user as any).id = user._id;
+    }
+    
+    return user;
   }
 
   async updateProfile(data: { name?: string }): Promise<User> {
@@ -469,10 +496,17 @@ class ApiClient {
     console.log('=== GET NODES API CALL ===');
     console.log('Workspace ID:', workspaceId);
     
+    // Add cache-busting timestamp to ensure fresh data
+    const cacheBuster = Date.now();
+    const endpoint = `/workspaces/${workspaceId}/nodes?_t=${cacheBuster}`;
+    console.log('Cache-busting endpoint:', endpoint);
+    
     try {
-      const response = await this.request<NodeListResponse>(`/workspaces/${workspaceId}/nodes`);
+      const response = await this.request<NodeListResponse>(endpoint);
       
-      console.log('Get nodes response:', response);
+      console.log('=== NODE DATA RECEIVED ===');
+      console.log('Raw response:', response);
+      console.log('Response type:', typeof response);
       
       // CRITICAL: Validate response structure
       if (!response) {
@@ -496,7 +530,20 @@ class ApiClient {
         throw new Error('Failed to fetch nodes - nodes is not an array');
       }
       
-      console.log('Get nodes validation passed, found', response.nodes.length, 'nodes');
+      console.log('=== NODE DATA VALIDATION ===');
+      console.log('Total nodes found:', response.nodes.length);
+      
+      // Log key_message data for each node to verify it's being received
+      response.nodes.forEach((node, index) => {
+        console.log(`Node ${index + 1} (${node.id}):`);
+        console.log(`  Title: "${node.title}"`);
+        console.log(`  Key Message: ${node.key_message ? `"${node.key_message}"` : 'NOT PRESENT'}`);
+        console.log(`  Summarized Titles:`, node.summarized_titles || 'NOT PRESENT');
+        console.log(`  Description length: ${node.description?.length || 0} chars`);
+        console.log('  ---');
+      });
+      
+      console.log('✅ Get nodes validation passed with cache-busting');
       return response;
     } catch (error) {
       console.error('=== GET NODES ERROR ===');
@@ -559,15 +606,42 @@ class ApiClient {
     }
   }
 
+  // Conversation summarization method
+  async summarizeConversation(nodeId: string, data: { conversation_text: string }): Promise<Node> {
+    console.log('=== SUMMARIZE CONVERSATION API CALL ===');
+    console.log('Node ID:', nodeId);
+    console.log('Conversation text length:', data.conversation_text.length);
+    
+    try {
+      const response = await this.request<Node>(`/nodes/${nodeId}/summarize-conversation`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      
+      console.log('Conversation summarization response:', response);
+      return response;
+    } catch (error) {
+      console.error('=== CONVERSATION SUMMARIZATION API ERROR ===');
+      console.error('Error details:', error);
+      throw error;
+    }
+  }
+
   // Edge methods
   async getEdges(workspaceId: string): Promise<EdgeListResponse> {
     console.log('=== GET EDGES API CALL ===');
     console.log('Workspace ID:', workspaceId);
     
+    // Add cache-busting timestamp to ensure fresh data
+    const cacheBuster = Date.now();
+    const endpoint = `/workspaces/${workspaceId}/edges?_t=${cacheBuster}`;
+    console.log('Cache-busting endpoint:', endpoint);
+    
     try {
-      const response = await this.request<EdgeListResponse>(`/workspaces/${workspaceId}/edges`);
+      const response = await this.request<EdgeListResponse>(endpoint);
       
-      console.log('Get edges response:', response);
+      console.log('=== EDGE DATA RECEIVED ===');
+      console.log('Raw response:', response);
       
       // CRITICAL: Validate response structure
       if (!response) {
@@ -591,7 +665,7 @@ class ApiClient {
         throw new Error('Failed to fetch edges - edges is not an array');
       }
       
-      console.log('Get edges validation passed, found', response.edges.length, 'edges');
+      console.log('✅ Get edges validation passed with cache-busting, found', response.edges.length, 'edges');
       return response;
     } catch (error) {
       console.error('=== GET EDGES ERROR ===');
@@ -841,4 +915,5 @@ export const {
   analyzeCognitiveRelationships,
   autoConnectNodes,
   summarizeNodeTitle,
+  summarizeConversation,
 } = apiClient;

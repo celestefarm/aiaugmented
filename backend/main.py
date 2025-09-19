@@ -28,13 +28,26 @@ app = FastAPI(
 )
 
 # Configure CORS
-cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000,http://localhost:5137").split(",")
+cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000,http://localhost:5137,http://localhost:5138,http://localhost:5139").split(",")
+# Clean up any whitespace from origins
+cors_origins = [origin.strip() for origin in cors_origins]
+final_origins = cors_origins + ["http://localhost:5137", "http://localhost:5138", "http://localhost:5139"]
+# Remove duplicates while preserving order
+final_origins = list(dict.fromkeys(final_origins))
+
+# Add wildcard for development - REMOVE IN PRODUCTION
+if os.getenv("ENVIRONMENT", "development") == "development":
+    final_origins.append("*")
+
+print(f"DEBUG: CORS Origins configured: {final_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins + ["http://localhost:5137"],  # Ensure frontend origin is allowed
+    allow_origins=final_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Root endpoint

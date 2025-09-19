@@ -45,7 +45,7 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   // Load map data (nodes and edges) for current workspace
-  const loadMapData = useCallback(async (): Promise<void> => {
+  const loadMapData = useCallback(async (forceRefresh: boolean = false): Promise<void> => {
     if (!currentWorkspace?.id) {
       console.log('=== MAP CONTEXT DEBUG ===');
       console.log('No current workspace, clearing map data');
@@ -74,25 +74,38 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
       
       console.log('=== MAP CONTEXT DEBUG ===');
       console.log('Loading map data for workspace:', currentWorkspace.id);
+      console.log('Force refresh:', forceRefresh);
       console.log('Auth token exists:', !!localStorage.getItem('auth_token'));
       console.log('API client authenticated:', apiClient.isAuthenticated());
       console.log('Auth context authenticated:', isAuthenticated);
       console.log('Auth loading:', authLoading);
       
-      // Load nodes and edges from API
+      // Load nodes and edges from API (cache-busting is handled in API client)
       const [nodesResponse, edgesResponse] = await Promise.all([
         apiClient.getNodes(currentWorkspace.id),
         apiClient.getEdges(currentWorkspace.id)
       ]);
       
-      console.log('Map data loaded successfully');
-      console.log('Loaded nodes:', nodesResponse.nodes);
+      console.log('=== MAP DATA LOADED SUCCESSFULLY ===');
       console.log('Node count:', nodesResponse.nodes.length);
-      console.log('Loaded edges:', edgesResponse.edges);
       console.log('Edge count:', edgesResponse.edges.length);
       
-      setNodes(nodesResponse.nodes);
-      setEdges(edgesResponse.edges);
+      // Log key_message data verification
+      const nodesWithKeyMessage = nodesResponse.nodes.filter(node => node.key_message);
+      console.log(`Nodes with key_message: ${nodesWithKeyMessage.length}/${nodesResponse.nodes.length}`);
+      
+      if (nodesWithKeyMessage.length > 0) {
+        console.log('=== KEY MESSAGE VERIFICATION ===');
+        nodesWithKeyMessage.forEach((node, index) => {
+          console.log(`Node ${index + 1}: "${node.title}" -> Key Message: "${node.key_message}"`);
+        });
+      }
+      
+      // Force component re-render by creating new array references
+      setNodes([...nodesResponse.nodes]);
+      setEdges([...edgesResponse.edges]);
+      
+      console.log('✅ Map data state updated, components should re-render');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load map data';
       console.error('=== MAP LOADING ERROR ===');
@@ -227,9 +240,10 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
     setError(null);
   }, []);
 
-  // Refresh map data
+  // Refresh map data with force refresh
   const refreshMapData = useCallback(async (): Promise<void> => {
-    await loadMapData();
+    console.log('=== MANUAL REFRESH TRIGGERED ===');
+    await loadMapData(true);
   }, [loadMapData]);
 
   // Auto-arrange nodes to prevent overlapping
@@ -268,7 +282,7 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
     edges,
     isLoading,
     error,
-    loadMapData,
+    loadMapData: () => loadMapData(false),
     createNode,
     updateNode,
     deleteNode,

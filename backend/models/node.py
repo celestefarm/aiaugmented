@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from datetime import datetime
 from bson import ObjectId
 from models.user import PyObjectId
@@ -49,6 +49,8 @@ class NodeResponse(BaseModel):
     feasibility: Optional[str] = None
     source_agent: Optional[str] = None
     summarized_titles: Optional[Dict[str, str]] = Field(default_factory=dict, description="Context-specific summarized titles")
+    key_message: Optional[str] = Field(None, description="Concise 2-line summary of conversation content")
+    keynote_points: Optional[List[str]] = Field(default_factory=list, description="3-5 bullet points highlighting key discussion points")
     created_at: datetime
     updated_at: datetime
 
@@ -79,6 +81,8 @@ class NodeInDB(BaseModel):
     feasibility: Optional[str] = None
     source_agent: Optional[str] = None
     summarized_titles: Optional[Dict[str, str]] = Field(default_factory=dict, description="Context-specific summarized titles")
+    key_message: Optional[str] = Field(None, description="Concise 2-line summary of conversation content")
+    keynote_points: Optional[List[str]] = Field(default_factory=list, description="3-5 bullet points highlighting key discussion points")
     created_at: datetime
     updated_at: datetime
 
@@ -96,6 +100,8 @@ class NodeInDB(BaseModel):
             feasibility=self.feasibility,
             source_agent=self.source_agent,
             summarized_titles=self.summarized_titles or {},
+            key_message=self.key_message,
+            keynote_points=self.keynote_points or [],
             created_at=self.created_at,
             updated_at=self.updated_at
         )
@@ -113,5 +119,7 @@ class NodeCreate(BaseModel):
     feasibility: Optional[str] = None
     source_agent: Optional[str] = None
     summarized_titles: Optional[Dict[str, str]] = Field(default_factory=dict, description="Context-specific summarized titles")
+    key_message: Optional[str] = Field(None, description="Concise 2-line summary of conversation content")
+    keynote_points: Optional[List[str]] = Field(default_factory=list, description="3-5 bullet points highlighting key discussion points")
     created_at: datetime
     updated_at: datetime

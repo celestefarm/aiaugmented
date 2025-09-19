@@ -148,7 +148,18 @@ async def login(user_data: UserLoginRequest, request: Request):
     logger.info(f"Request URL: {request.url}")
     logger.info(f"Request method: {request.method}")
     logger.info(f"Request headers: {dict(request.headers)}")
+    
+    # TEMPORARY DEBUG: Log raw request body
+    try:
+        body = await request.body()
+        logger.info(f"Raw request body: {body}")
+        logger.info(f"Raw request body decoded: {body.decode('utf-8') if body else 'Empty'}")
+    except Exception as e:
+        logger.error(f"Failed to read raw request body: {e}")
+    
     logger.info(f"Login attempt for email: {user_data.email}, password_length: {len(user_data.password)}")
+    logger.info(f"EXACT EMAIL RECEIVED: '{user_data.email}'")
+    logger.info(f"EXACT PASSWORD RECEIVED: '{user_data.password}'")
     
     try:
         # Get database instance

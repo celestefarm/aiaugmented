@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Info, Mic, Paperclip, Plus, Upload, ChevronLeft, ChevronRight, X, Clock, User, Target, Users, Briefcase, Edit, Trash2, Undo, Redo, Save, ZoomIn, ZoomOut, Check, Link, MoreVertical, Grid3X3 } from 'lucide-react';
+import { Info, Mic, Paperclip, Plus, Upload, ChevronLeft, ChevronRight, X, Clock, User, Target, Users, Briefcase, Edit, Trash2, Undo, Redo, Save, ZoomIn, ZoomOut, Check, Link, MoreVertical, Grid3X3, RefreshCw } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,9 +9,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useMap } from '@/contexts/MapContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useAgentChat, Agent, ChatMessage } from '@/contexts/AgentChatContext';
-import { Node, Edge, NodeCreateRequest, NodeUpdateRequest, EdgeCreateRequest, RelationshipSuggestion } from '@/lib/api';
+import { Node, Edge, NodeCreateRequest, NodeUpdateRequest, EdgeCreateRequest, RelationshipSuggestion, summarizeConversation } from '@/lib/api';
 import SparringSession from './SparringSession';
 import { CognitiveAnalysis } from './CognitiveAnalysis';
+import NodeEditModal from './NodeEditModal';
 import { generateDisplayTitle, generateSmartDisplayTitle } from '@/utils/nodeUtils';
 
 interface CustomAgentData {
@@ -29,6 +30,15 @@ interface MapHistory {
 }
 
 const ExplorationMap: React.FC = () => {
+  console.log('=== EXPLORATION MAP COMPONENT LOADED ===');
+  console.log('Debugging instrumentation is active and ready');
+  console.log('To see Save Changes button logs:');
+  console.log('1. Open browser dev tools (F12)');
+  console.log('2. Go to Console tab');
+  console.log('3. Double-click a node to edit');
+  console.log('4. Click Save Changes button');
+  console.log('5. Watch for detailed logging output');
+  
   // Use MapContext for nodes and edges
   const {
     nodes,
@@ -40,7 +50,8 @@ const ExplorationMap: React.FC = () => {
     deleteNode: deleteNodeAPI,
     createEdge: createEdgeAPI,
     deleteEdge: deleteEdgeAPI,
-    autoArrangeNodes
+    autoArrangeNodes,
+    refreshMapData
   } = useMap();
   
   const { currentWorkspace } = useWorkspace();
@@ -91,6 +102,7 @@ const ExplorationMap: React.FC = () => {
   const [focusedNode, setFocusedNode] = useState<string | null>(null);
   const [showContextMenu, setShowContextMenu] = useState<{ x: number; y: number; nodeId?: string } | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
+  const [summarizingNodes, setSummarizingNodes] = useState<Set<string>>(new Set());
   
   // Track which messages have been added to map
   const [addedToMap, setAddedToMap] = useState<Set<string>>(new Set());
@@ -660,16 +672,41 @@ const ExplorationMap: React.FC = () => {
     }
   }, [isCreatingConnection, connectionStart, createConnection, nodes, screenToCanvas, showNotification]);
 
+  // Handle edit node from context menu or toolbar
+  const handleEditNode = useCallback((nodeId: string) => {
+    console.log('=== HANDLE EDIT NODE - OPENING EDIT MODAL ===');
+    console.log('Node ID:', nodeId);
+    
+    const node = nodes.find(n => n.id === nodeId);
+    console.log('Found node:', node);
+    
+    if (node) {
+      const editingNodeCopy = { ...node };
+      console.log('Setting editingNode to:', editingNodeCopy);
+      console.log('editingNode ID type:', typeof editingNodeCopy.id);
+      console.log('editingNode ID value:', editingNodeCopy.id);
+      console.log('editingNode title:', editingNodeCopy.title);
+      console.log('editingNode description length:', editingNodeCopy.description?.length || 0);
+      
+      setEditingNode(editingNodeCopy);
+      setShowNodeEditor(true);
+      
+      console.log('Edit modal should now be open');
+    } else {
+      console.error('CRITICAL: Node not found for ID:', nodeId);
+    }
+  }, [nodes]);
+
   const handleNodeDoubleClick = useCallback((e: React.MouseEvent, nodeId: string) => {
+    console.log('=== NODE DOUBLE CLICK - DELEGATING TO HANDLE EDIT NODE ===');
+    console.log('Event:', e);
+    console.log('Node ID:', nodeId);
+    
     e.stopPropagation();
     e.preventDefault();
     
-    const node = nodes.find(n => n.id === nodeId);
-    if (node) {
-      setEditingNode({ ...node });
-      setShowNodeEditor(true);
-    }
-  }, [nodes]);
+    handleEditNode(nodeId);
+  }, [handleEditNode]);
 
   const handleNodeRightClick = useCallback((e: React.MouseEvent, nodeId: string) => {
     e.preventDefault();
@@ -773,6 +810,41 @@ const ExplorationMap: React.FC = () => {
   const handleConnectionsCreated = useCallback((count: number) => {
     showNotification(`Auto-connected ${count} node${count !== 1 ? 's' : ''} based on AI analysis`);
   }, [showNotification]);
+
+  // Handle manual conversation summarization
+  const handleSummarizeConversation = useCallback(async (nodeId: string) => {
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node) {
+      showNotification('Node not found');
+      return;
+    }
+
+    try {
+      // Add node to summarizing set to show loading state
+      setSummarizingNodes(prev => new Set([...prev, nodeId]));
+      showNotification('Summarizing conversation...');
+
+      // Call the API to summarize the conversation
+      const updatedNode = await summarizeConversation(nodeId, {
+        conversation_text: node.description
+      });
+
+      // Trigger a full refresh of the map data to get the updated node
+      await refreshMapData();
+      
+      showNotification('Conversation summarized successfully');
+    } catch (error) {
+      console.error('Failed to summarize conversation:', error);
+      showNotification(`Failed to summarize conversation: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      // Remove node from summarizing set
+      setSummarizingNodes(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(nodeId);
+        return newSet;
+      });
+    }
+  }, [nodes, showNotification, refreshMapData]);
 
   // Navigation functions - removed since we now have proper workspace management
 
@@ -905,6 +977,33 @@ const ExplorationMap: React.FC = () => {
     return date.toLocaleDateString();
   };
 
+  // Format conversation text into bullet points for better readability
+  const formatConversationText = (text: string): string[] => {
+    if (!text) return [];
+    
+    // Split by sentences and clean up
+    const sentences = text
+      .split(/[.!?]+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 10) // Filter out very short fragments
+      .slice(0, 5); // Limit to 5 bullet points for readability
+    
+    // If we don't have good sentences, try splitting by common separators
+    if (sentences.length < 2) {
+      const alternatives = text
+        .split(/[,;]/)
+        .map(s => s.trim())
+        .filter(s => s.length > 15)
+        .slice(0, 4);
+      
+      if (alternatives.length > 1) {
+        return alternatives;
+      }
+    }
+    
+    return sentences.length > 0 ? sentences : [text.substring(0, 200) + (text.length > 200 ? '...' : '')];
+  };
+
   // Close context menu when clicking outside
   useEffect(() => {
     const handleClickOutside = () => setShowContextMenu(null);
@@ -959,12 +1058,15 @@ const ExplorationMap: React.FC = () => {
           >
             {showContextMenu.nodeId ? (
               <>
-                <button 
+                <button
                   onClick={() => {
-                    const node = nodes.find(n => n.id === showContextMenu.nodeId);
-                    if (node) {
-                      setEditingNode({ ...node });
-                      setShowNodeEditor(true);
+                    console.log('=== CONTEXT MENU EDIT CLICKED ===');
+                    console.log('Context menu nodeId:', showContextMenu.nodeId);
+                    
+                    if (showContextMenu.nodeId) {
+                      handleEditNode(showContextMenu.nodeId);
+                    } else {
+                      console.error('CRITICAL: No nodeId in context menu');
                     }
                     setShowContextMenu(null);
                   }}
@@ -973,7 +1075,29 @@ const ExplorationMap: React.FC = () => {
                   <Edit className="w-4 h-4" />
                   <span>Edit Node</span>
                 </button>
-                <button 
+                <button
+                  onClick={() => {
+                    if (showContextMenu.nodeId) {
+                      handleSummarizeConversation(showContextMenu.nodeId);
+                    }
+                    setShowContextMenu(null);
+                  }}
+                  disabled={showContextMenu.nodeId ? summarizingNodes.has(showContextMenu.nodeId) : false}
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-gray-700/50 flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {showContextMenu.nodeId && summarizingNodes.has(showContextMenu.nodeId) ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                  <span>
+                    {showContextMenu.nodeId && summarizingNodes.has(showContextMenu.nodeId)
+                      ? 'Summarizing...'
+                      : 'Summarize'
+                    }
+                  </span>
+                </button>
+                <button
                   onClick={() => {
                     if (showContextMenu.nodeId) {
                       deleteNode(showContextMenu.nodeId);
@@ -1165,7 +1289,31 @@ const ExplorationMap: React.FC = () => {
           <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex space-x-2 z-40">
             <Tooltip>
               <TooltipTrigger asChild>
-                <button 
+                <button
+                  onClick={async () => {
+                    try {
+                      console.log('=== MANUAL REFRESH BUTTON CLICKED ===');
+                      await refreshMapData();
+                      showNotification('Map data refreshed successfully');
+                    } catch (error) {
+                      console.error('Failed to refresh map data:', error);
+                      showNotification('Failed to refresh map data');
+                    }
+                  }}
+                  disabled={mapLoading}
+                  className="glass-pane px-4 py-2 text-sm font-medium text-[#E5E7EB] hover:text-[#6B6B3A] transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Refresh map data"
+                >
+                  <Clock className="w-4 h-4" />
+                  <span>Refresh</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Refresh Map Data</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
                   onClick={() => {
                     const centerX = (-transform.x + (canvasRef.current?.clientWidth || 800) / 2) / transform.scale;
                     const centerY = (-transform.y + (canvasRef.current?.clientHeight || 600) / 2) / transform.scale;
@@ -1289,8 +1437,12 @@ const ExplorationMap: React.FC = () => {
               <div className="flex space-x-1">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button 
-                      onClick={() => handleNodeDoubleClick({} as React.MouseEvent, selectedNode)}
+                    <button
+                      onClick={() => {
+                        console.log('=== TOOLBAR EDIT BUTTON CLICKED ===');
+                        console.log('Selected node:', selectedNode);
+                        handleEditNode(selectedNode);
+                      }}
                       className="glass-pane px-3 py-2 text-sm font-medium text-[#E5E7EB] hover:text-[#6B6B3A] transition-colors"
                       aria-label="Edit selected node"
                     >
@@ -1453,25 +1605,52 @@ const ExplorationMap: React.FC = () => {
                 aria-describedby={`node-desc-${node.id}`}
               >
                 <div className="relative">
+                  {/* Agent Label - Now inside the node box, top-left */}
                   {node.source_agent && (
-                    <div className="absolute -top-2 -left-2 text-xs text-blue-400 font-medium bg-blue-500/20 px-2 py-1 rounded">
-                      {node.source_agent}
+                    <div className="absolute top-0 left-0 text-xs text-blue-400 font-medium bg-blue-500/20 px-2 py-1 rounded border border-blue-500/30 shadow-sm z-10">
+                      {node.source_agent === 'strategist' ? 'Strategist Agent' : node.source_agent}
                     </div>
                   )}
                   
-                  <div className="flex items-center gap-2 mb-2">
-                    {getNodeIcon(node.type)}
-                    <h3 className={`font-bold text-sm ${getNodeTypeColor(node.type)}`}>
-                      {generateDisplayTitle(node.title, node.description, 'card')}
-                    </h3>
-                  </div>
+                  {/* Add top padding when agent label is present */}
+                  <div className={node.source_agent ? 'pt-8' : ''}>
+                    <div className="flex items-center gap-2 mb-2">
+                      {getNodeIcon(node.type)}
+                      <h3 className={`font-bold text-sm ${getNodeTypeColor(node.type)}`}>
+                        {getSmartTitle(node, 'card').title}
+                      </h3>
+                    </div>
                   
-                  <p
-                    id={`node-desc-${node.id}`}
-                    className="text-xs text-gray-300 mb-2 line-clamp-3"
-                  >
-                    {node.description}
-                  </p>
+                    {/* Key Message - 2-line summary under title */}
+                    {node.key_message && (
+                      <div className="text-xs text-gray-200 mb-2 leading-relaxed font-medium">
+                        {node.key_message}
+                      </div>
+                    )}
+                    
+                    {/* Fallback to truncated title or generic placeholder if no key message */}
+                    {!node.key_message && (
+                      <p
+                        id={`node-desc-${node.id}`}
+                        className="text-xs text-gray-300 mb-2 line-clamp-2"
+                      >
+                        {(() => {
+                          // Use summarized title as subtext if available and different from main title
+                          const smartTitle = getSmartTitle(node, 'card');
+                          if (node.summarized_titles?.card &&
+                              node.summarized_titles.card !== node.title &&
+                              node.summarized_titles.card !== smartTitle.title) {
+                            return node.summarized_titles.card;
+                          }
+                          // Fallback to truncated main title or generic placeholder
+                          if (node.title.length > 50) {
+                            return node.title.substring(0, 50) + '...';
+                          }
+                          return 'Click to view details';
+                        })()}
+                      </p>
+                    )}
+                  </div>
                   
                   <div className="flex justify-between items-center text-xs">
                     <div className="flex items-center gap-2">
@@ -1496,18 +1675,53 @@ const ExplorationMap: React.FC = () => {
                     </span>
                   </div>
 
-                  {/* Enhanced Tooltip with Cognitive Context */}
+                  {/* Enhanced Tooltip with Keynote Points */}
                   {hoveredNode === node.id && (
-                    <div className="absolute bottom-full left-0 mb-2 w-72 glass-pane p-4 text-xs z-50 pointer-events-none border border-gray-600/50 rounded-lg shadow-xl">
-                      <div className="flex items-center gap-2 mb-2">
+                    <div className="absolute bottom-full left-0 mb-2 w-80 glass-pane p-4 text-xs z-50 pointer-events-none border border-gray-600/50 rounded-lg shadow-xl max-h-96 overflow-y-auto">
+                      <div className="flex items-center gap-2 mb-3">
                         {getNodeIcon(node.type)}
                         <div className="font-medium text-[#6B6B3A]">
-                          {generateDisplayTitle(node.title, node.description, 'tooltip')}
+                          {node.title}
                         </div>
                       </div>
-                      <div className="text-gray-300 mb-3 leading-relaxed">{node.description}</div>
                       
-                      {/* Connection count */}
+                      {/* Keynote Points - Primary content */}
+                      {node.keynote_points && node.keynote_points.length > 0 ? (
+                        <div className="mb-3">
+                          <div className="text-gray-400 font-medium mb-2">Key Discussion Points:</div>
+                          <div className="space-y-1">
+                            {node.keynote_points.map((point, index) => (
+                              <div key={index} className="flex items-start gap-2">
+                                <div className="w-1 h-1 rounded-full bg-[#6B6B3A] mt-2 flex-shrink-0"></div>
+                                <span className="text-gray-300 leading-relaxed">{point}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        /* Fallback to conversation text if no keynote points */
+                        <div className="mb-3">
+                          <div className="text-gray-400 font-medium mb-2">Full Conversation:</div>
+                          <div className="space-y-1">
+                            {formatConversationText(node.description).map((point, index) => (
+                              <div key={index} className="flex items-start gap-2">
+                                <div className="w-1 h-1 rounded-full bg-[#6B6B3A] mt-2 flex-shrink-0"></div>
+                                <span className="text-gray-300 leading-relaxed">{point}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Key Message in tooltip if available */}
+                      {node.key_message && (
+                        <div className="mb-3 p-2 bg-[#6B6B3A]/10 rounded border border-[#6B6B3A]/20">
+                          <div className="text-gray-400 font-medium mb-1">Key Message:</div>
+                          <div className="text-gray-200 leading-relaxed">{node.key_message}</div>
+                        </div>
+                      )}
+                      
+                      {/* Metadata */}
                       <div className="flex items-center justify-between text-xs border-t border-gray-600/30 pt-2">
                         <div className="flex items-center gap-4">
                           <span className="text-gray-400">
@@ -1539,76 +1753,19 @@ const ExplorationMap: React.FC = () => {
           </div>
         </div>
 
-        {/* Node Editor Dialog */}
-        <Dialog open={showNodeEditor} onOpenChange={setShowNodeEditor}>
-          <DialogContent className="max-w-2xl glass-pane border border-gray-800/50 text-gray-100">
-            <DialogHeader>
-              <DialogTitle className="text-xl glow-olive-text">Edit Node</DialogTitle>
-            </DialogHeader>
-            {editingNode && (
-              <div className="space-y-4 mt-4">
-                <div>
-                  <Label htmlFor="node-title" className="text-sm font-medium text-[#E5E7EB] mb-2 block">
-                    Title
-                  </Label>
-                  <Input
-                    id="node-title"
-                    value={editingNode.title}
-                    onChange={(e) => setEditingNode({...editingNode, title: e.target.value})}
-                    className="glass-pane text-[#E5E7EB] border-gray-600/50 focus:border-[#6B6B3A]"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="node-description" className="text-sm font-medium text-[#E5E7EB] mb-2 block">
-                    Description
-                  </Label>
-                  <Textarea
-                    id="node-description"
-                    value={editingNode.description}
-                    onChange={(e) => setEditingNode({...editingNode, description: e.target.value})}
-                    className="glass-pane text-[#E5E7EB] border-gray-600/50 focus:border-[#6B6B3A] min-h-[100px]"
-                  />
-                </div>
-                <div className="flex justify-end space-x-3">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowNodeEditor(false)}
-                    className="border-gray-600/50 text-[#E5E7EB] hover:bg-gray-800/50"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={async () => {
-                      if (!editingNode || !currentWorkspace) return;
-                      
-                      saveToHistory();
-                      const updateData: NodeUpdateRequest = {
-                        title: editingNode.title,
-                        description: editingNode.description,
-                        type: editingNode.type,
-                        x: editingNode.x,
-                        y: editingNode.y,
-                        confidence: editingNode.confidence,
-                        feasibility: editingNode.feasibility,
-                        source_agent: editingNode.source_agent
-                      };
-                      
-                      const updatedNode = await updateNodeAPI(editingNode.id, updateData);
-                      if (updatedNode) {
-                        setShowNodeEditor(false);
-                        setEditingNode(null);
-                        showNotification(`Updated node: ${updatedNode.title}`);
-                      }
-                    }}
-                    className="bg-[#6B6B3A] hover:bg-[#6B6B3A]/80 text-black"
-                  >
-                    Save Changes
-                  </Button>
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+        {/* Node Editor Modal */}
+        <NodeEditModal
+          isOpen={showNodeEditor}
+          node={editingNode}
+          onClose={() => {
+            setShowNodeEditor(false);
+            setEditingNode(null);
+          }}
+          onSave={async (nodeId: string, updateData: NodeUpdateRequest) => {
+            await updateNodeAPI(nodeId, updateData);
+          }}
+          onShowNotification={showNotification}
+        />
 
         {/* Agent Details Modal - Luxury Glass-Floating Design */}
         {showAgentDetailsModal && (
