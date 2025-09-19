@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, status, Depends
+from pydantic import BaseModel, Field
 from models.node import (
     NodeCreateRequest,
     NodeUpdateRequest,
@@ -9,12 +10,29 @@ from models.node import (
 )
 from models.user import UserResponse
 from utils.dependencies import get_current_active_user
+from utils.summarization import summarize_node_title
 from database import get_database
 from datetime import datetime
 from bson import ObjectId
-from typing import List
+from typing import List, Optional
 
 router = APIRouter(tags=["Nodes"])
+
+
+# Request/Response models for summarization
+class SummarizeRequest(BaseModel):
+    """Request model for node title summarization"""
+    context: str = Field(default="default", description="Context for summarization (card, tooltip, list, default)")
+    max_length: Optional[int] = Field(None, description="Maximum length override")
+
+
+class SummarizeResponse(BaseModel):
+    """Response model for node title summarization"""
+    node_id: str = Field(..., description="Node ID")
+    original_title: str = Field(..., description="Original node title")
+    summarized_title: str = Field(..., description="Generated summarized title")
+    method_used: str = Field(..., description="Summarization method used (local or fallback)")
+    confidence: Optional[int] = Field(None, description="Confidence score (0-100)")
 
 
 async def verify_workspace_access(workspace_id: str, current_user: UserResponse) -> None:
@@ -409,3 +427,113 @@ async def auto_arrange_nodes(
         "message": f"Successfully arranged {len(node_docs)} nodes",
         "arranged_count": len(node_docs)
     }
+
+
+@router.post("/nodes/{node_id}/summarize", response_model=SummarizeResponse)
+async def summarize_node_title_endpoint(
+    node_id: str,
+    request: SummarizeRequest,
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Generate a summarized title for a node using local NLP algorithms.
+    
+    This endpoint uses intelligent NLP techniques including keyword extraction,
+    sentence ranking, and pattern matching to create meaningful summaries
+    that are better than simple truncation.
+    
+    Args:
+        node_id: Node ID to summarize
+        request: Summarization request with context and max_length
+        current_user: Current authenticated user (from dependency)
+        
+    Returns:
+        Summarization result with original title, summarized title, and metadata
+        
+    Raises:
+        HTTPException: If node not found or access denied
+    """
+    # Validate node ID format
+    if not ObjectId.is_valid(node_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid node ID format"
+        )
+    
+    # Get database instance
+    database = get_database()
+    
+    # Find the node and verify user has access to it
+    node_doc = await database.nodes.find_one({"_id": ObjectId(node_id)})
+    
+    if not node_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Node not found"
+        )
+    
+    # Verify user has access to the workspace containing this node
+    workspace_id = str(node_doc.get("workspace_id"))
+    try:
+        await verify_workspace_access(workspace_id, current_user)
+    except HTTPException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Node not found or access denied"
+        )
+    
+    # Get the original title
+    original_title = node_doc.get("title", "")
+    
+    if not original_title:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Node has no title to summarize"
+        )
+    
+    # Generate the summarized title using our NLP service
+    try:
+        summary_result = summarize_node_title(
+            full_text=original_title,
+            context=request.context,
+            max_length=request.max_length
+        )
+        
+        summarized_title = summary_result.get("summarized_title", "")
+        method_used = summary_result.get("method_used", "fallback")
+        confidence = summary_result.get("confidence", 0)
+        
+    except Exception as e:
+        # Fallback to simple truncation if NLP fails
+        max_len = request.max_length or 35
+        if len(original_title) <= max_len:
+            summarized_title = original_title
+        else:
+            summarized_title = original_title[:max_len-3] + "..."
+        method_used = "fallback"
+        confidence = 50
+    
+    # Store the summarized title in the node's summarized_titles field
+    context_key = request.context
+    update_data = {
+        f"summarized_titles.{context_key}": summarized_title,
+        "updated_at": datetime.utcnow()
+    }
+    
+    try:
+        await database.nodes.update_one(
+            {"_id": ObjectId(node_id)},
+            {"$set": update_data}
+        )
+    except Exception as e:
+        # Log the error but don't fail the request
+        print(f"Warning: Failed to store summarized title in database: {e}")
+    
+    # Return the response
+    return SummarizeResponse(
+        node_id=node_id,
+        original_title=original_title,
+        summarized_title=summarized_title,
+        method_used=method_used,
+        confidence=confidence
+    )

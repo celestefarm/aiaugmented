@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Tuple
 from models.user import UserResponse
 from utils.dependencies import get_current_active_user
+from utils.text_chunking import chunk_large_analysis, result_consolidator, TokenEstimator
 from database import get_database
 from bson import ObjectId
 from datetime import datetime
@@ -10,6 +11,10 @@ import httpx
 import os
 import json
 import re
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["cognitive-analysis"])
 
@@ -38,21 +43,17 @@ class CognitiveAnalysisResponse(BaseModel):
 
 
 async def analyze_node_relationships_with_ai(nodes: List[Dict], workspace_context: str = "") -> List[RelationshipSuggestion]:
-    """Use OpenAI to analyze relationships between nodes"""
+    """Use OpenAI to analyze relationships between nodes with chunking support"""
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
+        logger.warning("OpenAI API key not configured")
         return []
     
-    # Create a comprehensive prompt for relationship analysis
-    nodes_text = ""
-    for i, node in enumerate(nodes):
-        nodes_text += f"Node {i+1} (ID: {node['id']}): {node['title']}\n"
-        nodes_text += f"Description: {node['description']}\n"
-        nodes_text += f"Type: {node['type']}\n"
-        if node.get('source_agent'):
-            nodes_text += f"Source Agent: {node['source_agent']}\n"
-        nodes_text += "\n"
+    if not nodes:
+        logger.info("No nodes provided for analysis")
+        return []
     
+    # Create system prompt
     system_prompt = """You are a cognitive analysis AI that specializes in identifying relationships between ideas, concepts, and strategic elements. Your task is to analyze nodes in a strategic thinking map and suggest meaningful connections.
 
 For each potential relationship, consider:
@@ -63,7 +64,7 @@ For each potential relationship, consider:
 
 Think like a strategic consultant analyzing:
 - Business implications and dependencies
-- Risk factors and mitigation strategies  
+- Risk factors and mitigation strategies
 - Market dynamics and competitive forces
 - Operational requirements and constraints
 - Political/power dynamics in organizations
@@ -72,7 +73,7 @@ Think like a strategic consultant analyzing:
 
 Return your analysis as a JSON array of relationship suggestions. Each suggestion should have:
 - from_node_id: source node ID
-- to_node_id: target node ID  
+- to_node_id: target node ID
 - relationship_type: one of 'support', 'contradiction', 'dependency', 'ai-relationship'
 - strength: confidence score 0.0-1.0
 - reasoning: clear explanation of why this relationship exists
@@ -80,7 +81,36 @@ Return your analysis as a JSON array of relationship suggestions. Each suggestio
 
 Focus on non-obvious but meaningful connections. Think about second and third-order effects."""
 
-    user_prompt = f"""Analyze these strategic nodes and suggest relationships:
+    # Check if chunking is needed
+    needs_chunking, node_chunks = chunk_large_analysis(nodes, system_prompt)
+    
+    if needs_chunking:
+        logger.info(f"Large dataset detected. Processing {len(node_chunks)} chunks with {len(nodes)} total nodes")
+    else:
+        logger.info(f"Processing {len(nodes)} nodes in single request")
+    
+    all_suggestions = []
+    
+    # Process each chunk
+    for chunk_idx, node_chunk in enumerate(node_chunks):
+        try:
+            logger.info(f"Processing chunk {chunk_idx + 1}/{len(node_chunks)} with {len(node_chunk)} nodes")
+            
+            # Create nodes text for this chunk
+            nodes_text = ""
+            for i, node in enumerate(node_chunk):
+                nodes_text += f"Node {i+1} (ID: {node['id']}): {node['title']}\n"
+                nodes_text += f"Description: {node['description']}\n"
+                nodes_text += f"Type: {node['type']}\n"
+                if node.get('source_agent'):
+                    nodes_text += f"Source Agent: {node['source_agent']}\n"
+                nodes_text += "\n"
+            
+            # Estimate tokens for logging
+            estimated_tokens = TokenEstimator.estimate_tokens(system_prompt + nodes_text)
+            logger.debug(f"Chunk {chunk_idx + 1} estimated tokens: {estimated_tokens}")
+            
+            user_prompt = f"""Analyze these strategic nodes and suggest relationships:
 
 {nodes_text}
 
@@ -88,66 +118,119 @@ Workspace Context: {workspace_context}
 
 Identify meaningful relationships between these nodes. Focus on strategic implications, dependencies, risks, and opportunities. Consider how ideas in different domains (marketing, legal, technology, operations, etc.) might connect."""
 
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-    
-    payload = {
-        "model": "gpt-4",
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ],
-        "max_tokens": 2000,
-        "temperature": 0.7
-    }
-    
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=30.0
-            )
-            response.raise_for_status()
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
             
-            result = response.json()
-            ai_response = result["choices"][0]["message"]["content"]
+            payload = {
+                "model": "gpt-4",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                "max_tokens": 2000,
+                "temperature": 0.7
+            }
             
-            # Extract JSON from the response
-            json_match = re.search(r'\[.*\]', ai_response, re.DOTALL)
-            if json_match:
-                suggestions_data = json.loads(json_match.group())
-                suggestions = []
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=60.0  # Increased timeout for large requests
+                )
+                response.raise_for_status()
                 
-                for suggestion in suggestions_data:
-                    # Validate that the node IDs exist
-                    from_id = suggestion.get('from_node_id')
-                    to_id = suggestion.get('to_node_id')
+                result = response.json()
+                ai_response = result["choices"][0]["message"]["content"]
+                
+                # Extract JSON from the response
+                json_match = re.search(r'\[.*\]', ai_response, re.DOTALL)
+                if json_match:
+                    suggestions_data = json.loads(json_match.group())
+                    chunk_suggestions = []
                     
-                    if from_id and to_id and from_id != to_id:
-                        # Check if nodes exist
-                        from_exists = any(node['id'] == from_id for node in nodes)
-                        to_exists = any(node['id'] == to_id for node in nodes)
+                    for suggestion in suggestions_data:
+                        # Validate that the node IDs exist
+                        from_id = suggestion.get('from_node_id')
+                        to_id = suggestion.get('to_node_id')
                         
-                        if from_exists and to_exists:
-                            suggestions.append(RelationshipSuggestion(
-                                from_node_id=from_id,
-                                to_node_id=to_id,
-                                relationship_type=suggestion.get('relationship_type', 'ai-relationship'),
-                                strength=min(1.0, max(0.0, suggestion.get('strength', 0.5))),
-                                reasoning=suggestion.get('reasoning', ''),
-                                keywords=suggestion.get('keywords', [])
-                            ))
+                        if from_id and to_id and from_id != to_id:
+                            # Check if nodes exist in the original full node list
+                            from_exists = any(node['id'] == from_id for node in nodes)
+                            to_exists = any(node['id'] == to_id for node in nodes)
+                            
+                            if from_exists and to_exists:
+                                chunk_suggestions.append(RelationshipSuggestion(
+                                    from_node_id=from_id,
+                                    to_node_id=to_id,
+                                    relationship_type=suggestion.get('relationship_type', 'ai-relationship'),
+                                    strength=min(1.0, max(0.0, suggestion.get('strength', 0.5))),
+                                    reasoning=suggestion.get('reasoning', ''),
+                                    keywords=suggestion.get('keywords', [])
+                                ))
+                    
+                    all_suggestions.extend(chunk_suggestions)
+                    logger.info(f"Chunk {chunk_idx + 1} produced {len(chunk_suggestions)} relationship suggestions")
+                else:
+                    logger.warning(f"No valid JSON found in AI response for chunk {chunk_idx + 1}")
                 
-                return suggestions
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 400:
+                error_detail = e.response.text
+                if "context_length_exceeded" in error_detail:
+                    logger.error(f"Context length exceeded in chunk {chunk_idx + 1}. This chunk may be too large.")
+                    # Continue with other chunks
+                    continue
+                else:
+                    logger.error(f"HTTP 400 error in chunk {chunk_idx + 1}: {error_detail}")
+            else:
+                logger.error(f"HTTP error {e.response.status_code} in chunk {chunk_idx + 1}: {e.response.text}")
+            continue
             
-    except Exception as e:
-        print(f"Error in AI relationship analysis: {e}")
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode error in chunk {chunk_idx + 1}: {e}")
+            continue
+            
+        except Exception as e:
+            logger.error(f"Unexpected error in chunk {chunk_idx + 1}: {e}")
+            continue
     
-    return []
+    # Consolidate results if we processed multiple chunks
+    if needs_chunking and len(node_chunks) > 1:
+        # Convert RelationshipSuggestion objects to dicts for consolidation
+        suggestions_dicts = []
+        for suggestion in all_suggestions:
+            suggestions_dicts.append({
+                'from_node_id': suggestion.from_node_id,
+                'to_node_id': suggestion.to_node_id,
+                'relationship_type': suggestion.relationship_type,
+                'strength': suggestion.strength,
+                'reasoning': suggestion.reasoning,
+                'keywords': suggestion.keywords
+            })
+        
+        # Consolidate and remove duplicates
+        consolidated_dicts = result_consolidator.consolidate_relationship_suggestions([suggestions_dicts])
+        
+        # Convert back to RelationshipSuggestion objects
+        consolidated_suggestions = []
+        for suggestion_dict in consolidated_dicts:
+            consolidated_suggestions.append(RelationshipSuggestion(
+                from_node_id=suggestion_dict['from_node_id'],
+                to_node_id=suggestion_dict['to_node_id'],
+                relationship_type=suggestion_dict['relationship_type'],
+                strength=suggestion_dict['strength'],
+                reasoning=suggestion_dict['reasoning'],
+                keywords=suggestion_dict['keywords']
+            ))
+        
+        logger.info(f"Consolidated {len(all_suggestions)} suggestions into {len(consolidated_suggestions)} unique relationships")
+        return consolidated_suggestions
+    
+    logger.info(f"Analysis complete. Found {len(all_suggestions)} relationship suggestions")
+    return all_suggestions
 
 
 @router.post("/workspaces/{workspace_id}/cognitive-analysis", response_model=CognitiveAnalysisResponse)

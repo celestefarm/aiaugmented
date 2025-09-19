@@ -8,17 +8,55 @@ import asyncio
 DEFAULT_AGENTS = [
     {
         "agent_id": "strategist",
-        "name": "Strategist Agent",
-        "ai_role": "Frame 2-3 strategic options, identify key trade-offs",
-        "human_role": "Define success metrics, apply contextual judgment",
+        "name": "Strategic Co-Pilot",
+        "ai_role": "Wise strategic mentor who analyzes your thinking patterns and guides you through Socratic dialogue to develop deeper strategic insights",
+        "human_role": "Provide strategic context, validate insights, and apply judgment to personalized recommendations",
         "is_custom": False,
         "is_active": True,
         "model_name": "openai/gpt-4",
         "full_description": {
-            "role": "Strategic Options Architect",
-            "mission": "Transform complex business challenges into clear, actionable strategic pathways",
-            "expertise": ["Strategic planning", "Option analysis", "Trade-off evaluation"],
-            "approach": "Systematic evaluation of strategic alternatives with focus on feasibility and impact"
+            "role": "Strategic Co-Pilot & Cognitive Twin",
+            "mission": "Transform strategic thinking through personalized mentorship, cognitive pattern analysis, and decision sandbox testing",
+            "expertise": [
+                "Strategic planning", "Cognitive pattern analysis", "Socratic dialogue",
+                "Decision simulation", "Bias detection", "Communication adaptation",
+                "Mentorship guidance", "Framework application"
+            ],
+            "approach": "Personalized mentorship that adapts to your thinking style and develops your strategic capabilities",
+            "cognitive_twin_config": {
+                "pattern_analysis_enabled": True,
+                "bias_detection_enabled": True,
+                "learning_adaptation_enabled": True,
+                "personalization_level": "high"
+            },
+            "mentorship_config": {
+                "socratic_enabled": True,
+                "coaching_style": "challenging_but_supportive",
+                "expertise_depth": "expert",
+                "personality_traits": ["wise", "patient", "insightful", "challenging"],
+                "question_types": ["assumption_challenging", "perspective_expanding", "depth_probing"]
+            },
+            "wisdom_base": {
+                "strategic_models": [
+                    "Porter's Five Forces", "SWOT Analysis", "Blue Ocean Strategy",
+                    "Balanced Scorecard", "OKRs", "Lean Canvas", "Business Model Canvas",
+                    "PESTLE Analysis", "Value Chain Analysis", "BCG Matrix"
+                ],
+                "cognitive_frameworks": [
+                    "Systems Thinking", "Design Thinking", "Critical Thinking",
+                    "Decision Analysis", "Risk Assessment", "Stakeholder Analysis"
+                ],
+                "mentorship_techniques": [
+                    "Socratic Questioning", "Assumption Challenging", "Perspective Taking",
+                    "Scenario Planning", "Reflection Facilitation", "Insight Synthesis"
+                ]
+            },
+            "sandbox_config": {
+                "scenario_types": ["strategy_test", "role_play", "what_if", "competitive_analysis"],
+                "simulation_depth": "advanced",
+                "outcome_modeling": True,
+                "learning_extraction": True
+            }
         }
     },
     {
@@ -239,12 +277,52 @@ async def create_custom_agent(agent_data: AgentCreate) -> AgentInDB | None:
         return None
 
 
+async def update_strategist_agent():
+    """Update the existing Strategist Agent with Cognitive Twin capabilities"""
+    db = get_database()
+    if db is None:
+        print("❌ Database not available for updating agents")
+        return False
+    
+    agents_collection = db.agents
+    
+    try:
+        # Find the enhanced strategist configuration
+        enhanced_strategist = None
+        for agent_data in DEFAULT_AGENTS:
+            if agent_data["agent_id"] == "strategist":
+                enhanced_strategist = agent_data
+                break
+        
+        if not enhanced_strategist:
+            print("❌ Enhanced strategist configuration not found")
+            return False
+        
+        # Update the existing strategist agent
+        result = await agents_collection.update_one(
+            {"agent_id": "strategist"},
+            {"$set": enhanced_strategist}
+        )
+        
+        if result.modified_count > 0:
+            print("✅ Successfully updated Strategist Agent with Cognitive Twin capabilities")
+            return True
+        else:
+            print("ℹ️  Strategist Agent was already up to date or not found")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Failed to update strategist agent: {e}")
+        return False
+
+
 if __name__ == "__main__":
     # For testing the seeding function
     async def main():
         from database import connect_to_mongo, close_mongo_connection
         await connect_to_mongo()
         await seed_agents()
+        await update_strategist_agent()  # Update existing strategist
         await close_mongo_connection()
     
     asyncio.run(main())

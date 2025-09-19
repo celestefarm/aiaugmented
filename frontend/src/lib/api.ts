@@ -85,6 +85,7 @@ export interface Node {
   confidence?: number;
   feasibility?: string;
   source_agent?: string;
+  summarized_titles?: Record<string, string>;
   created_at: string;
   updated_at: string;
 }
@@ -270,6 +271,20 @@ export interface WorkspaceExportResponse {
   nodes: Record<string, any>[];
   edges: Record<string, any>[];
   exported_at: string;
+}
+
+// Node summarization types
+export interface SummarizeRequest {
+  context: string;
+  max_length?: number;
+}
+
+export interface SummarizeResponse {
+  node_id: string;
+  original_title: string;
+  summarized_title: string;
+  method_used: string;
+  confidence?: number;
 }
 
 // API client class
@@ -514,6 +529,34 @@ class ApiClient {
     return await this.request<{ message: string; arranged_count: number }>(`/workspaces/${workspaceId}/nodes/auto-arrange`, {
       method: 'POST',
     });
+  }
+
+  async summarizeNodeTitle(nodeId: string, context: string = 'card', maxLength?: number): Promise<SummarizeResponse> {
+    console.log('=== SUMMARIZE NODE TITLE API CALL ===');
+    console.log('Node ID:', nodeId);
+    console.log('Context:', context);
+    console.log('Max Length:', maxLength);
+    
+    const requestData: SummarizeRequest = {
+      context,
+      ...(maxLength && { max_length: maxLength })
+    };
+    
+    console.log('Request data:', requestData);
+    
+    try {
+      const response = await this.request<SummarizeResponse>(`/nodes/${nodeId}/summarize`, {
+        method: 'POST',
+        body: JSON.stringify(requestData),
+      });
+      
+      console.log('Summarization response:', response);
+      return response;
+    } catch (error) {
+      console.error('=== SUMMARIZATION API ERROR ===');
+      console.error('Error details:', error);
+      throw error;
+    }
   }
 
   // Edge methods
@@ -797,4 +840,5 @@ export const {
   clearAuth,
   analyzeCognitiveRelationships,
   autoConnectNodes,
+  summarizeNodeTitle,
 } = apiClient;

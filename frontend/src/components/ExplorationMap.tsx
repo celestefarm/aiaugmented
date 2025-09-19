@@ -12,6 +12,7 @@ import { useAgentChat, Agent, ChatMessage } from '@/contexts/AgentChatContext';
 import { Node, Edge, NodeCreateRequest, NodeUpdateRequest, EdgeCreateRequest, RelationshipSuggestion } from '@/lib/api';
 import SparringSession from './SparringSession';
 import { CognitiveAnalysis } from './CognitiveAnalysis';
+import { generateDisplayTitle, generateSmartDisplayTitle } from '@/utils/nodeUtils';
 
 interface CustomAgentData {
   name: string;
@@ -94,6 +95,9 @@ const ExplorationMap: React.FC = () => {
   // Track which messages have been added to map
   const [addedToMap, setAddedToMap] = useState<Set<string>>(new Set());
   
+  // Smart title management
+  const [smartTitles, setSmartTitles] = useState<Record<string, { title: string; isLoading: boolean }>>({});
+  
   // Performance refs
   const canvasRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -113,6 +117,97 @@ const ExplorationMap: React.FC = () => {
     setNotification(message);
     setTimeout(() => setNotification(null), 3000);
   }, []);
+
+  // Smart title processing effect
+  useEffect(() => {
+    console.log('=== SMART TITLE PROCESSING EFFECT ===');
+    console.log('Nodes count:', nodes.length);
+    console.log('Current smartTitles state:', smartTitles);
+    
+    const processSmartTitles = async () => {
+      console.log('Processing smart titles for', nodes.length, 'nodes');
+      
+      for (const node of nodes) {
+        console.log(`Processing node ${node.id}: "${node.title}"`);
+        const contexts: Array<'card' | 'tooltip' | 'list'> = ['card', 'tooltip', 'list'];
+        
+        for (const context of contexts) {
+          const key = `${node.id}-${context}`;
+          const cached = smartTitles[key];
+          
+          console.log(`  Context ${context}: cached =`, cached);
+          
+          if (!cached) {
+            const maxLengths = { card: 25, tooltip: 40, list: 30 };
+            const maxLength = maxLengths[context];
+            
+            console.log(`  Title length: ${node.title.length}, max: ${maxLength}`);
+            
+            // If title is already short enough, no need for smart processing
+            if (node.title.length <= maxLength) {
+              console.log(`  Title is short enough, using as-is`);
+              setSmartTitles(prev => ({
+                ...prev,
+                [key]: { title: node.title, isLoading: false }
+              }));
+              continue;
+            }
+            
+            // Check for cached summarized title
+            if (node.summarized_titles && node.summarized_titles[context]) {
+              const cachedTitle = node.summarized_titles[context];
+              console.log(`  Found cached summarized title: "${cachedTitle}"`);
+              if (cachedTitle.length <= maxLength) {
+                setSmartTitles(prev => ({
+                  ...prev,
+                  [key]: { title: cachedTitle, isLoading: false }
+                }));
+                continue;
+              }
+            }
+            
+            // Set loading state and fetch smart title
+            const fallbackTitle = generateDisplayTitle(node.title, node.description, context);
+            console.log(`  Using fallback title: "${fallbackTitle}"`);
+            
+            setSmartTitles(prev => ({
+              ...prev,
+              [key]: { title: fallbackTitle, isLoading: true }
+            }));
+            
+            // Fetch smart title asynchronously
+            try {
+              console.log(`  Fetching smart title from API...`);
+              const smartTitle = await generateSmartDisplayTitle(node, context);
+              console.log(`  Got smart title: "${smartTitle}"`);
+              
+              setSmartTitles(prev => ({
+                ...prev,
+                [key]: { title: smartTitle, isLoading: false }
+              }));
+            } catch (error) {
+              console.warn(`Failed to get smart title for node ${node.id}:`, error);
+              setSmartTitles(prev => ({
+                ...prev,
+                [key]: { title: fallbackTitle, isLoading: false }
+              }));
+            }
+          }
+        }
+      }
+    };
+    
+    if (nodes.length > 0) {
+      processSmartTitles();
+    }
+  }, [nodes]);
+
+  // Helper function to get smart title
+  const getSmartTitle = useCallback((node: Node, context: 'card' | 'tooltip' | 'list' = 'card') => {
+    const key = `${node.id}-${context}`;
+    const cached = smartTitles[key];
+    return cached || { title: generateDisplayTitle(node.title, node.description, context), isLoading: false };
+  }, [smartTitles]);
 
   // Coordinate conversion helpers - FIXED
   const screenToCanvas = useCallback((screenX: number, screenY: number) => {
@@ -1367,7 +1462,7 @@ const ExplorationMap: React.FC = () => {
                   <div className="flex items-center gap-2 mb-2">
                     {getNodeIcon(node.type)}
                     <h3 className={`font-bold text-sm ${getNodeTypeColor(node.type)}`}>
-                      {node.title}
+                      {generateDisplayTitle(node.title, node.description, 'card')}
                     </h3>
                   </div>
                   
@@ -1407,7 +1502,7 @@ const ExplorationMap: React.FC = () => {
                       <div className="flex items-center gap-2 mb-2">
                         {getNodeIcon(node.type)}
                         <div className="font-medium text-[#6B6B3A]">
-                          {node.source_agent ? `${node.source_agent} Insight` : `${node.type.charAt(0).toUpperCase() + node.type.slice(1)} Node`}
+                          {generateDisplayTitle(node.title, node.description, 'tooltip')}
                         </div>
                       </div>
                       <div className="text-gray-300 mb-3 leading-relaxed">{node.description}</div>

@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Node, Edge } from '../../lib/api';
+import { generateDisplayTitle } from '../../utils/nodeUtils';
 
 export interface ProcessedNode extends Node {
   clusterId?: string;
@@ -270,7 +271,7 @@ const InteractiveMap: React.FC<InteractiveMapProps> = ({
             className="node-label"
             style={{ pointerEvents: 'none' }}
           >
-            {node.title.length > 15 ? `${node.title.substring(0, 15)}...` : node.title}
+            {generateDisplayTitle(node.title, node.description, 'list')}
           </text>
           
           {/* Connection count indicator */}
@@ -338,7 +339,7 @@ const InteractiveMap: React.FC<InteractiveMapProps> = ({
             
             return (
               <div>
-                <h4>{node.title}</h4>
+                <h4>{generateDisplayTitle(node.title, node.description, 'tooltip')}</h4>
                 <p>{node.description}</p>
                 <div className="node-stats">
                   <span>Type: {node.type}</span>

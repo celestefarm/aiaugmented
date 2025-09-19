@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional
+from typing import Optional, Dict
 from datetime import datetime
 from bson import ObjectId
 from models.user import PyObjectId
@@ -48,6 +48,7 @@ class NodeResponse(BaseModel):
     confidence: Optional[int] = None
     feasibility: Optional[str] = None
     source_agent: Optional[str] = None
+    summarized_titles: Optional[Dict[str, str]] = Field(default_factory=dict, description="Context-specific summarized titles")
     created_at: datetime
     updated_at: datetime
 
@@ -77,6 +78,7 @@ class NodeInDB(BaseModel):
     confidence: Optional[int] = None
     feasibility: Optional[str] = None
     source_agent: Optional[str] = None
+    summarized_titles: Optional[Dict[str, str]] = Field(default_factory=dict, description="Context-specific summarized titles")
     created_at: datetime
     updated_at: datetime
 
@@ -93,6 +95,7 @@ class NodeInDB(BaseModel):
             confidence=self.confidence,
             feasibility=self.feasibility,
             source_agent=self.source_agent,
+            summarized_titles=self.summarized_titles or {},
             created_at=self.created_at,
             updated_at=self.updated_at
         )
@@ -109,5 +112,6 @@ class NodeCreate(BaseModel):
     confidence: Optional[int] = None
     feasibility: Optional[str] = None
     source_agent: Optional[str] = None
+    summarized_titles: Optional[Dict[str, str]] = Field(default_factory=dict, description="Context-specific summarized titles")
     created_at: datetime
     updated_at: datetime
