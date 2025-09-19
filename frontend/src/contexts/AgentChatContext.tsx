@@ -247,6 +247,16 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
         return false;
       }
       
+      // OPTIMISTIC UPDATE: Immediately update local state to prevent race conditions
+      console.log('=== OPTIMISTIC STATE UPDATE ===');
+      setMessages(prev => {
+        const updated = prev.map(msg =>
+          msg.id === messageId ? { ...msg, added_to_map: true } : msg
+        );
+        console.log('Optimistically updated messages:', updated.find(m => m.id === messageId));
+        return updated;
+      });
+      
       console.log('Making API call to new addMessageToMap endpoint...');
       const response = await apiClient.addMessageToMap(currentWorkspace.id, messageId, {
         node_title: nodeTitle,
@@ -258,14 +268,8 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
       if (response.success) {
         console.log('New API call successful! Node ID:', response.node_id);
         
-        // Update message state to mark as added to map
-        setMessages(prev => {
-          const updated = prev.map(msg =>
-            msg.id === messageId ? { ...msg, added_to_map: true } : msg
-          );
-          console.log('Updated messages with new implementation:', updated);
-          return updated;
-        });
+        // State was already optimistically updated above
+        console.log('Message state already updated optimistically');
         
         // Refresh map data to show the new node
         console.log('Refreshing map data with new implementation...');
@@ -280,6 +284,17 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
         return true;
       } else {
         console.error('New API call returned success: false');
+        
+        // ROLLBACK: Revert optimistic update on failure
+        console.log('=== ROLLBACK OPTIMISTIC UPDATE ===');
+        setMessages(prev => {
+          const reverted = prev.map(msg =>
+            msg.id === messageId ? { ...msg, added_to_map: false } : msg
+          );
+          console.log('Rolled back optimistic update for message:', messageId);
+          return reverted;
+        });
+        
         setChatError('Failed to add message to map');
         return false;
       }
@@ -290,15 +305,18 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
       console.error('Error message:', errorMessage);
       console.error('Error stack:', err instanceof Error ? err.stack : 'No stack trace');
       
-      // Handle specific error cases
-      if (errorMessage.includes('already been added')) {
-        // Update local state to reflect server state
-        setMessages(prev =>
-          prev.map(msg =>
-            msg.id === messageId ? { ...msg, added_to_map: true } : msg
-          )
+      // ROLLBACK: Revert optimistic update on error
+      console.log('=== ROLLBACK ON ERROR ===');
+      setMessages(prev => {
+        const reverted = prev.map(msg =>
+          msg.id === messageId ? {
+            ...msg,
+            added_to_map: errorMessage.includes('already been added') ? true : false
+          } : msg
         );
-      }
+        console.log('Rolled back optimistic update due to error:', errorMessage);
+        return reverted;
+      });
       
       return false;
     }

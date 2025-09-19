@@ -66,8 +66,10 @@ const Dashboard: React.FC = () => {
       setShowCreateDialog(false);
       setNewWorkspaceTitle('');
       
-      // Navigate to the new workspace
-      selectWorkspace(workspace);
+      // Navigate to the new workspace (no need to call selectWorkspace since createWorkspace now sets it as current)
+      console.log('=== DASHBOARD: WORKSPACE CREATED ===');
+      console.log('New workspace ID:', workspace.id);
+      console.log('Navigating to workspace...');
       navigate('/workspace');
     } catch (error) {
       console.error('Failed to create workspace:', error);

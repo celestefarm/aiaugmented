@@ -39,8 +39,8 @@ async def generate_brief(
     """
     Generate a structured brief from workspace map data.
     
-    Fetches all nodes and edges for the given workspace and generates a structured 
-    summary organized by node type. For this sprint, uses simple concatenation 
+    Fetches all nodes and edges for the given workspace and generates a structured
+    summary organized by node type. For this sprint, uses simple concatenation
     of node titles and descriptions.
     
     Args:
@@ -53,8 +53,15 @@ async def generate_brief(
     Raises:
         HTTPException: If workspace not found or access denied
     """
+    # Add debug logging
+    print(f"=== GENERATE BRIEF ENDPOINT CALLED ===")
+    print(f"Workspace ID: {workspace_id}")
+    print(f"Current User: {current_user.email if current_user else 'None'}")
+    print(f"Current User ID: {current_user.id if current_user else 'None'}")
+    
     # Validate ObjectId format
     if not ObjectId.is_valid(workspace_id):
+        print(f"Invalid workspace ID format: {workspace_id}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid workspace ID format"
@@ -64,38 +71,56 @@ async def generate_brief(
     database = get_database()
     
     # Verify workspace exists and user owns it
+    print(f"Searching for workspace with ID: {workspace_id}, Owner: {current_user.id}")
     workspace_doc = await database.workspaces.find_one({
         "_id": ObjectId(workspace_id),
         "owner_id": ObjectId(current_user.id)
     })
     
     if not workspace_doc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found"
-        )
+        print(f"Workspace not found for ID: {workspace_id}, User: {current_user.id}")
+        # Also check if workspace exists but with different owner
+        any_workspace = await database.workspaces.find_one({"_id": ObjectId(workspace_id)})
+        if any_workspace:
+            print(f"Workspace exists but belongs to different user: {any_workspace.get('owner_id')}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You don't have permission to access this workspace"
+            )
+        else:
+            print(f"Workspace does not exist at all")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Workspace not found"
+            )
     
     workspace = WorkspaceInDB(**workspace_doc)
+    print(f"Found workspace: {workspace.title}")
     
     # Fetch all nodes for the workspace
     nodes_cursor = database.nodes.find({"workspace_id": ObjectId(workspace_id)})
     node_docs = await nodes_cursor.to_list(length=None)
     nodes = [NodeInDB(**doc) for doc in node_docs]
+    print(f"Found {len(nodes)} nodes")
     
     # Fetch all edges for the workspace
     edges_cursor = database.edges.find({"workspace_id": ObjectId(workspace_id)})
     edge_docs = await edges_cursor.to_list(length=None)
     edges = [EdgeInDB(**doc) for doc in edge_docs]
+    print(f"Found {len(edges)} edges")
     
     # Generate structured brief content
     brief_content = _generate_brief_content(workspace, nodes, edges)
     
-    return GenerateBriefResponse(
+    response = GenerateBriefResponse(
         content=brief_content,
         generated_at=datetime.utcnow(),
         node_count=len(nodes),
         edge_count=len(edges)
     )
+    
+    print(f"Brief generated successfully, content length: {len(brief_content)}")
+    return response
 
 
 @router.get("/workspaces/{workspace_id}/export")

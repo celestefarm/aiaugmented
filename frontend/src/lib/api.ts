@@ -303,6 +303,13 @@ class ApiClient {
     const url = `${this.baseUrl}${endpoint}`;
     const token = this.getToken();
 
+    // Enhanced logging for debugging authentication issues
+    console.log('=== API REQUEST DEBUG ===');
+    console.log('Endpoint:', endpoint);
+    console.log('Token exists:', !!token);
+    console.log('Token value:', token ? `${token.substring(0, 20)}...` : 'null');
+    console.log('Is authenticated:', this.isAuthenticated());
+
     const config: RequestInit = {
       headers: {
         'Content-Type': 'application/json',
@@ -312,24 +319,57 @@ class ApiClient {
       ...options,
     };
 
+    console.log('Request headers:', config.headers);
+
     try {
       const response = await fetch(url, config);
+      
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+      console.log('Response object:', response);
       
       if (!response.ok) {
         const errorData: ApiError = await response.json().catch(() => ({
           detail: `HTTP ${response.status}: ${response.statusText}`,
         }));
+        console.log('API Error:', errorData);
+        
+        // Special handling for authentication errors
+        if (response.status === 401) {
+          console.log('Authentication failed - clearing token');
+          this.clearAuth();
+        }
+        
         throw new Error(errorData.detail);
       }
 
       // Handle empty responses (like logout)
       const contentType = response.headers.get('content-type');
+      console.log('Content-Type:', contentType);
+      
       if (contentType && contentType.includes('application/json')) {
-        return await response.json();
+        const jsonResponse = await response.json();
+        console.log('JSON Response:', jsonResponse);
+        
+        // CRITICAL: Add null/undefined check for response data
+        if (jsonResponse === null || jsonResponse === undefined) {
+          console.error('CRITICAL: API returned null/undefined response');
+          throw new Error('API returned invalid response data');
+        }
+        
+        return jsonResponse;
       }
       
+      console.log('Returning empty object for non-JSON response');
       return {} as T;
     } catch (error) {
+      console.error('=== API REQUEST ERROR ===');
+      console.error('Request failed for endpoint:', endpoint);
+      console.error('Error details:', error);
+      console.error('Error type:', typeof error);
+      console.error('Error message:', error instanceof Error ? error.message : 'Unknown error');
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      
       if (error instanceof Error) {
         throw error;
       }
@@ -411,7 +451,43 @@ class ApiClient {
 
   // Node methods
   async getNodes(workspaceId: string): Promise<NodeListResponse> {
-    return await this.request<NodeListResponse>(`/workspaces/${workspaceId}/nodes`);
+    console.log('=== GET NODES API CALL ===');
+    console.log('Workspace ID:', workspaceId);
+    
+    try {
+      const response = await this.request<NodeListResponse>(`/workspaces/${workspaceId}/nodes`);
+      
+      console.log('Get nodes response:', response);
+      
+      // CRITICAL: Validate response structure
+      if (!response) {
+        console.error('CRITICAL: getNodes returned null/undefined');
+        throw new Error('Failed to fetch nodes - API returned no data');
+      }
+      
+      if (typeof response !== 'object') {
+        console.error('CRITICAL: getNodes returned non-object:', typeof response, response);
+        throw new Error('Failed to fetch nodes - API returned invalid data type');
+      }
+      
+      // Validate nodes property exists
+      if (!('nodes' in response)) {
+        console.error('CRITICAL: getNodes missing nodes property');
+        throw new Error('Failed to fetch nodes - missing nodes in response');
+      }
+      
+      if (!Array.isArray(response.nodes)) {
+        console.error('CRITICAL: getNodes nodes property is not an array:', typeof response.nodes);
+        throw new Error('Failed to fetch nodes - nodes is not an array');
+      }
+      
+      console.log('Get nodes validation passed, found', response.nodes.length, 'nodes');
+      return response;
+    } catch (error) {
+      console.error('=== GET NODES ERROR ===');
+      console.error('Error in getNodes:', error);
+      throw error;
+    }
   }
 
   async createNode(workspaceId: string, data: NodeCreateRequest): Promise<Node> {
@@ -442,7 +518,43 @@ class ApiClient {
 
   // Edge methods
   async getEdges(workspaceId: string): Promise<EdgeListResponse> {
-    return await this.request<EdgeListResponse>(`/workspaces/${workspaceId}/edges`);
+    console.log('=== GET EDGES API CALL ===');
+    console.log('Workspace ID:', workspaceId);
+    
+    try {
+      const response = await this.request<EdgeListResponse>(`/workspaces/${workspaceId}/edges`);
+      
+      console.log('Get edges response:', response);
+      
+      // CRITICAL: Validate response structure
+      if (!response) {
+        console.error('CRITICAL: getEdges returned null/undefined');
+        throw new Error('Failed to fetch edges - API returned no data');
+      }
+      
+      if (typeof response !== 'object') {
+        console.error('CRITICAL: getEdges returned non-object:', typeof response, response);
+        throw new Error('Failed to fetch edges - API returned invalid data type');
+      }
+      
+      // Validate edges property exists
+      if (!('edges' in response)) {
+        console.error('CRITICAL: getEdges missing edges property');
+        throw new Error('Failed to fetch edges - missing edges in response');
+      }
+      
+      if (!Array.isArray(response.edges)) {
+        console.error('CRITICAL: getEdges edges property is not an array:', typeof response.edges);
+        throw new Error('Failed to fetch edges - edges is not an array');
+      }
+      
+      console.log('Get edges validation passed, found', response.edges.length, 'edges');
+      return response;
+    } catch (error) {
+      console.error('=== GET EDGES ERROR ===');
+      console.error('Error in getEdges:', error);
+      throw error;
+    }
   }
 
   async createEdge(workspaceId: string, data: EdgeCreateRequest): Promise<Edge> {
@@ -508,9 +620,59 @@ class ApiClient {
 
   // Document generation methods
   async generateBrief(workspaceId: string): Promise<GenerateBriefResponse> {
-    return await this.request<GenerateBriefResponse>(`/workspaces/${workspaceId}/generate-brief`, {
-      method: 'POST',
-    });
+    console.log('=== GENERATE BRIEF API CALL ===');
+    console.log('Workspace ID:', workspaceId);
+    
+    if (!workspaceId || workspaceId.trim() === '') {
+      console.error('CRITICAL: No workspace ID provided to generateBrief');
+      throw new Error('No workspace ID provided - please select a valid workspace');
+    }
+    
+    try {
+      const response = await this.request<GenerateBriefResponse>(`/workspaces/${workspaceId}/generate-brief`, {
+        method: 'POST',
+      });
+      
+      console.log('Generate brief response:', response);
+      
+      // CRITICAL: Validate response structure
+      if (!response) {
+        console.error('CRITICAL: generateBrief returned null/undefined');
+        throw new Error('Brief generation failed - API returned no data');
+      }
+      
+      if (typeof response !== 'object') {
+        console.error('CRITICAL: generateBrief returned non-object:', typeof response, response);
+        throw new Error('Brief generation failed - API returned invalid data type');
+      }
+      
+      // Validate required properties
+      const requiredProps = ['content', 'generated_at', 'node_count', 'edge_count'];
+      for (const prop of requiredProps) {
+        if (!(prop in response)) {
+          console.error(`CRITICAL: generateBrief missing required property: ${prop}`);
+          throw new Error(`Brief generation failed - missing ${prop} in response`);
+        }
+      }
+      
+      console.log('Generate brief validation passed');
+      return response;
+    } catch (error) {
+      console.error('=== GENERATE BRIEF ERROR ===');
+      console.error('Error in generateBrief:', error);
+      
+      // Provide more user-friendly error messages
+      if (error instanceof Error) {
+        if (error.message.includes('Access denied') || error.message.includes('403')) {
+          throw new Error('Access denied: This workspace belongs to another user or you don\'t have permission to access it');
+        }
+        if (error.message.includes('Workspace not found') || error.message.includes('404')) {
+          throw new Error('Workspace not found: The selected workspace may have been deleted or is no longer accessible');
+        }
+      }
+      
+      throw error;
+    }
   }
 
   async exportWorkspace(workspaceId: string): Promise<void> {

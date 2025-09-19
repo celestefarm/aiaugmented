@@ -36,10 +36,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const initializeAuth = async () => {
     try {
       setIsLoading(true);
+      console.log('=== AUTH CONTEXT INIT DEBUG ===');
+      console.log('Is authenticated:', apiClient.isAuthenticated());
+      console.log('Token exists:', !!localStorage.getItem('auth_token'));
+      
       if (apiClient.isAuthenticated()) {
+        console.log('Fetching current user...');
         const currentUser = await apiClient.getCurrentUser();
+        console.log('Current user:', currentUser);
         setUser(currentUser);
       } else {
+        console.log('Not authenticated, setting user to null');
         setUser(null);
       }
     } catch (error) {
@@ -48,6 +55,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       apiClient.clearAuth();
     } finally {
       setIsLoading(false);
+      console.log('Auth initialization complete. User:', user);
     }
   };
 
@@ -55,9 +63,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (email: string, password: string): Promise<void> => {
     try {
       setIsLoading(true);
+      console.log('=== LOGIN DEBUG ===');
+      console.log('Attempting login for:', email);
+      
       const response = await apiClient.login({ email, password });
+      console.log('Login successful, token stored:', !!localStorage.getItem('auth_token'));
+      console.log('User data:', response.user);
+      
       setUser(response.user);
     } catch (error) {
+      console.error('Login failed:', error);
       setUser(null);
       throw error;
     } finally {

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { Node, Edge, NodeCreateRequest, NodeUpdateRequest, EdgeCreateRequest, apiClient } from '../lib/api';
 import { useWorkspace } from './WorkspaceContext';
+import { useAuth } from './AuthContext';
 
 // Map context types
 interface MapContextType {
@@ -41,10 +42,28 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
   const [error, setError] = useState<string | null>(null);
   
   const { currentWorkspace } = useWorkspace();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   // Load map data (nodes and edges) for current workspace
   const loadMapData = useCallback(async (): Promise<void> => {
     if (!currentWorkspace?.id) {
+      console.log('=== MAP CONTEXT DEBUG ===');
+      console.log('No current workspace, clearing map data');
+      clearMapData();
+      return;
+    }
+
+    // Wait for authentication to be initialized before loading map data
+    if (authLoading) {
+      console.log('=== MAP CONTEXT DEBUG ===');
+      console.log('Authentication still loading, waiting...');
+      return;
+    }
+
+    if (!isAuthenticated) {
+      console.log('=== MAP CONTEXT DEBUG ===');
+      console.log('User not authenticated, cannot load map data');
+      setError('Authentication required to load map data');
       clearMapData();
       return;
     }
@@ -53,13 +72,20 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
       setIsLoading(true);
       setError(null);
       
+      console.log('=== MAP CONTEXT DEBUG ===');
+      console.log('Loading map data for workspace:', currentWorkspace.id);
+      console.log('Auth token exists:', !!localStorage.getItem('auth_token'));
+      console.log('API client authenticated:', apiClient.isAuthenticated());
+      console.log('Auth context authenticated:', isAuthenticated);
+      console.log('Auth loading:', authLoading);
+      
       // Load nodes and edges from API
       const [nodesResponse, edgesResponse] = await Promise.all([
         apiClient.getNodes(currentWorkspace.id),
         apiClient.getEdges(currentWorkspace.id)
       ]);
       
-      console.log('=== MAP CONTEXT DEBUG ===');
+      console.log('Map data loaded successfully');
       console.log('Loaded nodes:', nodesResponse.nodes);
       console.log('Node count:', nodesResponse.nodes.length);
       console.log('Loaded edges:', edgesResponse.edges);
@@ -69,15 +95,23 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
       setEdges(edgesResponse.edges);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load map data';
+      console.error('=== MAP LOADING ERROR ===');
+      console.error('Error message:', errorMessage);
+      console.error('Full error:', err);
+      console.error('Workspace ID:', currentWorkspace.id);
+      console.error('Auth token exists:', !!localStorage.getItem('auth_token'));
+      console.error('API client authenticated:', apiClient.isAuthenticated());
+      console.error('Auth context authenticated:', isAuthenticated);
+      console.error('Auth loading:', authLoading);
+      
       setError(errorMessage);
-      console.error('Failed to load map data:', err);
       // Set empty arrays on error
       setNodes([]);
       setEdges([]);
     } finally {
       setIsLoading(false);
     }
-  }, [currentWorkspace]);
+  }, [currentWorkspace, isAuthenticated, authLoading]);
 
   // Create a new node
   const createNode = useCallback(async (data: NodeCreateRequest): Promise<Node | null> => {
@@ -219,14 +253,14 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
     }
   }, [currentWorkspace, loadMapData]);
 
-  // Load map data when workspace changes
+  // Load map data when workspace changes or authentication state changes
   useEffect(() => {
-    if (currentWorkspace) {
+    if (currentWorkspace && !authLoading) {
       loadMapData();
-    } else {
+    } else if (!currentWorkspace) {
       clearMapData();
     }
-  }, [currentWorkspace, loadMapData]);
+  }, [currentWorkspace, loadMapData, authLoading, isAuthenticated]);
 
   // Context value
   const value: MapContextType = {

@@ -3,7 +3,7 @@ import { ChevronDown, Share, Download, Copy, LogOut, User, Edit, ArrowLeft } fro
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useWorkspace } from '../contexts/WorkspaceContext';
-import { exportWorkspace } from '../lib/api';
+import { apiClient } from '../lib/api';
 
 interface HeaderProps {
   currentView: 'exploration' | 'brief';
@@ -80,7 +80,7 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, title, onTit
 
     setIsExporting(true);
     try {
-      await exportWorkspace(currentWorkspace.id);
+      await apiClient.exportWorkspace(currentWorkspace.id);
     } catch (error) {
       console.error('Export failed:', error);
       // You could add a toast notification here

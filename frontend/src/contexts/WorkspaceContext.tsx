@@ -56,6 +56,16 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
       setError(null);
       const newWorkspace = await apiClient.createWorkspace(data);
       setWorkspaces(prev => [...prev, newWorkspace]);
+      
+      // CRITICAL FIX: Automatically set the new workspace as the current workspace
+      setCurrentWorkspace(newWorkspace);
+      // Persist to localStorage
+      localStorage.setItem('currentWorkspace', JSON.stringify(newWorkspace));
+      
+      console.log('=== WORKSPACE CREATION SUCCESS ===');
+      console.log('New workspace created:', newWorkspace.id);
+      console.log('Set as current workspace:', newWorkspace.id);
+      
       return newWorkspace;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create workspace';
@@ -159,21 +169,36 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
 
   // Initialize workspace state on mount
   useEffect(() => {
-    // Try to restore current workspace from localStorage
-    const savedWorkspace = localStorage.getItem('currentWorkspace');
-    if (savedWorkspace) {
-      try {
-        const workspace = JSON.parse(savedWorkspace);
-        setCurrentWorkspace(workspace);
-      } catch (error) {
-        console.error('Failed to parse saved workspace:', error);
+    // Load workspaces from API first
+    loadWorkspaces().then(() => {
+      // Try to restore current workspace from localStorage after workspaces are loaded
+      const savedWorkspace = localStorage.getItem('currentWorkspace');
+      if (savedWorkspace) {
+        try {
+          const workspace = JSON.parse(savedWorkspace);
+          // Validate that the saved workspace still exists and belongs to the user
+          // This will be validated when workspaces are loaded
+          setCurrentWorkspace(workspace);
+        } catch (error) {
+          console.error('Failed to parse saved workspace:', error);
+          localStorage.removeItem('currentWorkspace');
+        }
+      }
+    });
+  }, []);
+
+  // Validate current workspace when workspaces are loaded
+  useEffect(() => {
+    if (workspaces.length > 0 && currentWorkspace) {
+      // Check if current workspace still exists in the user's workspaces
+      const workspaceExists = workspaces.some(ws => ws.id === currentWorkspace.id);
+      if (!workspaceExists) {
+        console.warn('Current workspace no longer exists or is not accessible, clearing selection');
+        setCurrentWorkspace(null);
         localStorage.removeItem('currentWorkspace');
       }
     }
-    
-    // Load workspaces from API
-    loadWorkspaces();
-  }, []);
+  }, [workspaces, currentWorkspace]);
 
   // Context value
   const value: WorkspaceContextType = {

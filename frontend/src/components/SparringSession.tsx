@@ -9,6 +9,7 @@ interface SparringSessionProps {
 const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
   const [chatMessage, setChatMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [addingToMap, setAddingToMap] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const {
@@ -59,6 +60,7 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
       // Find the message in our local state
       const message = messages.find(m => m.id === messageId);
       console.log('Found message in local state:', message);
+      console.log('Current messages state:', messages.map(m => ({ id: m.id, added_to_map: m.added_to_map })));
       
       // Validate message ID format
       if (!messageId || typeof messageId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(messageId)) {
@@ -69,29 +71,52 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
       
       // Check if message is already added to map
       if (message?.added_to_map) {
-        console.log('Message already added to map');
+        console.log('Message already added to map - preventing duplicate addition');
         alert('This message has already been added to the map.');
         return;
       }
       
+      // IMMEDIATE STATE UPDATE: Optimistically update UI to prevent race conditions
+      console.log('=== OPTIMISTIC UPDATE ===');
+      console.log('Immediately updating local state to prevent race condition...');
+      
+      // Prevent multiple simultaneous requests for the same message
+      if (addingToMap.has(messageId)) {
+        console.log('Already processing this message - preventing duplicate request');
+        alert('This message is already being added to the map. Please wait...');
+        return;
+      }
+      
+      // Mark message as being processed
+      setAddingToMap(prev => new Set(prev).add(messageId));
+      
       console.log('Calling new addMessageToMap implementation...');
       
-      // Call the API with enhanced error handling
-      const success = await addMessageToMap(messageId, undefined, 'ai');
-      console.log('New addMessageToMap result:', success);
-      
-      if (success) {
-        console.log('Successfully added to map with new implementation!');
-        // Show success feedback
-        alert('Message successfully added to map! Check the canvas to see the new node.');
+      try {
+        // Call the API with enhanced error handling
+        const success = await addMessageToMap(messageId, undefined, 'ai');
+        console.log('New addMessageToMap result:', success);
         
-        // Call the callback if provided
-        if (onAddToMap) {
-          onAddToMap(messageId);
+        if (success) {
+          console.log('Successfully added to map with new implementation!');
+          // Show success feedback
+          alert('Message successfully added to map! Check the canvas to see the new node.');
+          
+          // Call the callback if provided
+          if (onAddToMap) {
+            onAddToMap(messageId);
+          }
+        } else {
+          console.error('New addMessageToMap returned false');
+          alert('Failed to add message to map. The message may already be added or there was a server error.');
         }
-      } else {
-        console.error('New addMessageToMap returned false');
-        alert('Failed to add message to map. The message may already be added or there was a server error.');
+      } finally {
+        // Always remove from processing set
+        setAddingToMap(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(messageId);
+          return newSet;
+        });
       }
     } catch (error) {
       console.error('Failed to add message to map with new implementation:', error);
@@ -112,6 +137,13 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
       }
       
       alert(`Error adding to map: ${errorMessage}`);
+      
+      // Remove from processing set on error
+      setAddingToMap(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(messageId);
+        return newSet;
+      });
     }
   };
 
@@ -231,6 +263,11 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
                     <div className="flex items-center space-x-1 text-[10px] px-2 py-1 bg-green-500/20 text-green-300 rounded border border-green-500/30">
                       <Check className="w-3 h-3" />
                       <span>Added to Map</span>
+                    </div>
+                  ) : addingToMap.has(message.id) ? (
+                    <div className="flex items-center space-x-1 text-[10px] px-2 py-1 bg-yellow-500/20 text-yellow-300 rounded border border-yellow-500/30">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span>Adding...</span>
                     </div>
                   ) : (
                     <button

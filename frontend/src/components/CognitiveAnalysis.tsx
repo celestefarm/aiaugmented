@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Brain, Zap, Network, Lightbulb, Loader2 } from 'lucide-react';
-import { analyzeCognitiveRelationships, autoConnectNodes } from '../lib/api';
+import { apiClient } from '../lib/api';
 import type { CognitiveAnalysisResponse, AutoConnectResponse, RelationshipSuggestion } from '../lib/api';
 
 interface CognitiveAnalysisProps {
@@ -26,7 +26,7 @@ export const CognitiveAnalysis: React.FC<CognitiveAnalysisProps> = ({
     setError(null);
     
     try {
-      const result = await analyzeCognitiveRelationships(workspaceId, selectedNodeIds);
+      const result = await apiClient.analyzeCognitiveRelationships(workspaceId, selectedNodeIds);
       setAnalysisResult(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to analyze relationships');
@@ -40,7 +40,7 @@ export const CognitiveAnalysis: React.FC<CognitiveAnalysisProps> = ({
     setError(null);
     
     try {
-      const result: AutoConnectResponse = await autoConnectNodes(workspaceId);
+      const result: AutoConnectResponse = await apiClient.autoConnectNodes(workspaceId);
       if (result.success && onConnectionsCreated) {
         onConnectionsCreated(result.connections_created);
       }
