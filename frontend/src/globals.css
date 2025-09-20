@@ -228,3 +228,171 @@
   border-color: rgba(251, 191, 36, 0.4);
   transform: scale(1.1) rotate(90deg);
 }
+
+/* Smooth tooltip animations */
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes fadeOut {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(4px) scale(0.95);
+  }
+}
+
+/* Enhanced tooltip styles */
+.tooltip-smooth {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: bottom left;
+}
+
+.tooltip-smooth.entering {
+  animation: fadeIn 200ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.tooltip-smooth.exiting {
+  animation: fadeOut 150ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Improved tooltip positioning and responsiveness */
+.tooltip-container {
+  position: relative;
+  z-index: 1000;
+}
+
+.tooltip-content {
+  position: absolute;
+  width: 320px;
+  max-width: 90vw;
+  max-height: 384px;
+  overflow-y: auto;
+  pointer-events: auto;
+  z-index: 1000;
+  
+  /* Enhanced glass effect for tooltips */
+  background: rgba(10, 10, 10, 0.85);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(107, 107, 58, 0.3);
+  border-radius: 12px;
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.4),
+    0 0 20px rgba(107, 107, 58, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Dynamic positioning classes */
+.tooltip-content.position-above {
+  /* Arrow pointing down */
+}
+
+.tooltip-content.position-below {
+  /* Arrow pointing up */
+}
+
+.tooltip-content.align-left {
+  /* Left aligned */
+}
+
+.tooltip-content.align-center {
+  /* Center aligned */
+}
+
+.tooltip-content.align-right {
+  /* Right aligned */
+}
+
+/* Responsive tooltip positioning */
+@media (max-width: 768px) {
+  .tooltip-content {
+    width: 280px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
+/* Dynamic tooltip arrows - positioned to point to the tooltip icon */
+.tooltip-content.position-above::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 8px solid rgba(107, 107, 58, 0.3);
+}
+
+.tooltip-content.position-above::before {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid rgba(10, 10, 10, 0.85);
+  z-index: 1;
+}
+
+.tooltip-content.position-below::after {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 20px;
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 8px solid rgba(107, 107, 58, 0.3);
+}
+
+.tooltip-content.position-below::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 21px;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 6px solid rgba(10, 10, 10, 0.85);
+  z-index: 1;
+}
+
+/* Center aligned arrows - ensure consistent centering */
+.tooltip-content.align-center::after {
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+}
+
+.tooltip-content.align-center::before {
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+}
+
+/* Right aligned arrows */
+.tooltip-content.align-right::after {
+  left: auto;
+  right: 20px;
+}
+
+.tooltip-content.align-right::before {
+  left: auto;
+  right: 21px;
+}

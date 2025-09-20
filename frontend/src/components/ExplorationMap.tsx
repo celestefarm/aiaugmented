@@ -76,7 +76,9 @@ const ExplorationMap: React.FC = () => {
   const [draggedNodePosition, setDraggedNodePosition] = useState<{ x: number; y: number } | null>(null);
   
   // UI state
-  const [hoveredNode, setHoveredNode] = useState<string | null>(null);
+  const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
+  const [tooltipAnimating, setTooltipAnimating] = useState<string | null>(null);
+  const [tooltipPositions, setTooltipPositions] = useState<Record<string, { x: number; y: number; position: 'above'; align: 'center' }>>({});
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
   const [showCustomAgentDialog, setShowCustomAgentDialog] = useState(false);
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
@@ -644,6 +646,8 @@ const ExplorationMap: React.FC = () => {
     e.stopPropagation();
     e.preventDefault();
     
+    setActiveTooltip(null);
+    
     if (isCreatingConnection) {
       if (connectionStart && connectionStart !== nodeId) {
         createConnection(connectionStart, nodeId);
@@ -671,6 +675,78 @@ const ExplorationMap: React.FC = () => {
       });
     }
   }, [isCreatingConnection, connectionStart, createConnection, nodes, screenToCanvas, showNotification]);
+
+  // Calculate tooltip position with guaranteed vertical separation
+  const calculateTooltipPosition = useCallback((nodeId: string) => {
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node) return null;
+
+    // Safe spacing rule: 10px gap (within 8-12px requirement)
+    const SAFE_GAP = 10;
+    const tooltipWidth = 320; // w-80 = 320px
+    
+    // Position tooltip above the entire node with clean separation
+    // Center horizontally on the node, position above with guaranteed gap
+    const x = (NODE_WIDTH - tooltipWidth) / 2; // Center on node
+    const y = -(SAFE_GAP); // Above node with non-negotiable gap
+    
+    return { x, y, position: 'above' as const, align: 'center' as const };
+  }, [nodes]);
+
+  // Simplified tooltip event handlers with fixed positioning
+  const handleTooltipIconClick = useCallback((e: React.MouseEvent, nodeId: string) => {
+    e.stopPropagation();
+    
+    if (activeTooltip === nodeId) {
+      // Hide current tooltip with animation
+      setTooltipAnimating(nodeId);
+      setTimeout(() => {
+        setActiveTooltip(null);
+        setTooltipAnimating(null);
+        setTooltipPositions(prev => {
+          const newPositions = { ...prev };
+          delete newPositions[nodeId];
+          return newPositions;
+        });
+      }, 150); // Match the fade-out duration
+    } else {
+      // Calculate fixed position for new tooltip
+      const position = calculateTooltipPosition(nodeId);
+      if (position) {
+        setTooltipPositions(prev => ({
+          ...prev,
+          [nodeId]: position
+        }));
+      }
+      
+      // Show new tooltip
+      setActiveTooltip(nodeId);
+      setTooltipAnimating(null);
+    }
+  }, [activeTooltip, calculateTooltipPosition]);
+
+  const handleTooltipMouseLeave = useCallback(() => {
+    // Add a small delay before hiding to prevent accidental dismissal
+    setTimeout(() => {
+      if (activeTooltip) {
+        setTooltipAnimating(activeTooltip);
+        setTimeout(() => {
+          setActiveTooltip(null);
+          setTooltipAnimating(null);
+          setTooltipPositions(prev => {
+            const newPositions = { ...prev };
+            if (activeTooltip) delete newPositions[activeTooltip];
+            return newPositions;
+          });
+        }, 150);
+      }
+    }, 200); // 200ms delay before starting hide animation
+  }, [activeTooltip]);
+
+  // Handle tooltip mouse enter to cancel hide animation
+  const handleTooltipMouseEnter = useCallback(() => {
+    setTooltipAnimating(null);
+  }, []);
 
   // Handle edit node from context menu or toolbar
   const handleEditNode = useCallback((nodeId: string) => {
@@ -1004,14 +1080,37 @@ const ExplorationMap: React.FC = () => {
     return sentences.length > 0 ? sentences : [text.substring(0, 200) + (text.length > 200 ? '...' : '')];
   };
 
-  // Close context menu when clicking outside
+  // Close context menu and tooltips when clicking outside
   useEffect(() => {
-    const handleClickOutside = () => setShowContextMenu(null);
-    if (showContextMenu) {
+    const handleClickOutside = (event: MouseEvent) => {
+      setShowContextMenu(null);
+      
+      // Close tooltip if clicking outside of it
+      if (activeTooltip) {
+        const target = event.target as Element;
+        const tooltipElement = target.closest('.tooltip-container');
+        const tooltipButton = target.closest('[data-tooltip-trigger]');
+        
+        if (!tooltipElement && !tooltipButton) {
+          setTooltipAnimating(activeTooltip);
+          setTimeout(() => {
+            setActiveTooltip(null);
+            setTooltipAnimating(null);
+            setTooltipPositions(prev => {
+              const newPositions = { ...prev };
+              if (activeTooltip) delete newPositions[activeTooltip];
+              return newPositions;
+            });
+          }, 150);
+        }
+      }
+    };
+    
+    if (showContextMenu || activeTooltip) {
       document.addEventListener('click', handleClickOutside);
       return () => document.removeEventListener('click', handleClickOutside);
     }
-  }, [showContextMenu]);
+  }, [showContextMenu, activeTooltip]);
 
   // Show loading state if map is loading
   if (mapLoading && nodes.length === 0) {
@@ -1596,8 +1695,6 @@ const ExplorationMap: React.FC = () => {
                 onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
                 onDoubleClick={(e) => handleNodeDoubleClick(e, node.id)}
                 onContextMenu={(e) => handleNodeRightClick(e, node.id)}
-                onMouseEnter={() => setHoveredNode(node.id)}
-                onMouseLeave={() => setHoveredNode(null)}
                 onKeyDown={(e) => handleNodeKeyDown(e, node.id)}
                 tabIndex={0}
                 role="button"
@@ -1611,6 +1708,16 @@ const ExplorationMap: React.FC = () => {
                       {node.source_agent === 'strategist' ? 'Strategist Agent' : node.source_agent}
                     </div>
                   )}
+                  
+                  {/* Tooltip Icon Button - Top-right corner */}
+                  <button
+                    onClick={(e) => handleTooltipIconClick(e, node.id)}
+                    className="absolute top-0 right-0 w-6 h-6 rounded-full bg-gray-700/80 hover:bg-gray-600/80 flex items-center justify-center transition-colors z-10"
+                    aria-label="Toggle tooltip"
+                    data-tooltip-trigger
+                  >
+                    <Info className="w-3 h-3 text-gray-300" />
+                  </button>
                   
                   {/* Add top padding when agent label is present */}
                   <div className={node.source_agent ? 'pt-8' : ''}>
@@ -1675,67 +1782,80 @@ const ExplorationMap: React.FC = () => {
                     </span>
                   </div>
 
-                  {/* Enhanced Tooltip with Keynote Points */}
-                  {hoveredNode === node.id && (
-                    <div className="absolute bottom-full left-0 mb-2 w-80 glass-pane p-4 text-xs z-50 pointer-events-none border border-gray-600/50 rounded-lg shadow-xl max-h-96 overflow-y-auto">
-                      <div className="flex items-center gap-2 mb-3">
-                        {getNodeIcon(node.type)}
-                        <div className="font-medium text-[#6B6B3A]">
-                          {node.title}
-                        </div>
-                      </div>
-                      
-                      {/* Keynote Points - Primary content */}
-                      {node.keynote_points && node.keynote_points.length > 0 ? (
-                        <div className="mb-3">
-                          <div className="text-gray-400 font-medium mb-2">Key Discussion Points:</div>
-                          <div className="space-y-1">
-                            {node.keynote_points.map((point, index) => (
-                              <div key={index} className="flex items-start gap-2">
-                                <div className="w-1 h-1 rounded-full bg-[#6B6B3A] mt-2 flex-shrink-0"></div>
-                                <span className="text-gray-300 leading-relaxed">{point}</span>
-                              </div>
-                            ))}
+                  {/* Enhanced Tooltip with Clean Vertical Separation */}
+                  {activeTooltip === node.id && (
+                    <div className="tooltip-container absolute pointer-events-auto z-50">
+                      <div
+                        className={`tooltip-content tooltip-smooth p-4 text-xs absolute glass-pane border border-gray-600/50 rounded-lg shadow-2xl w-80 ${
+                          tooltipAnimating === node.id ? 'exiting' : 'entering'
+                        }`}
+                        style={{
+                          left: `${(NODE_WIDTH - 320) / 2}px`, // Center on node (320px = w-80)
+                          top: `-10px`, // Fixed 10px gap above node
+                          transform: 'translateY(-100%)' // Move tooltip fully above the gap
+                        }}
+                        onMouseLeave={handleTooltipMouseLeave}
+                        onMouseEnter={handleTooltipMouseEnter}
+                      >
+                        <div className="flex items-center gap-2 mb-3">
+                          {getNodeIcon(node.type)}
+                          <div className="font-medium text-[#6B6B3A]">
+                            {node.title}
                           </div>
                         </div>
-                      ) : (
-                        /* Fallback to conversation text if no keynote points */
-                        <div className="mb-3">
-                          <div className="text-gray-400 font-medium mb-2">Full Conversation:</div>
-                          <div className="space-y-1">
-                            {formatConversationText(node.description).map((point, index) => (
-                              <div key={index} className="flex items-start gap-2">
-                                <div className="w-1 h-1 rounded-full bg-[#6B6B3A] mt-2 flex-shrink-0"></div>
-                                <span className="text-gray-300 leading-relaxed">{point}</span>
-                              </div>
-                            ))}
+                        
+                        {/* Keynote Points - Primary content */}
+                        {node.keynote_points && node.keynote_points.length > 0 ? (
+                          <div className="mb-3">
+                            <div className="text-gray-400 font-medium mb-2">Key Discussion Points:</div>
+                            <div className="space-y-1">
+                              {node.keynote_points.map((point, index) => (
+                                <div key={index} className="flex items-start gap-2">
+                                  <div className="w-1 h-1 rounded-full bg-[#6B6B3A] mt-2 flex-shrink-0"></div>
+                                  <span className="text-gray-300 leading-relaxed">{point}</span>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      )}
-                      
-                      {/* Key Message in tooltip if available */}
-                      {node.key_message && (
-                        <div className="mb-3 p-2 bg-[#6B6B3A]/10 rounded border border-[#6B6B3A]/20">
-                          <div className="text-gray-400 font-medium mb-1">Key Message:</div>
-                          <div className="text-gray-200 leading-relaxed">{node.key_message}</div>
-                        </div>
-                      )}
-                      
-                      {/* Metadata */}
-                      <div className="flex items-center justify-between text-xs border-t border-gray-600/30 pt-2">
-                        <div className="flex items-center gap-4">
-                          <span className="text-gray-400">
-                            {edges.filter(e => e.from_node_id === node.id || e.to_node_id === node.id).length} connections
-                          </span>
-                          {node.confidence && (
-                            <span className="text-[#6B6B3A]">
-                              {node.confidence}% confidence
+                        ) : (
+                          /* Fallback to conversation text if no keynote points */
+                          <div className="mb-3">
+                            <div className="text-gray-400 font-medium mb-2">Full Conversation:</div>
+                            <div className="space-y-1">
+                              {formatConversationText(node.description).map((point, index) => (
+                                <div key={index} className="flex items-start gap-2">
+                                  <div className="w-1 h-1 rounded-full bg-[#6B6B3A] mt-2 flex-shrink-0"></div>
+                                  <span className="text-gray-300 leading-relaxed">{point}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Key Message in tooltip if available */}
+                        {node.key_message && (
+                          <div className="mb-3 p-2 bg-[#6B6B3A]/10 rounded border border-[#6B6B3A]/20">
+                            <div className="text-gray-400 font-medium mb-1">Key Message:</div>
+                            <div className="text-gray-200 leading-relaxed">{node.key_message}</div>
+                          </div>
+                        )}
+                        
+                        {/* Metadata */}
+                        <div className="flex items-center justify-between text-xs border-t border-gray-600/30 pt-2">
+                          <div className="flex items-center gap-4">
+                            <span className="text-gray-400">
+                              {edges.filter(e => e.from_node_id === node.id || e.to_node_id === node.id).length} connections
                             </span>
-                          )}
+                            {node.confidence && (
+                              <span className="text-[#6B6B3A]">
+                                {node.confidence}% confidence
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-gray-500">
+                            {formatTimestamp(node.created_at)}
+                          </span>
                         </div>
-                        <span className="text-gray-500">
-                          {formatTimestamp(node.created_at)}
-                        </span>
                       </div>
                     </div>
                   )}
