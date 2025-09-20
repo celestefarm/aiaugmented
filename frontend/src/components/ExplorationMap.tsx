@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Info, Mic, Paperclip, Plus, Upload, ChevronLeft, ChevronRight, X, Clock, User, Target, Users, Briefcase, Trash2, Undo, Redo, Save, ZoomIn, ZoomOut, Check, Link, MoreVertical, RefreshCw } from 'lucide-react';
+import { Info, Mic, Paperclip, Plus, Upload, ChevronLeft, ChevronRight, X, Clock, User, Target, Users, Briefcase, Trash2, Undo, Redo, Save, ZoomIn, ZoomOut, Check, Link, MoreVertical, RefreshCw, HelpCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,6 +43,7 @@ interface SimpleNodeProps {
   isDragging: boolean;
   onMouseDown: (event: React.MouseEvent, nodeId: string, nodeType: 'ai' | 'human') => void;
   onSelect: () => void;
+  onTooltipClick?: (event: React.MouseEvent) => void;
 }
 
 const SimpleNode: React.FC<SimpleNodeProps> = ({
@@ -51,7 +52,8 @@ const SimpleNode: React.FC<SimpleNodeProps> = ({
   isSelected,
   isDragging,
   onMouseDown,
-  onSelect
+  onSelect,
+  onTooltipClick
 }) => {
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     // CRITICAL FIX: Check if this is a tooltip or UI interaction
@@ -191,6 +193,20 @@ const SimpleNode: React.FC<SimpleNodeProps> = ({
               {node.type}
             </span>
           </div>
+          
+          {/* Tooltip Icon */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onTooltipClick?.(e);
+            }}
+            className="w-6 h-6 rounded-full bg-gray-700/50 hover:bg-gray-600/70 flex items-center justify-center transition-colors opacity-70 hover:opacity-100 group-hover:opacity-100"
+            aria-label="Show tooltip"
+            title="Click for AI insights"
+          >
+            <HelpCircle className="w-3 h-3 text-gray-300 hover:text-white transition-colors" />
+          </button>
         </div>
       </div>
     </div>
@@ -1917,6 +1933,10 @@ const handleModalClose = useCallback(() => {
                   onSelect={() => {
                     setSelectedNode(node.id);
                     setFocusedNode(node.id);
+                  }}
+                  onTooltipClick={(e) => {
+                    // This will be handled by NodeWithTooltip
+                    e.stopPropagation();
                   }}
                 />
               </NodeWithTooltip>

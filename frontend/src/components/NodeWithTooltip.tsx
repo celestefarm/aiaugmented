@@ -1,18 +1,4 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import {
-  useFloating,
-  autoUpdate,
-  offset,
-  flip,
-  shift,
-  useHover,
-  useFocus,
-  useDismiss,
-  useRole,
-  useInteractions,
-  FloatingArrow,
-  arrow
-} from '@floating-ui/react';
 import { Node, Edge } from '@/lib/api';
 import { EnhancedNodeTooltip } from './EnhancedNodeTooltip';
 import { ProcessedContent } from '@/utils/tooltipContentUtils';
@@ -41,114 +27,66 @@ export const NodeWithTooltip: React.FC<NodeWithTooltipProps> = ({
   children
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const arrowRef = useRef<SVGSVGElement>(null);
+  const nodeRef = useRef<HTMLDivElement>(null);
   
-  // Debug logging for component lifecycle
+  const handleTooltipClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setIsOpen(prev => !prev);
+  }, []);
+
+  const handleClickOutside = useCallback((event: MouseEvent) => {
+    if (nodeRef.current && !nodeRef.current.contains(event.target as HTMLElement)) {
+      // Check if click is on the tooltip itself
+      const tooltipElement = document.querySelector('[role="tooltip"]');
+      if (tooltipElement && !tooltipElement.contains(event.target as HTMLElement)) {
+        setIsOpen(false);
+      }
+    }
+  }, []);
+
+  // Add click outside listener when tooltip is open
   useEffect(() => {
-    console.log('🔧 [TOOLTIP DEBUG] NodeWithTooltip mounted for node:', node.id);
-    return () => {
-      console.log('🔧 [TOOLTIP DEBUG] NodeWithTooltip unmounting for node:', node.id);
-    };
-  }, [node.id]);
-  
-  useEffect(() => {
-    console.log('🔧 [TOOLTIP DEBUG] isOpen state changed:', isOpen, 'for node:', node.id);
-  }, [isOpen, node.id]);
-
-  const { refs, floatingStyles, context } = useFloating({
-    open: isOpen,
-    onOpenChange: setIsOpen,
-    placement: 'top',
-    middleware: [
-      offset(20),
-      flip({
-        fallbackAxisSideDirection: "start",
-        fallbackPlacements: ['top', 'bottom', 'left', 'right'],
-      }),
-      shift({ padding: 16 }),
-      arrow({
-        element: arrowRef,
-      }),
-    ],
-    whileElementsMounted: autoUpdate,
-    strategy: 'fixed', // Use fixed positioning
-  });
-
-  const hover = useHover(context, {
-    move: false,
-    delay: { open: 300, close: 100 },
-    restMs: 40 // Add rest period to prevent flickering
-  });
-  const focus = useFocus(context);
-  const dismiss = useDismiss(context);
-  const role = useRole(context, { role: "tooltip" });
-
-  const { getReferenceProps, getFloatingProps } = useInteractions([
-    hover,
-    focus,
-    dismiss,
-    role,
-  ]);
-  
-  // Debug the reference props
-  const debugReferenceProps = getReferenceProps();
-  console.log('🔧 [TOOLTIP DEBUG] Reference props for node', node.id, ':', {
-    onMouseEnter: !!debugReferenceProps.onMouseEnter,
-    onMouseLeave: !!debugReferenceProps.onMouseLeave,
-    onFocus: !!debugReferenceProps.onFocus,
-    onBlur: !!debugReferenceProps.onBlur,
-  });
-
-  const referenceProps = getReferenceProps() as any;
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isOpen, handleClickOutside]);
   
   return (
     <>
+      {/* Invisible positioning reference div that matches the actual node position */}
       <div
-        ref={refs.setReference}
-        onMouseEnter={(e: React.MouseEvent) => {
-          console.log('🐭 [TOOLTIP DEBUG] Mouse enter on wrapper div for node:', node.id);
-          
-          // Always manually trigger tooltip
-          console.log('🐭 [TOOLTIP DEBUG] Manually setting isOpen to true');
-          setIsOpen(true);
-          
-          // Also try the floating UI handler if it exists
-          if (referenceProps.onMouseEnter) {
-            console.log('🐭 [TOOLTIP DEBUG] Also calling floating UI onMouseEnter');
-            referenceProps.onMouseEnter(e);
-          }
+        ref={nodeRef}
+        style={{
+          position: 'absolute',
+          pointerEvents: 'none',
+          left: `${node.x * transform.scale + transform.x}px`,
+          top: `${node.y * transform.scale + transform.y}px`,
+          width: '240px',
+          height: '120px',
+          zIndex: 1,
+          visibility: 'hidden'
         }}
-        onMouseLeave={(e: React.MouseEvent) => {
-          console.log('🐭 [TOOLTIP DEBUG] Mouse leave on wrapper div for node:', node.id);
-          
-          // Always manually trigger tooltip close
-          console.log('🐭 [TOOLTIP DEBUG] Manually setting isOpen to false');
-          setIsOpen(false);
-          
-          // Also try the floating UI handler if it exists
-          if (referenceProps.onMouseLeave) {
-            console.log('🐭 [TOOLTIP DEBUG] Also calling floating UI onMouseLeave');
-            referenceProps.onMouseLeave(e);
-          }
-        }}
-        style={{ display: 'contents' }}
-      >
-        {children}
+      />
+      
+      {/* Wrap the actual node and pass tooltip click handler */}
+      <div style={{ display: 'contents' }}>
+        {React.cloneElement(children as React.ReactElement, {
+          onTooltipClick: handleTooltipClick
+        })}
       </div>
       
-      {isOpen && (
-        <EnhancedNodeTooltip
-          node={node}
-          edges={edges}
-          isOpen={isOpen}
-          refs={refs}
-          floatingStyles={floatingStyles}
-          arrowRef={arrowRef}
-          context={context}
-          getFloatingProps={getFloatingProps}
-          onModalOpen={onModalOpen}
-        />
-      )}
+      <EnhancedNodeTooltip
+        node={node}
+        edges={edges}
+        isOpen={isOpen}
+        transform={transform}
+        nodeElement={nodeRef.current}
+        onModalOpen={onModalOpen}
+      />
     </>
   );
 };
