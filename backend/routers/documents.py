@@ -100,7 +100,15 @@ async def generate_brief(
     # Fetch all nodes for the workspace
     nodes_cursor = database.nodes.find({"workspace_id": ObjectId(workspace_id)})
     node_docs = await nodes_cursor.to_list(length=None)
-    nodes = [NodeInDB(**doc) for doc in node_docs]
+    
+    # Convert ObjectId fields to strings for Pydantic validation
+    nodes = []
+    for doc in node_docs:
+        doc['_id'] = str(doc['_id'])
+        if isinstance(doc.get('workspace_id'), ObjectId):
+            doc['workspace_id'] = str(doc['workspace_id'])
+        nodes.append(NodeInDB(**doc))
+    
     print(f"Found {len(nodes)} nodes")
     
     # Fetch all edges for the workspace

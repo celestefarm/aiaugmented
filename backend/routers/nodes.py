@@ -221,10 +221,13 @@ async def update_node(
     # Get database instance
     database = get_database()
     
-    # Check if node exists in the workspace
+    # Check if node exists in the workspace (handle both string and ObjectId formats)
     existing_node = await database.nodes.find_one({
         "_id": ObjectId(node_id),
-        "workspace_id": ObjectId(workspace_id)
+        "$or": [
+            {"workspace_id": workspace_id},  # String format
+            {"workspace_id": ObjectId(workspace_id)}  # ObjectId format
+        ]
     })
     
     if not existing_node:
@@ -274,6 +277,20 @@ async def update_node(
     
     # Get updated node data
     node_doc = await database.nodes.find_one({"_id": ObjectId(node_id)})
+    
+    # DEBUG: Log the types before conversion
+    print(f"=== UPDATE NODE DEBUG ===")
+    print(f"node_doc['_id'] type: {type(node_doc['_id'])}, value: {node_doc['_id']}")
+    print(f"node_doc['workspace_id'] type: {type(node_doc.get('workspace_id'))}, value: {node_doc.get('workspace_id')}")
+    
+    # Convert ObjectId fields to strings for Pydantic validation (CRITICAL FIX)
+    node_doc['_id'] = str(node_doc['_id'])
+    if isinstance(node_doc.get('workspace_id'), ObjectId):
+        node_doc['workspace_id'] = str(node_doc['workspace_id'])
+    
+    print(f"After conversion - _id: {node_doc['_id']} (type: {type(node_doc['_id'])})")
+    print(f"After conversion - workspace_id: {node_doc.get('workspace_id')} (type: {type(node_doc.get('workspace_id'))})")
+    
     node_in_db = NodeInDB(**node_doc)
     
     return node_in_db.to_response()
@@ -309,10 +326,13 @@ async def delete_node(
     # Get database instance
     database = get_database()
     
-    # Check if node exists in the workspace
+    # Check if node exists in the workspace (handle both string and ObjectId formats)
     existing_node = await database.nodes.find_one({
         "_id": ObjectId(node_id),
-        "workspace_id": ObjectId(workspace_id)
+        "$or": [
+            {"workspace_id": workspace_id},  # String format
+            {"workspace_id": ObjectId(workspace_id)}  # ObjectId format
+        ]
     })
     
     if not existing_node:
@@ -330,10 +350,13 @@ async def delete_node(
         ]
     })
     
-    # Delete the node
+    # Delete the node (handle both string and ObjectId formats)
     result = await database.nodes.delete_one({
         "_id": ObjectId(node_id),
-        "workspace_id": ObjectId(workspace_id)
+        "$or": [
+            {"workspace_id": workspace_id},  # String format
+            {"workspace_id": ObjectId(workspace_id)}  # ObjectId format
+        ]
     })
     
     if result.deleted_count == 0:

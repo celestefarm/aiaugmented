@@ -35,10 +35,12 @@ class NodeResponse(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
         arbitrary_types_allowed=True,
-        json_encoders={ObjectId: str}
+        json_encoders={ObjectId: str},
+        # CRITICAL FIX: Ensure serialization uses field names, not aliases
+        by_alias=False
     )
     
-    id: Optional[PyObjectId] = Field(default=None, alias="_id")
+    id: Optional[PyObjectId] = Field(default=None, alias="_id", serialization_alias="id")
     workspace_id: PyObjectId
     title: str
     description: str = ""
@@ -88,8 +90,9 @@ class NodeInDB(BaseModel):
 
     def to_response(self) -> NodeResponse:
         """Convert to response model"""
+        # CRITICAL FIX: Explicitly pass _id as id to ensure proper serialization
         return NodeResponse(
-            id=self.id,
+            _id=self.id,  # Pass as _id so it gets aliased correctly
             workspace_id=self.workspace_id,
             title=self.title,
             description=self.description,

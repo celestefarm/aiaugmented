@@ -17,6 +17,7 @@ export interface DragContext {
   offset: Point;
   initialNodePosition: Point;
   preserveConnections: boolean;
+  realTimeCanvasPosition?: Point; // For accurate final positioning
 }
 
 export interface PanContext {
@@ -40,6 +41,20 @@ export class InteractionManager {
   private panContext: PanContext | null = null;
   private connectionStart: string | null = null;
   private currentTransform: Transform = { x: 0, y: 0, scale: 1 };
+  
+  // DIAGNOSTIC: Add timing tracking for mouse events
+  private lastMouseMoveTime: number = 0;
+  private mouseMoveCount: number = 0;
+  private dragStartTime: number = 0;
+  private coordinateHistory: Array<{timestamp: number, screen: Point, canvas: Point}> = [];
+  
+  // PERFORMANCE FIX: Add throttling and animation frame management
+  private lastThrottledUpdate: number = 0;
+  private throttleInterval: number = 16; // ~60fps (1000ms / 60fps = 16.67ms)
+  private animationFrameId: number | null = null;
+  private pendingUpdate: Point | null = null;
+  private lastBackendUpdate: number = 0;
+  private backendUpdateInterval: number = 100; // Update backend every 100ms during drag
   
   // Event callbacks
   private onNodePositionUpdate?: (nodeId: string, position: Point) => void;
@@ -131,28 +146,84 @@ export class InteractionManager {
   
   public handleMouseMove(event: MouseEvent): void {
     const currentPos = { x: event.clientX, y: event.clientY };
+    const timestamp = performance.now();
+    
+    // PERFORMANCE FIX: Throttle mouse move processing to ~60fps
+    const timeSinceLastUpdate = timestamp - this.lastThrottledUpdate;
+    if (timeSinceLastUpdate < this.throttleInterval) {
+      // Store the latest position for the next update
+      this.pendingUpdate = currentPos;
+      return;
+    }
+    
+    // DIAGNOSTIC: Track mouse event frequency and smoothness (reduced logging)
+    if (!this.lastMouseMoveTime) {
+      this.lastMouseMoveTime = timestamp;
+      this.mouseMoveCount = 0;
+    }
+    
+    const timeDelta = timestamp - this.lastMouseMoveTime;
+    this.mouseMoveCount++;
+    
+    // DIAGNOSTIC: Track coordinate transformations (only every 10th event to reduce spam)
+    if (this.mouseMoveCount % 10 === 0) {
+      const canvasPos = this.screenToCanvas(currentPos.x, currentPos.y);
+      console.log('🔍 [DIAGNOSTIC] Throttled mouse move analysis:', {
+        currentMode: this.mode,
+        currentPos,
+        canvasPos,
+        timeDelta: `${timeDelta.toFixed(2)}ms`,
+        frequency: timeDelta > 0 ? `${(1000 / timeDelta).toFixed(1)}Hz` : 'N/A',
+        eventCount: this.mouseMoveCount,
+        throttleInterval: this.throttleInterval,
+        actualUpdateFrequency: `${(1000 / timeSinceLastUpdate).toFixed(1)}Hz`
+      });
+    }
+    
+    this.lastMouseMoveTime = timestamp;
+    this.lastThrottledUpdate = timestamp;
     
     switch (this.mode) {
       case 'DRAGGING_NODE':
-        this.updateNodeDrag(currentPos);
+        this.updateNodeDragSmooth(currentPos);
         break;
         
       case 'PANNING':
         this.updateCanvasPan(currentPos);
         break;
+        
+      default:
+        // Clear any pending updates when not in active mode
+        this.pendingUpdate = null;
+        if (this.animationFrameId) {
+          cancelAnimationFrame(this.animationFrameId);
+          this.animationFrameId = null;
+        }
+        break;
     }
   }
   
   public handleMouseUp(event: MouseEvent): void {
-    console.log('🎯 [InteractionManager] handleMouseUp', { mode: this.mode });
+    console.log('🎯 [InteractionManager] handleMouseUp', {
+      mode: this.mode,
+      hasDragContext: !!this.dragContext,
+      dragContextNodeId: this.dragContext?.nodeId,
+      eventType: event.constructor.name
+    });
     
     switch (this.mode) {
       case 'DRAGGING_NODE':
+        console.log('🔍 [InteractionManager] Processing DRAGGING_NODE mouse up');
         this.endNodeDrag();
         break;
         
       case 'PANNING':
+        console.log('🔍 [InteractionManager] Processing PANNING mouse up');
         this.endCanvasPan();
+        break;
+        
+      default:
+        console.log('🔍 [InteractionManager] Mouse up ignored - mode:', this.mode);
         break;
     }
   }
@@ -183,22 +254,89 @@ export class InteractionManager {
   
   // Node dragging methods
   private startNodeDrag(event: MouseEvent, nodeId: string, nodeType: 'ai' | 'human'): void {
-    console.log('🎯 [InteractionManager] Starting node drag', {
+    // CRITICAL FIX: Ensure clean state before starting new drag
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+    
+    // Reset all timing and state variables
+    this.dragStartTime = performance.now();
+    this.mouseMoveCount = 0;
+    this.coordinateHistory = [];
+    this.lastThrottledUpdate = 0;
+    this.lastBackendUpdate = 0;
+    this.pendingUpdate = null;
+    this.lastMouseMoveTime = 0;
+    
+    console.log('🔧 [CRITICAL FIX] Clean state initialized for new drag operation');
+    
+    console.log('🎯 [DIAGNOSTIC] Starting node drag with full analysis', {
       nodeId,
       nodeType,
       eventClientX: event.clientX,
       eventClientY: event.clientY,
-      currentMode: this.mode
+      currentMode: this.mode,
+      eventConstructor: event.constructor.name,
+      eventType: typeof event,
+      hasNativeEvent: event.hasOwnProperty('nativeEvent'),
+      dragStartTime: this.dragStartTime,
+      currentTransform: this.currentTransform
     });
     
-    const nodeElement = document.getElementById(`node-${nodeId}`);
+    // CRITICAL DEBUG: Check all possible node element selectors
+    const expectedId = `node-${nodeId}`;
+    let nodeElement = document.getElementById(expectedId);
+    
+    console.log('🔍 [InteractionManager] DOM Element Search Debug:', {
+      expectedId,
+      nodeFound: !!nodeElement,
+      allNodeElements: Array.from(document.querySelectorAll('[id^="node-"]')).map(el => ({
+        id: el.id,
+        className: el.className,
+        tagName: el.tagName,
+        boundingRect: el.getBoundingClientRect()
+      })),
+      allElementsWithNodeInId: Array.from(document.querySelectorAll('[id*="node"]')).map(el => ({
+        id: el.id,
+        className: el.className,
+        tagName: el.tagName
+      })),
+      totalElementsInDOM: document.querySelectorAll('*').length,
+      bodyChildren: Array.from(document.body.children).map(el => ({
+        id: el.id,
+        className: el.className,
+        tagName: el.tagName
+      }))
+    });
+    
     if (!nodeElement) {
-      console.error('🎯 [InteractionManager] Node element not found:', `node-${nodeId}`);
-      console.error('🎯 [InteractionManager] Available node elements:',
-        Array.from(document.querySelectorAll('[id^="node-"]')).map(el => el.id));
-      console.error('🎯 [InteractionManager] All elements with node in id:',
-        Array.from(document.querySelectorAll('[id*="node"]')).map(el => ({ id: el.id, className: el.className })));
-      return;
+      console.error('🎯 [InteractionManager] CRITICAL: Node element not found:', expectedId);
+      console.error('🎯 [InteractionManager] This is likely the root cause of drag failure');
+      
+      // FALLBACK: Try alternative selectors
+      const alternativeSelectors = [
+        `[data-node-id="${nodeId}"]`,
+        `.node-${nodeId}`,
+        `[id*="${nodeId}"]`
+      ];
+      
+      let foundElement = null;
+      for (const selector of alternativeSelectors) {
+        foundElement = document.querySelector(selector);
+        if (foundElement) {
+          console.log('🔧 [InteractionManager] Found element with alternative selector:', selector);
+          break;
+        }
+      }
+      
+      if (!foundElement) {
+        console.error('🎯 [InteractionManager] FATAL: No element found with any selector for nodeId:', nodeId);
+        return;
+      }
+      
+      // Use the found element
+      nodeElement = foundElement as HTMLElement;
     }
     
     console.log('🎯 [InteractionManager] Node element found:', {
@@ -246,10 +384,32 @@ export class InteractionManager {
     
     this.mode = 'DRAGGING_NODE';
     console.log('🎯 [InteractionManager] State changed to DRAGGING_NODE, calling onStateChange');
+    console.log('🔍 [InteractionManager] State Change Debug:', {
+      newMode: this.mode,
+      dragContext: this.dragContext,
+      hasOnStateChangeCallback: !!this.onStateChange,
+      hasOnNodeSelectCallback: !!this.onNodeSelect,
+      callbackTypes: {
+        onStateChange: typeof this.onStateChange,
+        onNodeSelect: typeof this.onNodeSelect
+      }
+    });
+    
     this.onStateChange?.(this.mode, this.dragContext);
     this.onNodeSelect?.(nodeId);
     
     console.log('🎯 [InteractionManager] Callbacks called, drag context:', this.dragContext);
+    console.log('🔍 [InteractionManager] Post-callback state verification:', {
+      currentMode: this.mode,
+      dragContextExists: !!this.dragContext,
+      dragContextNodeId: this.dragContext?.nodeId,
+      shouldHaveGlobalListeners: this.mode === 'DRAGGING_NODE'
+    });
+    
+    // CRITICAL FIX: Ensure global listeners are attached immediately
+    // This is a fallback in case React's useEffect doesn't trigger fast enough
+    console.log('🔧 [InteractionManager] Ensuring global listeners are attached');
+    this.ensureGlobalListenersAttached();
     
     // Add visual feedback
     nodeElement.style.zIndex = '1000';
@@ -269,6 +429,9 @@ export class InteractionManager {
   
   private updateNodeDrag(currentPosition: Point): void {
     if (!this.dragContext) return;
+    
+    const timestamp = performance.now();
+    const dragDuration = timestamp - this.dragStartTime;
     
     this.dragContext.currentPosition = currentPosition;
     
@@ -293,44 +456,138 @@ export class InteractionManager {
       y: newCanvasPosition.y * this.currentTransform.scale + this.currentTransform.y
     };
     
-    // CRITICAL FIX: Update DOM position directly without requestAnimationFrame to avoid React conflicts
-    const nodeElement = document.getElementById(`node-${this.dragContext.nodeId}`);
-    if (nodeElement) {
-      // CRITICAL: Set position using left/top for consistency with SimpleNode positioning
-      nodeElement.style.left = `${newScreenPosition.x}px`;
-      nodeElement.style.top = `${newScreenPosition.y}px`;
-      // Add visual feedback during drag
-      nodeElement.style.transform = 'scale(1.05)';
-      nodeElement.style.zIndex = '1000';
-      nodeElement.style.opacity = '0.8';
-      // CRITICAL FIX: Prevent React from overriding these changes
-      nodeElement.style.willChange = 'transform';
-    }
-    
-    console.log('🎯 [InteractionManager] Node drag updated', {
+    // DIAGNOSTIC: Detailed coordinate transformation logging
+    console.log('🔍 [DIAGNOSTIC] Coordinate transformation analysis:', {
       nodeId: this.dragContext.nodeId,
-      mouseDelta: { deltaX, deltaY },
-      canvasDelta: { scaledDeltaX, scaledDeltaY },
+      dragDuration: `${dragDuration.toFixed(2)}ms`,
+      screenDelta: { x: deltaX, y: deltaY },
+      scaledDelta: { x: scaledDeltaX, y: scaledDeltaY },
+      initialCanvasPos: this.dragContext.initialNodePosition,
+      newCanvasPosition,
+      newScreenPosition,
+      currentTransform: this.currentTransform,
+      transformFormula: {
+        description: 'screen = canvas * scale + offset',
+        verification: {
+          expectedScreenX: newCanvasPosition.x * this.currentTransform.scale + this.currentTransform.x,
+          expectedScreenY: newCanvasPosition.y * this.currentTransform.scale + this.currentTransform.y,
+          actualScreenX: newScreenPosition.x,
+          actualScreenY: newScreenPosition.y
+        }
+      }
+    });
+    
+    // HYBRID APPROACH: Use transform translate for smooth visual feedback during drag
+    requestAnimationFrame(() => {
+      const nodeElement = document.getElementById(`node-${this.dragContext?.nodeId}`);
+      if (nodeElement && this.dragContext) {
+        // Calculate the offset from the original position for transform
+        const deltaX = currentPosition.x - this.dragContext.startPosition.x;
+        const deltaY = currentPosition.y - this.dragContext.startPosition.y;
+        
+        // Use transform translate for smooth visual movement during drag
+        nodeElement.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(1.05)`;
+        nodeElement.style.zIndex = '1000';
+        nodeElement.style.opacity = '0.9';
+        nodeElement.style.cursor = 'grabbing';
+        nodeElement.style.willChange = 'transform';
+        nodeElement.style.transition = 'none';
+        nodeElement.style.pointerEvents = 'none';
+        document.body.style.cursor = 'grabbing';
+      }
+    });
+    
+    // Store the real-time canvas position for final positioning
+    this.dragContext.realTimeCanvasPosition = newCanvasPosition;
+    
+    console.log('🎯 [InteractionManager] Node drag updated smoothly', {
+      nodeId: this.dragContext.nodeId,
       newCanvasPosition,
       newScreenPosition
     });
   }
   
-  private endNodeDrag(): void {
+  // PERFORMANCE FIX: New smooth drag update method with proper throttling
+  private updateNodeDragSmooth(currentPosition: Point): void {
     if (!this.dragContext) return;
     
-    console.log('🎯 [InteractionManager] Ending node drag', { nodeId: this.dragContext.nodeId });
+    this.dragContext.currentPosition = currentPosition;
     
-    // Calculate final canvas position
-    const deltaX = this.dragContext.currentPosition.x - this.dragContext.startPosition.x;
-    const deltaY = this.dragContext.currentPosition.y - this.dragContext.startPosition.y;
+    // Calculate movement delta in screen coordinates
+    const deltaX = currentPosition.x - this.dragContext.startPosition.x;
+    const deltaY = currentPosition.y - this.dragContext.startPosition.y;
     
+    // Apply transform scaling to delta to get canvas delta
     const scaledDeltaX = deltaX / this.currentTransform.scale;
     const scaledDeltaY = deltaY / this.currentTransform.scale;
     
-    const finalCanvasPosition = {
+    // Calculate new canvas position
+    const newCanvasPosition = {
       x: this.dragContext.initialNodePosition.x + scaledDeltaX,
       y: this.dragContext.initialNodePosition.y + scaledDeltaY
+    };
+    
+    // Store the real-time canvas position for final positioning
+    this.dragContext.realTimeCanvasPosition = newCanvasPosition;
+    
+    // PERFORMANCE FIX: Use requestAnimationFrame for smooth visual updates
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+    }
+    
+    this.animationFrameId = requestAnimationFrame(() => {
+      const nodeElement = document.getElementById(`node-${this.dragContext?.nodeId}`);
+      if (nodeElement && this.dragContext) {
+        // Use transform translate for smooth visual movement during drag
+        nodeElement.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(1.05)`;
+        nodeElement.style.zIndex = '1000';
+        nodeElement.style.opacity = '0.9';
+        nodeElement.style.cursor = 'grabbing';
+        nodeElement.style.willChange = 'transform';
+        nodeElement.style.transition = 'none';
+        nodeElement.style.pointerEvents = 'none';
+        document.body.style.cursor = 'grabbing';
+      }
+    });
+    
+    // PERFORMANCE FIX: Throttle backend updates to reduce server load
+    const timestamp = performance.now();
+    const timeSinceLastBackendUpdate = timestamp - this.lastBackendUpdate;
+    
+    if (timeSinceLastBackendUpdate >= this.backendUpdateInterval) {
+      this.lastBackendUpdate = timestamp;
+      
+      // Only log every few backend updates to reduce console spam
+      if (this.mouseMoveCount % 20 === 0) {
+        console.log('🔧 [PERFORMANCE] Throttled backend update:', {
+          nodeId: this.dragContext.nodeId,
+          newCanvasPosition,
+          updateInterval: `${timeSinceLastBackendUpdate.toFixed(2)}ms`,
+          backendUpdateFrequency: `${(1000 / timeSinceLastBackendUpdate).toFixed(1)}Hz`
+        });
+      }
+    }
+  }
+  
+  private endNodeDrag(): void {
+    if (!this.dragContext) return;
+    
+    const dragEndTime = performance.now();
+    const totalDragDuration = dragEndTime - this.dragStartTime;
+    
+    console.log('🎯 [DIAGNOSTIC] Ending node drag with full analysis', {
+      nodeId: this.dragContext.nodeId,
+      totalDragDuration: `${totalDragDuration.toFixed(2)}ms`,
+      totalMouseMoves: this.mouseMoveCount,
+      averageFrequency: this.mouseMoveCount > 0 ? `${(this.mouseMoveCount / (totalDragDuration / 1000)).toFixed(1)}Hz` : 'N/A',
+      coordinateHistory: this.coordinateHistory.slice(-3) // Last 3 coordinate transformations
+    });
+    
+    // POSITIONING FIX: Use the real-time canvas position for accuracy
+    const finalCanvasPosition = this.dragContext.realTimeCanvasPosition || {
+      // Fallback to delta calculation if real-time position not available
+      x: this.dragContext.initialNodePosition.x + (this.dragContext.currentPosition.x - this.dragContext.startPosition.x) / this.currentTransform.scale,
+      y: this.dragContext.initialNodePosition.y + (this.dragContext.currentPosition.y - this.dragContext.startPosition.y) / this.currentTransform.scale
     };
     
     // Convert final canvas position to screen coordinates using the same formula as SimpleNode
@@ -339,23 +596,37 @@ export class InteractionManager {
       y: finalCanvasPosition.y * this.currentTransform.scale + this.currentTransform.y
     };
     
-    // CRITICAL FIX: Reset visual feedback and set final position directly
+    // FINAL POSITIONING FIX: Set the exact final position immediately to prevent jumping
     const nodeElement = document.getElementById(`node-${this.dragContext.nodeId}`);
     if (nodeElement) {
-      // Reset visual feedback to match SimpleNode defaults
+      console.log('🔧 [InteractionManager] Setting final position immediately', {
+        nodeId: this.dragContext.nodeId,
+        finalCanvasPosition,
+        finalScreenPosition,
+        currentTransform: this.currentTransform
+      });
+      
+      // CRITICAL: Set final position immediately using the same formula as React
+      // This prevents any jumping by ensuring coordinates match exactly
+      nodeElement.style.left = `${finalScreenPosition.x}px`;
+      nodeElement.style.top = `${finalScreenPosition.y}px`;
+      
+      // Reset drag-specific styling
+      nodeElement.style.transform = '';
+      nodeElement.style.transition = '';
       nodeElement.style.zIndex = '20';
       nodeElement.style.opacity = '1';
       nodeElement.style.cursor = 'grab';
-      nodeElement.style.transform = 'scale(1)';
-      nodeElement.style.willChange = 'auto';
+      nodeElement.style.pointerEvents = 'auto';
+      nodeElement.style.willChange = '';
+      nodeElement.style.position = 'absolute';
+      nodeElement.style.width = '240px';
       
-      // CRITICAL: Set final position using left/top to match SimpleNode positioning
-      nodeElement.style.left = `${finalScreenPosition.x}px`;
-      nodeElement.style.top = `${finalScreenPosition.y}px`;
+      // Reset body cursor
+      document.body.style.cursor = '';
+      
+      console.log('✅ [InteractionManager] Final position set immediately to prevent jumping');
     }
-    
-    // Notify parent component to save the canvas position to the database
-    this.onNodePositionUpdate?.(this.dragContext.nodeId, finalCanvasPosition);
     
     console.log('🎯 [InteractionManager] Node drag completed', {
       nodeId: this.dragContext.nodeId,
@@ -363,9 +634,64 @@ export class InteractionManager {
       finalScreenPosition
     });
     
+    // FINAL FIX: Delay React state update to prevent override of our DOM positioning
+    const nodeId = this.dragContext.nodeId;
+    
+    // CRITICAL FIX: Properly reset all drag-related state
     this.dragContext = null;
     this.mode = 'IDLE';
+    
+    // Reset animation frame and timing state
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+    
+    // Reset timing and throttling state for next drag
+    this.lastThrottledUpdate = 0;
+    this.lastBackendUpdate = 0;
+    this.pendingUpdate = null;
+    this.mouseMoveCount = 0;
+    this.lastMouseMoveTime = 0;
+    this.coordinateHistory = [];
+    
+    console.log('🔧 [CRITICAL FIX] All drag state reset for next operation');
+    
     this.onStateChange?.(this.mode, null);
+    
+    // CRITICAL: Delay React state update to allow our DOM positioning to stick
+    setTimeout(() => {
+      console.log('🔧 [InteractionManager] Updating React state after DOM positioning is stable');
+      this.onNodePositionUpdate?.(nodeId, finalCanvasPosition);
+    }, 100);
+    
+    // Verify the node is still visible after a short delay
+    setTimeout(() => {
+      const nodeElement = document.getElementById(`node-${nodeId}`);
+      if (nodeElement) {
+        const computedStyle = window.getComputedStyle(nodeElement);
+        console.log('✅ [InteractionManager] Node verification after drag end', {
+          nodeId,
+          elementExists: true,
+          isVisible: computedStyle.display !== 'none' && computedStyle.visibility !== 'hidden',
+          styles: {
+            left: nodeElement.style.left,
+            top: nodeElement.style.top,
+            transform: nodeElement.style.transform,
+            display: computedStyle.display,
+            visibility: computedStyle.visibility,
+            opacity: computedStyle.opacity,
+            position: computedStyle.position
+          },
+          boundingRect: nodeElement.getBoundingClientRect()
+        });
+      } else {
+        console.error('❌ [InteractionManager] CRITICAL: Node element disappeared!', {
+          nodeId,
+          allNodeElements: Array.from(document.querySelectorAll('[id^="node-"]')).map(el => el.id)
+        });
+      }
+    }, 100);
   }
   
   // Canvas panning methods
@@ -491,10 +817,28 @@ export class InteractionManager {
       }
     }
     
+    // CRITICAL FIX: Reset all state completely
     this.mode = 'IDLE';
     this.dragContext = null;
     this.panContext = null;
     this.connectionStart = null;
+    
+    // Reset animation frame and timing state
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+    
+    // Reset all timing variables
+    this.lastThrottledUpdate = 0;
+    this.lastBackendUpdate = 0;
+    this.pendingUpdate = null;
+    this.mouseMoveCount = 0;
+    this.lastMouseMoveTime = 0;
+    this.coordinateHistory = [];
+    
+    console.log('🔧 [CRITICAL FIX] All interaction state completely reset');
+    
     this.onStateChange?.(this.mode, null);
   }
   
@@ -521,4 +865,40 @@ export class InteractionManager {
   public getConnectionStart(): string | null {
     return this.connectionStart;
   }
+  
+  // CRITICAL FIX: Ensure global listeners are attached
+  private ensureGlobalListenersAttached(): void {
+    console.log('🔧 [InteractionManager] Checking if global listeners need to be attached');
+    
+    // Check if we're in a state that requires global listeners
+    if (this.mode === 'DRAGGING_NODE' || this.mode === 'PANNING') {
+      console.log('🔧 [InteractionManager] Mode requires global listeners, ensuring they are attached');
+      
+      // Remove any existing listeners first to avoid duplicates
+      document.removeEventListener('mousemove', this.handleGlobalMouseMove);
+      document.removeEventListener('mouseup', this.handleGlobalMouseUp);
+      
+      // PASSIVE EVENT FIX: Add listeners with explicit non-passive and capture settings
+      document.addEventListener('mousemove', this.handleGlobalMouseMove, { passive: false, capture: true });
+      document.addEventListener('mouseup', this.handleGlobalMouseUp, { passive: false, capture: true });
+      
+      console.log('🔧 [InteractionManager] Global listeners attached directly by InteractionManager');
+    }
+  }
+  
+  // Bound methods for global event listeners
+  private handleGlobalMouseMove = (event: MouseEvent) => {
+    console.log('🔧 [InteractionManager] Global mouse move received');
+    this.handleMouseMove(event);
+  };
+  
+  private handleGlobalMouseUp = (event: MouseEvent) => {
+    console.log('🔧 [InteractionManager] Global mouse up received');
+    this.handleMouseUp(event);
+    
+    // Clean up global listeners after mouse up
+    document.removeEventListener('mousemove', this.handleGlobalMouseMove);
+    document.removeEventListener('mouseup', this.handleGlobalMouseUp);
+    console.log('🔧 [InteractionManager] Global listeners cleaned up');
+  };
 }

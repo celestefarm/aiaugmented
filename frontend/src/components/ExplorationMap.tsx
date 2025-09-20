@@ -53,16 +53,6 @@ const SimpleNode: React.FC<SimpleNodeProps> = ({
   onSelect
 }) => {
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    console.log(`🎯 [SimpleNode] Node ${node.id} (${node.title}) mousedown`, {
-      eventType: e.constructor.name,
-      nativeEvent: e.nativeEvent?.constructor.name,
-      clientX: e.clientX,
-      clientY: e.clientY,
-      target: e.target,
-      currentTarget: e.currentTarget,
-      elementId: e.currentTarget.id
-    });
-    
     // CRITICAL FIX: Check if this is a tooltip or UI interaction
     const target = e.target as HTMLElement;
     if (target.closest('.tooltip') ||
@@ -73,23 +63,14 @@ const SimpleNode: React.FC<SimpleNodeProps> = ({
         target.closest('button') ||
         target.closest('input') ||
         target.closest('textarea')) {
-      console.log('🎯 [SimpleNode] UI interaction detected, not starting drag');
       return;
     }
     
     // Determine node type based on source_agent or type
     const nodeType: 'ai' | 'human' = node.source_agent ? 'ai' : 'human';
     
-    console.log(`🎯 [SimpleNode] About to call onMouseDown with:`, {
-      nodeId: node.id,
-      nodeType,
-      onMouseDownType: typeof onMouseDown,
-      elementExists: !!document.getElementById(`node-${node.id}`)
-    });
-    
-    // CRITICAL FIX: Prevent default and stop propagation ONLY for drag events
+    // CRITICAL FIX: Prevent default but allow event to bubble to canvas
     e.preventDefault();
-    e.stopPropagation();
     
     onMouseDown(e, node.id, nodeType);
     onSelect();
@@ -216,14 +197,6 @@ const SimpleNode: React.FC<SimpleNodeProps> = ({
 };
 
 const ExplorationMap: React.FC = () => {
-  console.log('=== EXPLORATION MAP COMPONENT LOADED ===');
-  console.log('Debugging instrumentation is active and ready');
-  console.log('To see Save Changes button logs:');
-  console.log('1. Open browser dev tools (F12)');
-  console.log('2. Go to Console tab');
-  console.log('3. Double-click a node to edit');
-  console.log('4. Click Save Changes button');
-  console.log('5. Watch for detailed logging output');
   
   // Use MapContext for nodes and edges
   const {
@@ -280,6 +253,9 @@ const ExplorationMap: React.FC = () => {
   
   // Canvas transform state (separate from interaction state)
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
+  
+  // Real-time drag position state for visual feedback
+  const [draggedNodePosition, setDraggedNodePosition] = useState<{ nodeId: string; x: number; y: number } | null>(null);
   
   // UI state
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
@@ -347,32 +323,20 @@ const ExplorationMap: React.FC = () => {
 
   // Smart title processing effect
   useEffect(() => {
-    console.log('=== SMART TITLE PROCESSING EFFECT ===');
-    console.log('Nodes count:', nodes.length);
-    console.log('Current smartTitles state:', smartTitles);
-    
     const processSmartTitles = async () => {
-      console.log('Processing smart titles for', nodes.length, 'nodes');
-      
       for (const node of nodes) {
-        console.log(`Processing node ${node.id}: "${node.title}"`);
         const contexts: Array<'card' | 'tooltip' | 'list'> = ['card', 'tooltip', 'list'];
         
         for (const context of contexts) {
           const key = `${node.id}-${context}`;
           const cached = smartTitles[key];
           
-          console.log(`  Context ${context}: cached =`, cached);
-          
           if (!cached) {
             const maxLengths = { card: 25, tooltip: 40, list: 30 };
             const maxLength = maxLengths[context];
             
-            console.log(`  Title length: ${node.title.length}, max: ${maxLength}`);
-            
             // If title is already short enough, no need for smart processing
             if (node.title.length <= maxLength) {
-              console.log(`  Title is short enough, using as-is`);
               setSmartTitles(prev => ({
                 ...prev,
                 [key]: { title: node.title, isLoading: false }
@@ -383,7 +347,6 @@ const ExplorationMap: React.FC = () => {
             // Check for cached summarized title
             if (node.summarized_titles && node.summarized_titles[context]) {
               const cachedTitle = node.summarized_titles[context];
-              console.log(`  Found cached summarized title: "${cachedTitle}"`);
               if (cachedTitle.length <= maxLength) {
                 setSmartTitles(prev => ({
                   ...prev,
@@ -395,7 +358,6 @@ const ExplorationMap: React.FC = () => {
             
             // Set loading state and fetch smart title
             const fallbackTitle = generateDisplayTitle(node.title, node.description, context);
-            console.log(`  Using fallback title: "${fallbackTitle}"`);
             
             setSmartTitles(prev => ({
               ...prev,
@@ -404,9 +366,7 @@ const ExplorationMap: React.FC = () => {
             
             // Fetch smart title asynchronously
             try {
-              console.log(`  Fetching smart title from API...`);
               const smartTitle = await generateSmartDisplayTitle(node, context);
-              console.log(`  Got smart title: "${smartTitle}"`);
               
               setSmartTitles(prev => ({
                 ...prev,
@@ -679,24 +639,14 @@ const ExplorationMap: React.FC = () => {
 
   // Enhanced global event listeners using InteractionManager
   useEffect(() => {
-    // Always attach global listeners when not in IDLE state
-    console.log('🔍 [ExplorationMap] Global listeners effect triggered', {
-      currentState: interactionState.state,
-      shouldAttach: interactionState.state !== 'IDLE'
-    });
-    
     if (interactionState.state !== 'IDLE') {
-      console.log('🔍 [ExplorationMap] Attaching global listeners for state:', interactionState.state);
       document.addEventListener('mousemove', handleGlobalMouseMove, { passive: false });
       document.addEventListener('mouseup', handleGlobalMouseUp, { passive: false });
       
       return () => {
-        console.log('🔍 [ExplorationMap] Cleaning up global listeners');
         document.removeEventListener('mousemove', handleGlobalMouseMove);
         document.removeEventListener('mouseup', handleGlobalMouseUp);
       };
-    } else {
-      console.log('🔍 [ExplorationMap] State is IDLE, not attaching global listeners');
     }
   }, [interactionState.state, handleGlobalMouseMove, handleGlobalMouseUp]);
 
@@ -707,7 +657,7 @@ const ExplorationMap: React.FC = () => {
 
   // Register callbacks with InteractionManager
   useEffect(() => {
-    // Register node position update callback
+    // Register node position update callback (final position persistence)
     registerNodePositionUpdateCallback(async (nodeId: string, position: { x: number; y: number }) => {
       console.log('🔄 [ExplorationMap] Node position update callback:', nodeId, position);
       try {
@@ -730,9 +680,14 @@ const ExplorationMap: React.FC = () => {
 
         await updateNodeAPI(nodeId, updateData);
         showNotification(`Moved ${node.title}`);
+        
+        // Clean up dragged position state after successful persistence
+        setDraggedNodePosition(null);
       } catch (error) {
         console.error('Failed to update node position:', error);
         showNotification('Failed to update node position');
+        // Clean up dragged position state even on error
+        setDraggedNodePosition(null);
       }
     });
 
@@ -756,6 +711,71 @@ const ExplorationMap: React.FC = () => {
     updateNodeAPI,
     showNotification
   ]);
+
+  // Register real-time drag position update callback
+  useEffect(() => {
+    if (interactionManager) {
+      // Register callback for real-time drag position updates
+      const handleDragPositionUpdate = (nodeId: string, position: { x: number; y: number }) => {
+        console.log('🔄 [ExplorationMap] Real-time drag position update:', nodeId, position);
+        setDraggedNodePosition({ nodeId, x: position.x, y: position.y });
+      };
+
+      // Register callback for drag end cleanup
+      const handleDragEnd = () => {
+        console.log('🔄 [ExplorationMap] Drag ended, cleaning up position state');
+        setDraggedNodePosition(null);
+      };
+
+      // Note: These would need to be implemented in InteractionManager
+      // For now, we'll handle this through the existing interaction state
+    }
+  }, [interactionManager]);
+
+  // Monitor interaction state changes for drag position updates
+  useEffect(() => {
+    console.log('🎯 [POSITION-UPDATE] useEffect triggered for drag position updates');
+    console.log('🎯 [POSITION-UPDATE] Current interaction state:', {
+      state: interactionState.state,
+      draggedNodeId: interactionState.data.draggedNodeId,
+      dragOffset: interactionState.data.dragOffset,
+      dragCurrentPosition: interactionState.data.dragCurrentPosition,
+      dragStartPosition: interactionState.data.dragStartPosition
+    });
+    console.log('🎯 [POSITION-UPDATE] Current draggedNodePosition state:', draggedNodePosition);
+    
+    if (interactionState.state === 'DRAGGING_NODE' && interactionState.data.draggedNodeId) {
+      const { draggedNodeId, dragOffset, dragCurrentPosition } = interactionState.data;
+      
+      console.log('🎯 [POSITION-UPDATE] Processing drag state:', {
+        draggedNodeId,
+        hasDragOffset: !!dragOffset,
+        hasDragCurrentPosition: !!dragCurrentPosition,
+        dragOffsetValue: dragOffset,
+        dragCurrentPositionValue: dragCurrentPosition
+      });
+      
+      if (dragCurrentPosition && dragOffset) {
+        // Calculate real-time position during drag
+        const canvasPos = screenToCanvas(dragCurrentPosition.x, dragCurrentPosition.y);
+        const realTimePosition = {
+          x: canvasPos.x - dragOffset.x,
+          y: canvasPos.y - dragOffset.y
+        };
+        
+        setDraggedNodePosition({
+          nodeId: draggedNodeId,
+          x: realTimePosition.x,
+          y: realTimePosition.y
+        });
+      }
+    } else if (interactionState.state === 'IDLE') {
+      // Clean up drag position when returning to idle
+      if (draggedNodePosition) {
+        setDraggedNodePosition(null);
+      }
+    }
+  }, [interactionState, screenToCanvas, draggedNodePosition]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -853,7 +873,6 @@ const ExplorationMap: React.FC = () => {
 
   // Legacy event dispatcher - now simplified since InteractionManager handles most logic
   const handleMouseDown = useCallback((e: React.MouseEvent, target: 'canvas' | 'node', nodeId?: string) => {
-    console.log('🔍 [ExplorationMap] Legacy handleMouseDown - delegating to InteractionManager');
     // This is kept for any remaining legacy calls, but most logic is now in InteractionManager
     if (target === 'canvas') {
       handleCanvasMouseDown(e);
@@ -1060,47 +1079,31 @@ const ExplorationMap: React.FC = () => {
 
   // Handle clearing all nodes from the canvas
   const handleClearAllNodes = useCallback(async () => {
-    console.log('=== CLEAR ALL NODES HANDLER CALLED ===');
-    console.log('Current workspace:', currentWorkspace);
-    console.log('Nodes count:', nodes.length);
-    
     if (!currentWorkspace) {
-      console.log('No workspace selected');
       showNotification('No workspace selected');
       return;
     }
 
     if (nodes.length === 0) {
-      console.log('No nodes to clear');
       showNotification('No nodes to clear');
       return;
     }
 
     try {
-      console.log('Starting clear all nodes operation...');
       showNotification('Clearing all nodes...');
-      
-      console.log('Calling clearAllNodes API with workspace ID:', currentWorkspace.id);
-      console.log('clearAllNodes function type:', typeof clearAllNodes);
-      console.log('clearAllNodes function:', clearAllNodes);
       
       // Call the API function correctly
       const result = await clearAllNodes(currentWorkspace.id);
-      console.log('Clear all nodes API result:', result);
       
       // Refresh the map data to reflect the changes
-      console.log('Refreshing map data...');
       await refreshMapData();
-      console.log('Map data refreshed');
       
       // Clear local state
-      console.log('Clearing local state...');
       setSelectedNode(null);
       setFocusedNode(null);
       setConnectionPreview(null);
       
       const successMessage = `Successfully cleared ${result.deleted_nodes} nodes and ${result.deleted_edges} connections`;
-      console.log('Success message:', successMessage);
       showNotification(successMessage);
     } catch (error) {
       console.error('=== CLEAR ALL NODES ERROR ===');
@@ -1110,7 +1113,6 @@ const ExplorationMap: React.FC = () => {
       console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       
       const errorMessage = `Failed to clear nodes: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      console.log('Error message:', errorMessage);
       showNotification(errorMessage);
     }
   }, [currentWorkspace, nodes.length, showNotification, refreshMapData]);
@@ -1562,20 +1564,15 @@ const handleModalClose = useCallback(() => {
             paddingTop: '4rem',
           }}
           onMouseDown={(e) => {
-            console.log('🔍 CANVAS MOUSE DOWN - Target:', e.target);
-            console.log('🔍 CANVAS MOUSE DOWN - Event details:', {
-              clientX: e.clientX,
-              clientY: e.clientY,
-              target: e.target,
-              currentTarget: e.currentTarget
-            });
+            console.log('🎯 [CANVAS] Canvas mouse down event triggered');
             
-            // CRITICAL FIX: Check if the target is a node or node child
+            // CRITICAL FIX: Only handle canvas events if the target is actually the canvas
+            // Don't interfere with node events - let them bubble up naturally
             const target = e.target as HTMLElement;
-            if (target.closest('[id^="node-"]') ||
-                target.id.startsWith('node-') ||
-                target.closest('.glass-pane')) {
-              console.log('🔍 CANVAS MOUSE DOWN - Node interaction detected, ignoring canvas handler');
+            
+            // Check if this is a node element - if so, don't handle canvas events
+            if (target.closest('[id^="node-"]') || target.id.startsWith('node-')) {
+              console.log('🎯 [CANVAS] Click on node element, ignoring canvas handler');
               return;
             }
             
@@ -1583,15 +1580,21 @@ const handleModalClose = useCallback(() => {
             const rect = canvasRef.current?.getBoundingClientRect();
             if (rect) {
               const relativeY = e.clientY - rect.top;
-              console.log('🔍 CANVAS MOUSE DOWN - Relative Y:', relativeY);
               
               if (relativeY < 120) {
-                console.log('🔍 CANVAS MOUSE DOWN - Click in toolbar area, ignoring');
+                console.log('🎯 [CANVAS] Click in toolbar area, ignoring canvas handler');
                 return; // Don't handle canvas events in toolbar area
               }
             }
             
-            handleCanvasMouseDown(e);
+            // Only handle canvas panning if the click is directly on the canvas background
+            // This allows node events to fire properly without interference
+            if (target === e.currentTarget) {
+              console.log('🎯 [CANVAS] Direct canvas click detected, calling handleCanvasMouseDown');
+              handleCanvasMouseDown(e);
+            } else {
+              console.log('🎯 [CANVAS] Click on child element, allowing event to bubble');
+            }
           }}
           onMouseMove={handleCanvasMouseMove}
           onMouseUp={handleCanvasMouseUp}
@@ -1610,6 +1613,18 @@ const handleModalClose = useCallback(() => {
               <div>Edges: {edges.length}</div>
               <div>Loading: {mapLoading ? 'Yes' : 'No'}</div>
               {mapError && <div className="text-red-400">Error: {mapError}</div>}
+              {/* CRITICAL DEBUG: Show node ID status */}
+              {nodes.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-gray-600/30">
+                  <div className="text-[10px] text-gray-400">Node IDs:</div>
+                  {nodes.slice(0, 3).map((node, i) => (
+                    <div key={i} className={`text-[10px] ${node.id && node.id !== 'undefined' ? 'text-green-400' : 'text-red-400'}`}>
+                      {i + 1}: {node.id || 'UNDEFINED'}
+                    </div>
+                  ))}
+                  {nodes.length > 3 && <div className="text-[10px] text-gray-500">...and {nodes.length - 3} more</div>}
+                </div>
+              )}
             </div>
           </div>
 
@@ -1865,22 +1880,27 @@ const handleModalClose = useCallback(() => {
             </svg>
           </div>
 
-          {/* New SimpleNode components using InteractionManager */}
-          {nodes.map(node => (
-            <SimpleNode
-              key={node.id}
-              node={node}
-              transform={transform}
-              isSelected={selectedNode === node.id}
-              isDragging={interactionState.state === 'DRAGGING_NODE' && interactionState.data.draggedNodeId === node.id}
-              onMouseDown={handleNodeMouseDown}
-              onSelect={() => {
-                setSelectedNode(node.id);
-                setFocusedNode(node.id);
-                showNotification(`Selected: ${node.title}`);
-              }}
-            />
-          ))}
+          {/* CRITICAL FIX: Use ONLY SimpleNode component to avoid conflicts */}
+          {nodes.map(node => {
+            // Check if this node is being dragged
+            const isDragging = interactionState.state === 'DRAGGING_NODE' && interactionState.data.draggedNodeId === node.id;
+            const isSelected = selectedNode === node.id;
+            
+            return (
+              <SimpleNode
+                key={node.id}
+                node={node}
+                transform={transform}
+                isSelected={isSelected}
+                isDragging={isDragging}
+                onMouseDown={handleNodeMouseDown}
+                onSelect={() => {
+                  setSelectedNode(node.id);
+                  setFocusedNode(node.id);
+                }}
+              />
+            );
+          })}
         </div>
 
 

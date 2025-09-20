@@ -86,22 +86,18 @@ export const InteractionProvider: React.FC<InteractionProviderProps> = ({ childr
     return new InteractionManager(
       // onNodePositionUpdate callback
       (nodeId: string, position: Point) => {
-        console.log('🔄 [InteractionContext] Node position update needed:', nodeId, position);
         if (nodePositionUpdateRef.current) {
           nodePositionUpdateRef.current(nodeId, position);
         }
       },
       // onTransformUpdate callback
       (transform: Transform) => {
-        console.log('🔄 [InteractionContext] Transform update needed:', transform);
         if (transformUpdateRef.current) {
           transformUpdateRef.current(transform);
         }
       },
       // onStateChange callback - updates React state
       (mode: InteractionMode, data: any) => {
-        console.log('🔄 [InteractionContext] State change:', mode, data);
-        
         // Convert InteractionManager mode to legacy state
         let legacyState: InteractionState;
         switch (mode) {
@@ -143,7 +139,6 @@ export const InteractionProvider: React.FC<InteractionProviderProps> = ({ childr
       },
       // onNodeSelect callback
       (nodeId: string) => {
-        console.log('🔄 [InteractionContext] Node selected:', nodeId);
         if (nodeSelectRef.current) {
           nodeSelectRef.current(nodeId);
         }
@@ -166,12 +161,10 @@ export const InteractionProvider: React.FC<InteractionProviderProps> = ({ childr
 
   // New unified event handlers that delegate to InteractionManager
   const handleCanvasMouseDown = useCallback((event: React.MouseEvent) => {
-    console.log('🔄 [InteractionContext] Canvas mouse down');
     interactionManager.handleMouseDown(event.nativeEvent, 'canvas');
   }, [interactionManager]);
 
   const handleNodeMouseDown = useCallback((event: React.MouseEvent, nodeId: string, nodeType: 'ai' | 'human') => {
-    console.log('🔄 [InteractionContext] Node mouse down', { nodeId, nodeType });
     event.preventDefault();
     event.stopPropagation();
     interactionManager.handleMouseDown(event.nativeEvent, 'node', nodeId, nodeType);
@@ -208,7 +201,6 @@ export const InteractionProvider: React.FC<InteractionProviderProps> = ({ childr
 
   // Legacy transition functions (for backward compatibility)
   const transitionToPanning = useCallback((panStart: { x: number; y: number }) => {
-    console.log('🔄 [InteractionContext] Legacy: IDLE -> PANNING', { panStart });
     // For backward compatibility, update state directly
     setInteractionState({
       state: 'PANNING',
@@ -221,11 +213,6 @@ export const InteractionProvider: React.FC<InteractionProviderProps> = ({ childr
     dragStartPosition: { x: number; y: number },
     dragOffset: { x: number; y: number }
   ) => {
-    console.log('🔄 [InteractionContext] Legacy: IDLE -> DRAGGING_NODE', {
-      nodeId,
-      dragStartPosition,
-      dragOffset
-    });
     // For backward compatibility, update state directly
     setInteractionState({
       state: 'DRAGGING_NODE',
@@ -238,7 +225,6 @@ export const InteractionProvider: React.FC<InteractionProviderProps> = ({ childr
   }, []);
 
   const transitionToConnecting = useCallback((connectionStart?: string) => {
-    console.log('🔄 [InteractionContext] Legacy: -> CONNECTING', { connectionStart });
     // Use the new manager method
     if (connectionStart) {
       // This is a legacy call, just update state
@@ -252,7 +238,6 @@ export const InteractionProvider: React.FC<InteractionProviderProps> = ({ childr
   }, [interactionManager]);
 
   const transitionToIdle = useCallback(() => {
-    console.log('🔄 [InteractionContext] Legacy: -> IDLE');
     interactionManager.cancelInteraction();
   }, [interactionManager]);
 
