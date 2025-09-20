@@ -386,3 +386,22 @@ export function extractKeyPhrases(text: string, maxPhrases: number = 3): string[
 
   return phrases.slice(0, maxPhrases);
 }
+
+/**
+ * Formats a timestamp into a human-readable relative time string
+ * @param timestamp - The timestamp to format (string or number)
+ * @returns A formatted time string like "2h ago", "just now", etc.
+ */
+export function formatTimestamp(timestamp?: string | number): string {
+  if (!timestamp) return '';
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  return date.toLocaleDateString();
+}

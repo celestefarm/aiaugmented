@@ -14,6 +14,8 @@ import SparringSession from './SparringSession';
 import { CognitiveAnalysis } from './CognitiveAnalysis';
 import NodeEditModal from './NodeEditModal';
 import { generateDisplayTitle, generateSmartDisplayTitle } from '@/utils/nodeUtils';
+import { useTooltip } from '@/hooks/useTooltip';
+import { NodeTooltip } from './NodeTooltip';
 
 interface CustomAgentData {
   name: string;
@@ -28,6 +30,174 @@ interface MapHistory {
   edges: Edge[];
   timestamp: number;
 }
+
+// NodeWithTooltip component that integrates the new tooltip system
+interface NodeWithTooltipProps {
+  node: Node;
+  edges: Edge[];
+  nodePosition: { x: number; y: number };
+  isSelected: boolean;
+  isFocused: boolean;
+  isValidTarget: boolean;
+  isDragged: boolean;
+  onMouseDown: (e: React.MouseEvent) => void;
+  onDoubleClick: (e: React.MouseEvent) => void;
+  onContextMenu: (e: React.MouseEvent) => void;
+  onKeyDown: (e: React.KeyboardEvent) => void;
+  getNodeStyle: (type: string, isSelected: boolean, isFocused: boolean, isValidTarget: boolean) => string;
+  getNodeIcon: (type: string) => React.ReactNode;
+  getNodeTypeColor: (type: string) => string;
+  getSmartTitle: (node: Node, context: 'card' | 'tooltip' | 'list') => { title: string; isLoading: boolean };
+  formatTimestamp: (timestamp?: string | number) => string;
+  formatConversationText: (text: string) => string[];
+  NODE_WIDTH: number;
+}
+
+const NodeWithTooltip: React.FC<NodeWithTooltipProps> = ({
+  node,
+  edges,
+  nodePosition,
+  isSelected,
+  isFocused,
+  isValidTarget,
+  isDragged,
+  onMouseDown,
+  onDoubleClick,
+  onContextMenu,
+  onKeyDown,
+  getNodeStyle,
+  getNodeIcon,
+  getNodeTypeColor,
+  getSmartTitle,
+  formatTimestamp,
+  formatConversationText,
+  NODE_WIDTH,
+}) => {
+  const tooltip = useTooltip({
+    placement: 'top',
+    offset: 12,
+    delay: 300,
+  });
+
+  return (
+    <>
+      <div
+        className={getNodeStyle(node.type, isSelected, isFocused, isValidTarget)}
+        style={{
+          position: 'absolute',
+          left: nodePosition.x,
+          top: nodePosition.y,
+          zIndex: isDragged ? 30 : 20,
+          opacity: isDragged ? 0.8 : 1,
+          transform: isDragged ? 'scale(1.05)' : 'scale(1)',
+          transition: isDragged ? 'none' : 'transform 0.2s ease',
+        }}
+        onMouseDown={onMouseDown}
+        onDoubleClick={onDoubleClick}
+        onContextMenu={onContextMenu}
+        onKeyDown={onKeyDown}
+        tabIndex={0}
+        role="button"
+        aria-label={`Node: ${node.title}`}
+        aria-describedby={`node-desc-${node.id}`}
+      >
+        <div className="relative">
+          {/* Agent Label - Now inside the node box, top-left */}
+          {node.source_agent && (
+            <div className="absolute top-0 left-0 text-xs text-blue-400 font-medium bg-blue-500/20 px-2 py-1 rounded border border-blue-500/30 shadow-sm z-10">
+              {node.source_agent === 'strategist' ? 'Strategist Agent' : node.source_agent}
+            </div>
+          )}
+          
+          {/* Tooltip Icon Button - Top-right corner with new tooltip system */}
+          <button
+            ref={tooltip.refs.setReference}
+            {...tooltip.getReferenceProps()}
+            className="absolute top-0 right-0 w-6 h-6 rounded-full bg-gray-700/80 hover:bg-gray-600/80 flex items-center justify-center transition-colors z-10"
+            aria-label="Toggle tooltip"
+          >
+            <Info className="w-3 h-3 text-gray-300" />
+          </button>
+          
+          {/* Add top padding when agent label is present */}
+          <div className={node.source_agent ? 'pt-8' : ''}>
+            <div className="flex items-center gap-2 mb-2">
+              {getNodeIcon(node.type)}
+              <h3 className={`font-bold text-sm ${getNodeTypeColor(node.type)}`}>
+                {getSmartTitle(node, 'card').title}
+              </h3>
+            </div>
+          
+            {/* Key Message - 2-line summary under title */}
+            {node.key_message && (
+              <div className="text-xs text-gray-200 mb-2 leading-relaxed font-medium">
+                {node.key_message}
+              </div>
+            )}
+            
+            {/* Fallback to truncated title or generic placeholder if no key message */}
+            {!node.key_message && (
+              <p
+                id={`node-desc-${node.id}`}
+                className="text-xs text-gray-300 mb-2 line-clamp-2"
+              >
+                {(() => {
+                  // Use summarized title as subtext if available and different from main title
+                  const smartTitle = getSmartTitle(node, 'card');
+                  if (node.summarized_titles?.card &&
+                      node.summarized_titles.card !== node.title &&
+                      node.summarized_titles.card !== smartTitle.title) {
+                    return node.summarized_titles.card;
+                  }
+                  // Fallback to truncated main title or generic placeholder
+                  if (node.title.length > 50) {
+                    return node.title.substring(0, 50) + '...';
+                  }
+                  return 'Click to view details';
+                })()}
+              </p>
+            )}
+          </div>
+          
+          <div className="flex justify-between items-center text-xs">
+            <div className="flex items-center gap-2">
+              {node.confidence && (
+                <span className="text-[#6B6B3A] bg-[#6B6B3A]/10 px-1.5 py-0.5 rounded">
+                  {node.confidence}%
+                </span>
+              )}
+              <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                node.type === 'human' ? 'bg-[#6B6B3A]/20 text-[#6B6B3A]' :
+                node.type === 'ai' ? 'bg-blue-500/20 text-blue-300' :
+                node.type === 'risk' ? 'bg-red-500/20 text-red-300' :
+                node.type === 'dependency' ? 'bg-gray-500/20 text-gray-300' :
+                node.type === 'decision' ? 'bg-yellow-500/20 text-yellow-300' :
+                'bg-gray-400/20 text-gray-300'
+              }`}>
+                {node.type}
+              </span>
+            </div>
+            <span className="text-gray-500">
+              {formatTimestamp(node.created_at)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* New Tooltip System using React Portal */}
+      <NodeTooltip
+        node={node}
+        edges={edges}
+        isOpen={tooltip.isOpen}
+        refs={tooltip.refs}
+        floatingStyles={tooltip.floatingStyles}
+        arrowRef={tooltip.arrowRef}
+        context={tooltip.context}
+        getFloatingProps={tooltip.getFloatingProps}
+      />
+    </>
+  );
+};
 
 const ExplorationMap: React.FC = () => {
   console.log('=== EXPLORATION MAP COMPONENT LOADED ===');
@@ -76,9 +246,6 @@ const ExplorationMap: React.FC = () => {
   const [draggedNodePosition, setDraggedNodePosition] = useState<{ x: number; y: number } | null>(null);
   
   // UI state
-  const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
-  const [tooltipAnimating, setTooltipAnimating] = useState<string | null>(null);
-  const [tooltipPositions, setTooltipPositions] = useState<Record<string, { x: number; y: number; position: 'above'; align: 'center' }>>({});
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
   const [showCustomAgentDialog, setShowCustomAgentDialog] = useState(false);
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
@@ -646,7 +813,6 @@ const ExplorationMap: React.FC = () => {
     e.stopPropagation();
     e.preventDefault();
     
-    setActiveTooltip(null);
     
     if (isCreatingConnection) {
       if (connectionStart && connectionStart !== nodeId) {
@@ -676,77 +842,6 @@ const ExplorationMap: React.FC = () => {
     }
   }, [isCreatingConnection, connectionStart, createConnection, nodes, screenToCanvas, showNotification]);
 
-  // Calculate tooltip position with guaranteed vertical separation
-  const calculateTooltipPosition = useCallback((nodeId: string) => {
-    const node = nodes.find(n => n.id === nodeId);
-    if (!node) return null;
-
-    // Safe spacing rule: 10px gap (within 8-12px requirement)
-    const SAFE_GAP = 10;
-    const tooltipWidth = 320; // w-80 = 320px
-    
-    // Position tooltip above the entire node with clean separation
-    // Center horizontally on the node, position above with guaranteed gap
-    const x = (NODE_WIDTH - tooltipWidth) / 2; // Center on node
-    const y = -(SAFE_GAP); // Above node with non-negotiable gap
-    
-    return { x, y, position: 'above' as const, align: 'center' as const };
-  }, [nodes]);
-
-  // Simplified tooltip event handlers with fixed positioning
-  const handleTooltipIconClick = useCallback((e: React.MouseEvent, nodeId: string) => {
-    e.stopPropagation();
-    
-    if (activeTooltip === nodeId) {
-      // Hide current tooltip with animation
-      setTooltipAnimating(nodeId);
-      setTimeout(() => {
-        setActiveTooltip(null);
-        setTooltipAnimating(null);
-        setTooltipPositions(prev => {
-          const newPositions = { ...prev };
-          delete newPositions[nodeId];
-          return newPositions;
-        });
-      }, 150); // Match the fade-out duration
-    } else {
-      // Calculate fixed position for new tooltip
-      const position = calculateTooltipPosition(nodeId);
-      if (position) {
-        setTooltipPositions(prev => ({
-          ...prev,
-          [nodeId]: position
-        }));
-      }
-      
-      // Show new tooltip
-      setActiveTooltip(nodeId);
-      setTooltipAnimating(null);
-    }
-  }, [activeTooltip, calculateTooltipPosition]);
-
-  const handleTooltipMouseLeave = useCallback(() => {
-    // Add a small delay before hiding to prevent accidental dismissal
-    setTimeout(() => {
-      if (activeTooltip) {
-        setTooltipAnimating(activeTooltip);
-        setTimeout(() => {
-          setActiveTooltip(null);
-          setTooltipAnimating(null);
-          setTooltipPositions(prev => {
-            const newPositions = { ...prev };
-            if (activeTooltip) delete newPositions[activeTooltip];
-            return newPositions;
-          });
-        }, 150);
-      }
-    }, 200); // 200ms delay before starting hide animation
-  }, [activeTooltip]);
-
-  // Handle tooltip mouse enter to cancel hide animation
-  const handleTooltipMouseEnter = useCallback(() => {
-    setTooltipAnimating(null);
-  }, []);
 
   // Handle edit node from context menu or toolbar
   const handleEditNode = useCallback((nodeId: string) => {
@@ -1080,37 +1175,17 @@ const ExplorationMap: React.FC = () => {
     return sentences.length > 0 ? sentences : [text.substring(0, 200) + (text.length > 200 ? '...' : '')];
   };
 
-  // Close context menu and tooltips when clicking outside
+  // Close context menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       setShowContextMenu(null);
-      
-      // Close tooltip if clicking outside of it
-      if (activeTooltip) {
-        const target = event.target as Element;
-        const tooltipElement = target.closest('.tooltip-container');
-        const tooltipButton = target.closest('[data-tooltip-trigger]');
-        
-        if (!tooltipElement && !tooltipButton) {
-          setTooltipAnimating(activeTooltip);
-          setTimeout(() => {
-            setActiveTooltip(null);
-            setTooltipAnimating(null);
-            setTooltipPositions(prev => {
-              const newPositions = { ...prev };
-              if (activeTooltip) delete newPositions[activeTooltip];
-              return newPositions;
-            });
-          }, 150);
-        }
-      }
     };
     
-    if (showContextMenu || activeTooltip) {
+    if (showContextMenu) {
       document.addEventListener('click', handleClickOutside);
       return () => document.removeEventListener('click', handleClickOutside);
     }
-  }, [showContextMenu, activeTooltip]);
+  }, [showContextMenu]);
 
   // Show loading state if map is loading
   if (mapLoading && nodes.length === 0) {
@@ -1667,7 +1742,7 @@ const ExplorationMap: React.FC = () => {
               )}
             </svg>
 
-            {/* Nodes Layer - FIXED */}
+            {/* Nodes Layer - NEW TOOLTIP SYSTEM */}
             {nodes.map(node => {
               // Use dragged position if this node is being dragged, otherwise use stored position
               const nodePosition = draggedNode === node.id && draggedNodePosition
@@ -1675,192 +1750,27 @@ const ExplorationMap: React.FC = () => {
                 : { x: node.x, y: node.y };
               
               return (
-                <div
+                <NodeWithTooltip
                   key={node.id}
-                  className={getNodeStyle(
-                    node.type,
-                    selectedNode === node.id,
-                    focusedNode === node.id,
-                    isValidConnectionTarget(node.id)
-                  )}
-                  style={{
-                    position: 'absolute',
-                    left: nodePosition.x,
-                    top: nodePosition.y,
-                    zIndex: draggedNode === node.id ? 30 : 20, // Bring dragged node to front
-                    opacity: draggedNode === node.id ? 0.8 : 1, // Slight transparency while dragging
-                    transform: draggedNode === node.id ? 'scale(1.05)' : 'scale(1)', // Slight scale while dragging
-                    transition: draggedNode === node.id ? 'none' : 'transform 0.2s ease', // Disable transition while dragging
-                  }}
-                onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
-                onDoubleClick={(e) => handleNodeDoubleClick(e, node.id)}
-                onContextMenu={(e) => handleNodeRightClick(e, node.id)}
-                onKeyDown={(e) => handleNodeKeyDown(e, node.id)}
-                tabIndex={0}
-                role="button"
-                aria-label={`Node: ${node.title}`}
-                aria-describedby={`node-desc-${node.id}`}
-              >
-                <div className="relative">
-                  {/* Agent Label - Now inside the node box, top-left */}
-                  {node.source_agent && (
-                    <div className="absolute top-0 left-0 text-xs text-blue-400 font-medium bg-blue-500/20 px-2 py-1 rounded border border-blue-500/30 shadow-sm z-10">
-                      {node.source_agent === 'strategist' ? 'Strategist Agent' : node.source_agent}
-                    </div>
-                  )}
-                  
-                  {/* Tooltip Icon Button - Top-right corner */}
-                  <button
-                    onClick={(e) => handleTooltipIconClick(e, node.id)}
-                    className="absolute top-0 right-0 w-6 h-6 rounded-full bg-gray-700/80 hover:bg-gray-600/80 flex items-center justify-center transition-colors z-10"
-                    aria-label="Toggle tooltip"
-                    data-tooltip-trigger
-                  >
-                    <Info className="w-3 h-3 text-gray-300" />
-                  </button>
-                  
-                  {/* Add top padding when agent label is present */}
-                  <div className={node.source_agent ? 'pt-8' : ''}>
-                    <div className="flex items-center gap-2 mb-2">
-                      {getNodeIcon(node.type)}
-                      <h3 className={`font-bold text-sm ${getNodeTypeColor(node.type)}`}>
-                        {getSmartTitle(node, 'card').title}
-                      </h3>
-                    </div>
-                  
-                    {/* Key Message - 2-line summary under title */}
-                    {node.key_message && (
-                      <div className="text-xs text-gray-200 mb-2 leading-relaxed font-medium">
-                        {node.key_message}
-                      </div>
-                    )}
-                    
-                    {/* Fallback to truncated title or generic placeholder if no key message */}
-                    {!node.key_message && (
-                      <p
-                        id={`node-desc-${node.id}`}
-                        className="text-xs text-gray-300 mb-2 line-clamp-2"
-                      >
-                        {(() => {
-                          // Use summarized title as subtext if available and different from main title
-                          const smartTitle = getSmartTitle(node, 'card');
-                          if (node.summarized_titles?.card &&
-                              node.summarized_titles.card !== node.title &&
-                              node.summarized_titles.card !== smartTitle.title) {
-                            return node.summarized_titles.card;
-                          }
-                          // Fallback to truncated main title or generic placeholder
-                          if (node.title.length > 50) {
-                            return node.title.substring(0, 50) + '...';
-                          }
-                          return 'Click to view details';
-                        })()}
-                      </p>
-                    )}
-                  </div>
-                  
-                  <div className="flex justify-between items-center text-xs">
-                    <div className="flex items-center gap-2">
-                      {node.confidence && (
-                        <span className="text-[#6B6B3A] bg-[#6B6B3A]/10 px-1.5 py-0.5 rounded">
-                          {node.confidence}%
-                        </span>
-                      )}
-                      <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                        node.type === 'human' ? 'bg-[#6B6B3A]/20 text-[#6B6B3A]' :
-                        node.type === 'ai' ? 'bg-blue-500/20 text-blue-300' :
-                        node.type === 'risk' ? 'bg-red-500/20 text-red-300' :
-                        node.type === 'dependency' ? 'bg-gray-500/20 text-gray-300' :
-                        node.type === 'decision' ? 'bg-yellow-500/20 text-yellow-300' :
-                        'bg-gray-400/20 text-gray-300'
-                      }`}>
-                        {node.type}
-                      </span>
-                    </div>
-                    <span className="text-gray-500">
-                      {formatTimestamp(node.created_at)}
-                    </span>
-                  </div>
-
-                  {/* Enhanced Tooltip with Clean Vertical Separation */}
-                  {activeTooltip === node.id && (
-                    <div className="tooltip-container absolute pointer-events-auto z-50">
-                      <div
-                        className={`tooltip-content tooltip-smooth p-4 text-xs absolute glass-pane border border-gray-600/50 rounded-lg shadow-2xl w-80 ${
-                          tooltipAnimating === node.id ? 'exiting' : 'entering'
-                        }`}
-                        style={{
-                          left: `${(NODE_WIDTH - 320) / 2}px`, // Center on node (320px = w-80)
-                          top: `-10px`, // Fixed 10px gap above node
-                          transform: 'translateY(-100%)' // Move tooltip fully above the gap
-                        }}
-                        onMouseLeave={handleTooltipMouseLeave}
-                        onMouseEnter={handleTooltipMouseEnter}
-                      >
-                        <div className="flex items-center gap-2 mb-3">
-                          {getNodeIcon(node.type)}
-                          <div className="font-medium text-[#6B6B3A]">
-                            {node.title}
-                          </div>
-                        </div>
-                        
-                        {/* Keynote Points - Primary content */}
-                        {node.keynote_points && node.keynote_points.length > 0 ? (
-                          <div className="mb-3">
-                            <div className="text-gray-400 font-medium mb-2">Key Discussion Points:</div>
-                            <div className="space-y-1">
-                              {node.keynote_points.map((point, index) => (
-                                <div key={index} className="flex items-start gap-2">
-                                  <div className="w-1 h-1 rounded-full bg-[#6B6B3A] mt-2 flex-shrink-0"></div>
-                                  <span className="text-gray-300 leading-relaxed">{point}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ) : (
-                          /* Fallback to conversation text if no keynote points */
-                          <div className="mb-3">
-                            <div className="text-gray-400 font-medium mb-2">Full Conversation:</div>
-                            <div className="space-y-1">
-                              {formatConversationText(node.description).map((point, index) => (
-                                <div key={index} className="flex items-start gap-2">
-                                  <div className="w-1 h-1 rounded-full bg-[#6B6B3A] mt-2 flex-shrink-0"></div>
-                                  <span className="text-gray-300 leading-relaxed">{point}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        
-                        {/* Key Message in tooltip if available */}
-                        {node.key_message && (
-                          <div className="mb-3 p-2 bg-[#6B6B3A]/10 rounded border border-[#6B6B3A]/20">
-                            <div className="text-gray-400 font-medium mb-1">Key Message:</div>
-                            <div className="text-gray-200 leading-relaxed">{node.key_message}</div>
-                          </div>
-                        )}
-                        
-                        {/* Metadata */}
-                        <div className="flex items-center justify-between text-xs border-t border-gray-600/30 pt-2">
-                          <div className="flex items-center gap-4">
-                            <span className="text-gray-400">
-                              {edges.filter(e => e.from_node_id === node.id || e.to_node_id === node.id).length} connections
-                            </span>
-                            {node.confidence && (
-                              <span className="text-[#6B6B3A]">
-                                {node.confidence}% confidence
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-gray-500">
-                            {formatTimestamp(node.created_at)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                </div>
+                  node={node}
+                  edges={edges}
+                  nodePosition={nodePosition}
+                  isSelected={selectedNode === node.id}
+                  isFocused={focusedNode === node.id}
+                  isValidTarget={isValidConnectionTarget(node.id)}
+                  isDragged={draggedNode === node.id}
+                  onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
+                  onDoubleClick={(e) => handleNodeDoubleClick(e, node.id)}
+                  onContextMenu={(e) => handleNodeRightClick(e, node.id)}
+                  onKeyDown={(e) => handleNodeKeyDown(e, node.id)}
+                  getNodeStyle={getNodeStyle}
+                  getNodeIcon={getNodeIcon}
+                  getNodeTypeColor={getNodeTypeColor}
+                  getSmartTitle={getSmartTitle}
+                  formatTimestamp={formatTimestamp}
+                  formatConversationText={formatConversationText}
+                  NODE_WIDTH={NODE_WIDTH}
+                />
               );
             })}
           </div>
