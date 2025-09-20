@@ -7,6 +7,7 @@ import {
   ProcessedContent
 } from '@/utils/tooltipContentUtils';
 import { FullContextModal } from './FullContextModal';
+import { useAgentChat } from '@/contexts/AgentChatContext';
 import {
   User,
   Target,
@@ -58,10 +59,35 @@ export const NodeTooltip: React.FC<NodeTooltipProps> = ({
   getFloatingProps,
   onModalOpen,
 }) => {
+  // DIAGNOSTIC LOGGING: Access chat context to check conversation data availability
+  const { messages } = useAgentChat();
+  
   // Process content with memoization for performance
   const processedContent = useMemo(() => {
+    // DIAGNOSTIC LOGGING: Check conversation data access
+    console.log('🔍 [TOOLTIP-DIAGNOSIS] NodeTooltip processing:', {
+      nodeId: node.id,
+      nodeTitle: node.title,
+      nodeType: node.type,
+      sourceAgent: node.source_agent,
+      hasMessages: messages.length > 0,
+      totalMessages: messages.length,
+      relatedMessages: messages.filter(msg =>
+        msg.content.toLowerCase().includes(node.title.toLowerCase().split(' ')[0]) ||
+        (node.source_agent && msg.author === node.source_agent)
+      ).length,
+      nodeCreatedAt: node.created_at,
+      recentMessages: messages.slice(-3).map(msg => ({
+        id: msg.id,
+        author: msg.author,
+        type: msg.type,
+        contentPreview: msg.content.substring(0, 50) + '...',
+        created_at: msg.created_at
+      }))
+    });
+    
     return processNodeContent(node);
-  }, [node]);
+  }, [node, messages]);
 
   // Calculate connection count
   const connectionCount = useMemo(() => {

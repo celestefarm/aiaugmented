@@ -250,6 +250,20 @@ export function generateActionItems(description?: string): string[] {
  * Processes all content for a node according to the progressive disclosure tiers
  */
 export function processNodeContent(node: Node): ProcessedContent {
+  // DIAGNOSTIC LOGGING: Check what data is available for AI processing
+  console.log('🔍 [TOOLTIP-DIAGNOSIS] Processing node content:', {
+    nodeId: node.id,
+    hasKeyMessage: !!node.key_message,
+    hasKeynotePoints: !!(node.keynote_points && node.keynote_points.length > 0),
+    hasDescription: !!node.description,
+    descriptionLength: node.description?.length || 0,
+    sourceAgent: node.source_agent,
+    nodeType: node.type,
+    keyMessagePreview: node.key_message?.substring(0, 50) + '...',
+    keynotePointsCount: node.keynote_points?.length || 0,
+    descriptionPreview: node.description?.substring(0, 100) + '...'
+  });
+
   return {
     executiveSummary: generateExecutiveSummary(node.key_message, node.keynote_points),
     keyInsights: extractKeyInsights(node.keynote_points, 4),

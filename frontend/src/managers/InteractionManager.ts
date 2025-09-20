@@ -1,3 +1,4 @@
+
 export interface Point {
   x: number;
   y: number;
@@ -42,19 +43,43 @@ export class InteractionManager {
   private connectionStart: string | null = null;
   private currentTransform: Transform = { x: 0, y: 0, scale: 1 };
   
-  // DIAGNOSTIC: Add timing tracking for mouse events
+  // IMMEDIATE RESPONSE: Simplified timing and animation management
   private lastMouseMoveTime: number = 0;
   private mouseMoveCount: number = 0;
   private dragStartTime: number = 0;
   private coordinateHistory: Array<{timestamp: number, screen: Point, canvas: Point}> = [];
   
-  // PERFORMANCE FIX: Add throttling and animation frame management
-  private lastThrottledUpdate: number = 0;
-  private throttleInterval: number = 16; // ~60fps (1000ms / 60fps = 16.67ms)
+  // HYBRID SMOOTHNESS: Advanced animation frame management
   private animationFrameId: number | null = null;
-  private pendingUpdate: Point | null = null;
   private lastBackendUpdate: number = 0;
   private backendUpdateInterval: number = 100; // Update backend every 100ms during drag
+  
+  // ULTRA-PREMIUM: Multi-layer velocity system for natural movement
+  private velocity: Point = { x: 0, y: 0 };
+  private smoothedVelocity: Point = { x: 0, y: 0 };
+  private ultraSmoothVelocity: Point = { x: 0, y: 0 };
+  private lastPanPosition: Point | null = null;
+  private lastPanTime: number = 0;
+  private momentumAnimationId: number | null = null;
+  private isDecelerating: boolean = false;
+  
+  // ULTRA-PREMIUM: Multi-stage transform interpolation
+  private targetTransform: Transform = { x: 0, y: 0, scale: 1 };
+  private smoothTransform: Transform = { x: 0, y: 0, scale: 1 };
+  private ultraSmoothTransform: Transform = { x: 0, y: 0, scale: 1 };
+  private isSmoothing: boolean = false;
+  private smoothingAnimationId: number | null = null;
+  
+  // ULTRA-PREMIUM: Extended position history for premium interpolation
+  private positionHistory: Array<{position: Point, timestamp: number, velocity: Point}> = [];
+  private maxHistorySize: number = 8; // Increased for ultra-smooth interpolation
+  private baseSmoothingFactor: number = 0.08; // Much lower for ultra-smooth movement
+  private adaptiveSmoothingFactor: number = 0.08;
+  
+  // ULTRA-PREMIUM: Advanced smoothing parameters
+  private highFrequencySmoothing: boolean = true;
+  private naturalEasing: boolean = true;
+  private premiumInterpolation: boolean = true;
   
   // Event callbacks
   private onNodePositionUpdate?: (nodeId: string, position: Point) => void;
@@ -148,15 +173,11 @@ export class InteractionManager {
     const currentPos = { x: event.clientX, y: event.clientY };
     const timestamp = performance.now();
     
-    // PERFORMANCE FIX: Throttle mouse move processing to ~60fps
-    const timeSinceLastUpdate = timestamp - this.lastThrottledUpdate;
-    if (timeSinceLastUpdate < this.throttleInterval) {
-      // Store the latest position for the next update
-      this.pendingUpdate = currentPos;
-      return;
-    }
+    // DIRECT CANVAS DRAG: Minimal tracking for performance monitoring only
+    this.lastPanPosition = { ...currentPos };
+    this.lastPanTime = timestamp;
     
-    // DIAGNOSTIC: Track mouse event frequency and smoothness (reduced logging)
+    // Track performance
     if (!this.lastMouseMoveTime) {
       this.lastMouseMoveTime = timestamp;
       this.mouseMoveCount = 0;
@@ -165,23 +186,16 @@ export class InteractionManager {
     const timeDelta = timestamp - this.lastMouseMoveTime;
     this.mouseMoveCount++;
     
-    // DIAGNOSTIC: Track coordinate transformations (only every 10th event to reduce spam)
-    if (this.mouseMoveCount % 10 === 0) {
-      const canvasPos = this.screenToCanvas(currentPos.x, currentPos.y);
-      console.log('🔍 [DIAGNOSTIC] Throttled mouse move analysis:', {
-        currentMode: this.mode,
-        currentPos,
-        canvasPos,
-        timeDelta: `${timeDelta.toFixed(2)}ms`,
-        frequency: timeDelta > 0 ? `${(1000 / timeDelta).toFixed(1)}Hz` : 'N/A',
-        eventCount: this.mouseMoveCount,
-        throttleInterval: this.throttleInterval,
-        actualUpdateFrequency: `${(1000 / timeSinceLastUpdate).toFixed(1)}Hz`
+    // Log every 100th event for minimal performance impact
+    if (this.mouseMoveCount % 100 === 0) {
+      console.log('⚡ [DIRECT-CANVAS-DRAG] Mouse move performance:', {
+        mode: this.mode,
+        frequency: `${(1000 / timeDelta).toFixed(1)}Hz`,
+        mouseMoveCount: this.mouseMoveCount
       });
     }
     
     this.lastMouseMoveTime = timestamp;
-    this.lastThrottledUpdate = timestamp;
     
     switch (this.mode) {
       case 'DRAGGING_NODE':
@@ -189,16 +203,12 @@ export class InteractionManager {
         break;
         
       case 'PANNING':
-        this.updateCanvasPan(currentPos);
+        this.updateCanvasPanHybridSmooth(currentPos);
         break;
         
       default:
-        // Clear any pending updates when not in active mode
-        this.pendingUpdate = null;
-        if (this.animationFrameId) {
-          cancelAnimationFrame(this.animationFrameId);
-          this.animationFrameId = null;
-        }
+        // Clear any animation frames when not in active mode
+        this.clearAnimationFrames();
         break;
     }
   }
@@ -254,7 +264,7 @@ export class InteractionManager {
   
   // Node dragging methods
   private startNodeDrag(event: MouseEvent, nodeId: string, nodeType: 'ai' | 'human'): void {
-    // CRITICAL FIX: Ensure clean state before starting new drag
+    // IMMEDIATE RESPONSE: Clean state initialization
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
@@ -264,12 +274,10 @@ export class InteractionManager {
     this.dragStartTime = performance.now();
     this.mouseMoveCount = 0;
     this.coordinateHistory = [];
-    this.lastThrottledUpdate = 0;
     this.lastBackendUpdate = 0;
-    this.pendingUpdate = null;
     this.lastMouseMoveTime = 0;
     
-    console.log('🔧 [CRITICAL FIX] Clean state initialized for new drag operation');
+    console.log('⚡ [IMMEDIATE-RESPONSE] Clean state initialized for immediate drag operation');
     
     console.log('🎯 [DIAGNOSTIC] Starting node drag with full analysis', {
       nodeId,
@@ -284,7 +292,7 @@ export class InteractionManager {
       currentTransform: this.currentTransform
     });
     
-    // CRITICAL DEBUG: Check all possible node element selectors
+    // Find node element
     const expectedId = `node-${nodeId}`;
     let nodeElement = document.getElementById(expectedId);
     
@@ -296,23 +304,11 @@ export class InteractionManager {
         className: el.className,
         tagName: el.tagName,
         boundingRect: el.getBoundingClientRect()
-      })),
-      allElementsWithNodeInId: Array.from(document.querySelectorAll('[id*="node"]')).map(el => ({
-        id: el.id,
-        className: el.className,
-        tagName: el.tagName
-      })),
-      totalElementsInDOM: document.querySelectorAll('*').length,
-      bodyChildren: Array.from(document.body.children).map(el => ({
-        id: el.id,
-        className: el.className,
-        tagName: el.tagName
       }))
     });
     
     if (!nodeElement) {
       console.error('🎯 [InteractionManager] CRITICAL: Node element not found:', expectedId);
-      console.error('🎯 [InteractionManager] This is likely the root cause of drag failure');
       
       // FALLBACK: Try alternative selectors
       const alternativeSelectors = [
@@ -335,7 +331,6 @@ export class InteractionManager {
         return;
       }
       
-      // Use the found element
       nodeElement = foundElement as HTMLElement;
     }
     
@@ -352,9 +347,7 @@ export class InteractionManager {
       y: event.clientY - rect.top
     };
     
-    // CRITICAL FIX: Get the actual canvas coordinates from the node's data attributes or calculate from screen position
-    // The node's left/top style properties are already screen coordinates (transformed)
-    // We need to get the original canvas coordinates
+    // Get the actual canvas coordinates from the node's screen position
     const computedStyle = window.getComputedStyle(nodeElement);
     const screenLeft = parseFloat(computedStyle.left) || 0;
     const screenTop = parseFloat(computedStyle.top) || 0;
@@ -362,9 +355,7 @@ export class InteractionManager {
     console.log('🎯 [InteractionManager] Node screen position:', { screenLeft, screenTop });
     console.log('🎯 [InteractionManager] Current transform:', this.currentTransform);
     
-    // IMPROVED: Convert screen coordinates back to canvas coordinates
-    // The formula used in SimpleNode is: left = node.x * transform.scale + transform.x
-    // So to get canvas coordinates: node.x = (left - transform.x) / transform.scale
+    // Convert screen coordinates back to canvas coordinates
     const initialNodePosition = {
       x: (screenLeft - this.currentTransform.x) / this.currentTransform.scale,
       y: (screenTop - this.currentTransform.y) / this.currentTransform.scale
@@ -384,30 +375,11 @@ export class InteractionManager {
     
     this.mode = 'DRAGGING_NODE';
     console.log('🎯 [InteractionManager] State changed to DRAGGING_NODE, calling onStateChange');
-    console.log('🔍 [InteractionManager] State Change Debug:', {
-      newMode: this.mode,
-      dragContext: this.dragContext,
-      hasOnStateChangeCallback: !!this.onStateChange,
-      hasOnNodeSelectCallback: !!this.onNodeSelect,
-      callbackTypes: {
-        onStateChange: typeof this.onStateChange,
-        onNodeSelect: typeof this.onNodeSelect
-      }
-    });
     
     this.onStateChange?.(this.mode, this.dragContext);
     this.onNodeSelect?.(nodeId);
     
-    console.log('🎯 [InteractionManager] Callbacks called, drag context:', this.dragContext);
-    console.log('🔍 [InteractionManager] Post-callback state verification:', {
-      currentMode: this.mode,
-      dragContextExists: !!this.dragContext,
-      dragContextNodeId: this.dragContext?.nodeId,
-      shouldHaveGlobalListeners: this.mode === 'DRAGGING_NODE'
-    });
-    
-    // CRITICAL FIX: Ensure global listeners are attached immediately
-    // This is a fallback in case React's useEffect doesn't trigger fast enough
+    // Ensure global listeners are attached immediately
     console.log('🔧 [InteractionManager] Ensuring global listeners are attached');
     this.ensureGlobalListenersAttached();
     
@@ -427,87 +399,7 @@ export class InteractionManager {
     });
   }
   
-  private updateNodeDrag(currentPosition: Point): void {
-    if (!this.dragContext) return;
-    
-    const timestamp = performance.now();
-    const dragDuration = timestamp - this.dragStartTime;
-    
-    this.dragContext.currentPosition = currentPosition;
-    
-    // Calculate movement delta in screen coordinates
-    const deltaX = currentPosition.x - this.dragContext.startPosition.x;
-    const deltaY = currentPosition.y - this.dragContext.startPosition.y;
-    
-    // Apply transform scaling to delta to get canvas delta
-    const scaledDeltaX = deltaX / this.currentTransform.scale;
-    const scaledDeltaY = deltaY / this.currentTransform.scale;
-    
-    // Calculate new canvas position
-    const newCanvasPosition = {
-      x: this.dragContext.initialNodePosition.x + scaledDeltaX,
-      y: this.dragContext.initialNodePosition.y + scaledDeltaY
-    };
-    
-    // Convert canvas position to screen coordinates for DOM positioning
-    // This must match the formula used in SimpleNode: left = node.x * transform.scale + transform.x
-    const newScreenPosition = {
-      x: newCanvasPosition.x * this.currentTransform.scale + this.currentTransform.x,
-      y: newCanvasPosition.y * this.currentTransform.scale + this.currentTransform.y
-    };
-    
-    // DIAGNOSTIC: Detailed coordinate transformation logging
-    console.log('🔍 [DIAGNOSTIC] Coordinate transformation analysis:', {
-      nodeId: this.dragContext.nodeId,
-      dragDuration: `${dragDuration.toFixed(2)}ms`,
-      screenDelta: { x: deltaX, y: deltaY },
-      scaledDelta: { x: scaledDeltaX, y: scaledDeltaY },
-      initialCanvasPos: this.dragContext.initialNodePosition,
-      newCanvasPosition,
-      newScreenPosition,
-      currentTransform: this.currentTransform,
-      transformFormula: {
-        description: 'screen = canvas * scale + offset',
-        verification: {
-          expectedScreenX: newCanvasPosition.x * this.currentTransform.scale + this.currentTransform.x,
-          expectedScreenY: newCanvasPosition.y * this.currentTransform.scale + this.currentTransform.y,
-          actualScreenX: newScreenPosition.x,
-          actualScreenY: newScreenPosition.y
-        }
-      }
-    });
-    
-    // HYBRID APPROACH: Use transform translate for smooth visual feedback during drag
-    requestAnimationFrame(() => {
-      const nodeElement = document.getElementById(`node-${this.dragContext?.nodeId}`);
-      if (nodeElement && this.dragContext) {
-        // Calculate the offset from the original position for transform
-        const deltaX = currentPosition.x - this.dragContext.startPosition.x;
-        const deltaY = currentPosition.y - this.dragContext.startPosition.y;
-        
-        // Use transform translate for smooth visual movement during drag
-        nodeElement.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(1.05)`;
-        nodeElement.style.zIndex = '1000';
-        nodeElement.style.opacity = '0.9';
-        nodeElement.style.cursor = 'grabbing';
-        nodeElement.style.willChange = 'transform';
-        nodeElement.style.transition = 'none';
-        nodeElement.style.pointerEvents = 'none';
-        document.body.style.cursor = 'grabbing';
-      }
-    });
-    
-    // Store the real-time canvas position for final positioning
-    this.dragContext.realTimeCanvasPosition = newCanvasPosition;
-    
-    console.log('🎯 [InteractionManager] Node drag updated smoothly', {
-      nodeId: this.dragContext.nodeId,
-      newCanvasPosition,
-      newScreenPosition
-    });
-  }
-  
-  // PERFORMANCE FIX: New smooth drag update method with proper throttling
+  // IMMEDIATE RESPONSE: Simplified smooth drag update method
   private updateNodeDragSmooth(currentPosition: Point): void {
     if (!this.dragContext) return;
     
@@ -530,7 +422,7 @@ export class InteractionManager {
     // Store the real-time canvas position for final positioning
     this.dragContext.realTimeCanvasPosition = newCanvasPosition;
     
-    // PERFORMANCE FIX: Use requestAnimationFrame for smooth visual updates
+    // IMMEDIATE RESPONSE: Use requestAnimationFrame for smooth visual updates
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
     }
@@ -550,7 +442,7 @@ export class InteractionManager {
       }
     });
     
-    // PERFORMANCE FIX: Throttle backend updates to reduce server load
+    // Throttle backend updates to reduce server load
     const timestamp = performance.now();
     const timeSinceLastBackendUpdate = timestamp - this.lastBackendUpdate;
     
@@ -559,11 +451,10 @@ export class InteractionManager {
       
       // Only log every few backend updates to reduce console spam
       if (this.mouseMoveCount % 20 === 0) {
-        console.log('🔧 [PERFORMANCE] Throttled backend update:', {
+        console.log('⚡ [IMMEDIATE-RESPONSE] Backend update:', {
           nodeId: this.dragContext.nodeId,
           newCanvasPosition,
-          updateInterval: `${timeSinceLastBackendUpdate.toFixed(2)}ms`,
-          backendUpdateFrequency: `${(1000 / timeSinceLastBackendUpdate).toFixed(1)}Hz`
+          updateInterval: `${timeSinceLastBackendUpdate.toFixed(2)}ms`
         });
       }
     }
@@ -580,23 +471,22 @@ export class InteractionManager {
       totalDragDuration: `${totalDragDuration.toFixed(2)}ms`,
       totalMouseMoves: this.mouseMoveCount,
       averageFrequency: this.mouseMoveCount > 0 ? `${(this.mouseMoveCount / (totalDragDuration / 1000)).toFixed(1)}Hz` : 'N/A',
-      coordinateHistory: this.coordinateHistory.slice(-3) // Last 3 coordinate transformations
+      coordinateHistory: this.coordinateHistory.slice(-3)
     });
     
-    // POSITIONING FIX: Use the real-time canvas position for accuracy
+    // Use the real-time canvas position for accuracy
     const finalCanvasPosition = this.dragContext.realTimeCanvasPosition || {
-      // Fallback to delta calculation if real-time position not available
       x: this.dragContext.initialNodePosition.x + (this.dragContext.currentPosition.x - this.dragContext.startPosition.x) / this.currentTransform.scale,
       y: this.dragContext.initialNodePosition.y + (this.dragContext.currentPosition.y - this.dragContext.startPosition.y) / this.currentTransform.scale
     };
     
-    // Convert final canvas position to screen coordinates using the same formula as SimpleNode
+    // Convert final canvas position to screen coordinates
     const finalScreenPosition = {
       x: finalCanvasPosition.x * this.currentTransform.scale + this.currentTransform.x,
       y: finalCanvasPosition.y * this.currentTransform.scale + this.currentTransform.y
     };
     
-    // FINAL POSITIONING FIX: Set the exact final position immediately to prevent jumping
+    // Set the exact final position immediately to prevent jumping
     const nodeElement = document.getElementById(`node-${this.dragContext.nodeId}`);
     if (nodeElement) {
       console.log('🔧 [InteractionManager] Setting final position immediately', {
@@ -606,8 +496,7 @@ export class InteractionManager {
         currentTransform: this.currentTransform
       });
       
-      // CRITICAL: Set final position immediately using the same formula as React
-      // This prevents any jumping by ensuring coordinates match exactly
+      // Set final position immediately using the same formula as React
       nodeElement.style.left = `${finalScreenPosition.x}px`;
       nodeElement.style.top = `${finalScreenPosition.y}px`;
       
@@ -634,10 +523,9 @@ export class InteractionManager {
       finalScreenPosition
     });
     
-    // FINAL FIX: Delay React state update to prevent override of our DOM positioning
     const nodeId = this.dragContext.nodeId;
     
-    // CRITICAL FIX: Properly reset all drag-related state
+    // Reset all drag-related state
     this.dragContext = null;
     this.mode = 'IDLE';
     
@@ -647,56 +535,33 @@ export class InteractionManager {
       this.animationFrameId = null;
     }
     
-    // Reset timing and throttling state for next drag
-    this.lastThrottledUpdate = 0;
+    // Reset timing state for next drag
     this.lastBackendUpdate = 0;
-    this.pendingUpdate = null;
     this.mouseMoveCount = 0;
     this.lastMouseMoveTime = 0;
     this.coordinateHistory = [];
     
-    console.log('🔧 [CRITICAL FIX] All drag state reset for next operation');
+    console.log('⚡ [IMMEDIATE-RESPONSE] All drag state reset for next operation');
     
     this.onStateChange?.(this.mode, null);
     
-    // CRITICAL: Delay React state update to allow our DOM positioning to stick
+    // Delay React state update to allow our DOM positioning to stick
     setTimeout(() => {
       console.log('🔧 [InteractionManager] Updating React state after DOM positioning is stable');
       this.onNodePositionUpdate?.(nodeId, finalCanvasPosition);
-    }, 100);
-    
-    // Verify the node is still visible after a short delay
-    setTimeout(() => {
-      const nodeElement = document.getElementById(`node-${nodeId}`);
-      if (nodeElement) {
-        const computedStyle = window.getComputedStyle(nodeElement);
-        console.log('✅ [InteractionManager] Node verification after drag end', {
-          nodeId,
-          elementExists: true,
-          isVisible: computedStyle.display !== 'none' && computedStyle.visibility !== 'hidden',
-          styles: {
-            left: nodeElement.style.left,
-            top: nodeElement.style.top,
-            transform: nodeElement.style.transform,
-            display: computedStyle.display,
-            visibility: computedStyle.visibility,
-            opacity: computedStyle.opacity,
-            position: computedStyle.position
-          },
-          boundingRect: nodeElement.getBoundingClientRect()
-        });
-      } else {
-        console.error('❌ [InteractionManager] CRITICAL: Node element disappeared!', {
-          nodeId,
-          allNodeElements: Array.from(document.querySelectorAll('[id^="node-"]')).map(el => el.id)
-        });
-      }
     }, 100);
   }
   
   // Canvas panning methods
   private startCanvasPan(event: MouseEvent): void {
-    console.log('🎯 [InteractionManager] Starting canvas pan');
+    console.log('🐛 [CANVAS-DRAG-DEBUG] Starting canvas pan');
+    console.log('🐛 [CANVAS-DRAG-DEBUG] Pan start details:', {
+      clientX: event.clientX,
+      clientY: event.clientY,
+      currentTransform: this.currentTransform,
+      button: event.button,
+      timestamp: performance.now()
+    });
     
     const startPosition = { x: event.clientX, y: event.clientY };
     
@@ -706,31 +571,51 @@ export class InteractionManager {
     };
     
     this.mode = 'PANNING';
+    console.log('🐛 [CANVAS-DRAG-DEBUG] Mode changed to PANNING, calling onStateChange');
     this.onStateChange?.(this.mode, this.panContext);
   }
   
-  private updateCanvasPan(currentPosition: Point): void {
+  // DIRECT CANVAS DRAG: Immediate response without any interpolation delay
+  private updateCanvasPanHybridSmooth(currentPosition: Point): void {
     if (!this.panContext) return;
     
     const deltaX = currentPosition.x - this.panContext.startPosition.x;
     const deltaY = currentPosition.y - this.panContext.startPosition.y;
     
-    const newTransform = {
+    // DIRECT CANVAS DRAG: Update transform immediately for instant response
+    this.currentTransform = {
       ...this.panContext.initialTransform,
       x: this.panContext.initialTransform.x + deltaX,
       y: this.panContext.initialTransform.y + deltaY
     };
     
-    this.currentTransform = newTransform;
-    this.onTransformUpdate?.(newTransform);
+    // DIRECT CANVAS DRAG: Update immediately without requestAnimationFrame delay
+    this.onTransformUpdate?.(this.currentTransform);
+    
+    // Log every 60th event for performance monitoring
+    if (this.mouseMoveCount % 60 === 0) {
+      console.log('⚡ [DIRECT-CANVAS-DRAG] Immediate response:', {
+        deltaX: deltaX.toFixed(2),
+        deltaY: deltaY.toFixed(2),
+        currentTransform: this.currentTransform,
+        mouseMoveCount: this.mouseMoveCount
+      });
+    }
   }
   
   private endCanvasPan(): void {
-    console.log('🎯 [InteractionManager] Ending canvas pan');
+    console.log('⚡ [DIRECT-CANVAS-DRAG] Ending direct canvas pan');
+    console.log('⚡ [DIRECT-CANVAS-DRAG] Final transform:', this.currentTransform);
     
+    // DIRECT CANVAS DRAG: No momentum - immediate stop for direct control
     this.panContext = null;
     this.mode = 'IDLE';
     this.onStateChange?.(this.mode, null);
+    
+    // Clean up position tracking
+    this.lastPanPosition = null;
+    this.lastPanTime = 0;
+    this.velocity = { x: 0, y: 0 };
   }
   
   // Connection methods
@@ -743,7 +628,6 @@ export class InteractionManager {
         from: this.connectionStart,
         to: nodeId
       });
-      // This would trigger connection creation in the parent component
       this.connectionStart = null;
       this.mode = 'IDLE';
       this.onStateChange?.(this.mode, null);
@@ -779,16 +663,13 @@ export class InteractionManager {
     return this.dragContext;
   }
   
-  // Method to check if currently dragging (for preventing auto-arrange interference)
   public isDragging(): boolean {
     return this.mode === 'DRAGGING_NODE';
   }
   
-  // Method to get dragged node ID (for conflict prevention)
   public getDraggedNodeId(): string | null {
     return this.dragContext?.nodeId || null;
   }
-  
   
   public startConnecting(): void {
     this.mode = 'CONNECTING';
@@ -799,7 +680,7 @@ export class InteractionManager {
   public cancelInteraction(): void {
     console.log('🎯 [InteractionManager] Cancelling interaction');
     
-    // CRITICAL FIX: Reset visual feedback if dragging - direct DOM manipulation
+    // Reset visual feedback if dragging
     if (this.dragContext) {
       const nodeElement = document.getElementById(`node-${this.dragContext.nodeId}`);
       if (nodeElement) {
@@ -808,7 +689,6 @@ export class InteractionManager {
         nodeElement.style.transform = 'scale(1)';
         nodeElement.style.cursor = 'grab';
         nodeElement.style.willChange = 'auto';
-        // Reset any transform translate that might have been applied during drag
         const computedStyle = window.getComputedStyle(nodeElement);
         const currentLeft = parseFloat(computedStyle.left) || 0;
         const currentTop = parseFloat(computedStyle.top) || 0;
@@ -817,7 +697,7 @@ export class InteractionManager {
       }
     }
     
-    // CRITICAL FIX: Reset all state completely
+    // Reset all state completely
     this.mode = 'IDLE';
     this.dragContext = null;
     this.panContext = null;
@@ -830,19 +710,16 @@ export class InteractionManager {
     }
     
     // Reset all timing variables
-    this.lastThrottledUpdate = 0;
     this.lastBackendUpdate = 0;
-    this.pendingUpdate = null;
     this.mouseMoveCount = 0;
     this.lastMouseMoveTime = 0;
     this.coordinateHistory = [];
     
-    console.log('🔧 [CRITICAL FIX] All interaction state completely reset');
+    console.log('⚡ [IMMEDIATE-RESPONSE] All interaction state completely reset');
     
     this.onStateChange?.(this.mode, null);
   }
   
-  // Method to temporarily disable interactions during node creation
   public setCreationMode(isCreating: boolean): void {
     if (isCreating) {
       this.mode = 'CREATING_NODE';
@@ -854,23 +731,19 @@ export class InteractionManager {
     this.onStateChange?.(this.mode, null);
   }
   
-  // Method to handle new nodes added from chat
   public onNodeAddedFromChat(nodeId: string, nodeType: 'ai' | 'human'): void {
     console.log(`🎯 [InteractionManager] New ${nodeType} node added from chat: ${nodeId}`);
-    // Ensure the new node is immediately available for interaction
     this.setCreationMode(false);
   }
   
-  // Method to get connection start for UI feedback
   public getConnectionStart(): string | null {
     return this.connectionStart;
   }
   
-  // CRITICAL FIX: Ensure global listeners are attached
+  // Ensure global listeners are attached
   private ensureGlobalListenersAttached(): void {
     console.log('🔧 [InteractionManager] Checking if global listeners need to be attached');
     
-    // Check if we're in a state that requires global listeners
     if (this.mode === 'DRAGGING_NODE' || this.mode === 'PANNING') {
       console.log('🔧 [InteractionManager] Mode requires global listeners, ensuring they are attached');
       
@@ -878,7 +751,7 @@ export class InteractionManager {
       document.removeEventListener('mousemove', this.handleGlobalMouseMove);
       document.removeEventListener('mouseup', this.handleGlobalMouseUp);
       
-      // PASSIVE EVENT FIX: Add listeners with explicit non-passive and capture settings
+      // Add listeners with explicit non-passive and capture settings
       document.addEventListener('mousemove', this.handleGlobalMouseMove, { passive: false, capture: true });
       document.addEventListener('mouseup', this.handleGlobalMouseUp, { passive: false, capture: true });
       
@@ -886,6 +759,201 @@ export class InteractionManager {
     }
   }
   
+  // HYBRID SMOOTHNESS: Helper methods for advanced animations
+  private clearAnimationFrames(): void {
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+    if (this.momentumAnimationId) {
+      cancelAnimationFrame(this.momentumAnimationId);
+      this.momentumAnimationId = null;
+    }
+    if (this.smoothingAnimationId) {
+      cancelAnimationFrame(this.smoothingAnimationId);
+      this.smoothingAnimationId = null;
+    }
+    this.isDecelerating = false;
+    this.isSmoothing = false;
+  }
+  
+  // ULTRA-PREMIUM: Revolutionary position interpolation with velocity weighting
+  private getPremiumInterpolatedPosition(): Point | null {
+    if (this.positionHistory.length === 0) {
+      return null;
+    }
+    
+    if (this.positionHistory.length === 1) {
+      return this.positionHistory[0].position;
+    }
+    
+    // ULTRA-PREMIUM: Advanced weighted interpolation with velocity consideration
+    const weights = [0.05, 0.1, 0.15, 0.2, 0.25, 0.25]; // Gradual weight increase for ultra-smooth
+    let totalWeight = 0;
+    let smoothX = 0;
+    let smoothY = 0;
+    
+    // Use extended history for premium smoothness
+    for (let i = 0; i < Math.min(this.positionHistory.length, weights.length); i++) {
+      const point = this.positionHistory[this.positionHistory.length - 1 - i];
+      let weight = weights[i] || 0;
+      
+      // ULTRA-PREMIUM: Velocity-based weight adjustment for natural movement
+      const velocityMagnitude = Math.sqrt(point.velocity.x ** 2 + point.velocity.y ** 2);
+      const velocityFactor = Math.min(1 + velocityMagnitude / 1000, 2); // Higher velocity = more weight
+      weight *= velocityFactor;
+      
+      smoothX += point.position.x * weight;
+      smoothY += point.position.y * weight;
+      totalWeight += weight;
+    }
+    
+    return {
+      x: smoothX / totalWeight,
+      y: smoothY / totalWeight
+    };
+  }
+  
+  // Keep original method for backward compatibility
+  private getInterpolatedPosition(): Point | null {
+    return this.getPremiumInterpolatedPosition();
+  }
+  
+  // ULTRA-PREMIUM: Revolutionary multi-stage smoothing animation system
+  private startUltraPremiumSmoothing(): void {
+    if (this.isSmoothing) return;
+    
+    this.isSmoothing = true;
+    this.smoothTransform = { ...this.currentTransform };
+    this.ultraSmoothTransform = { ...this.currentTransform };
+    
+    const ultraPremiumSmoothingLoop = () => {
+      if (!this.isSmoothing || this.mode !== 'PANNING') {
+        this.isSmoothing = false;
+        return;
+      }
+      
+      // Stage 1: Calculate differences for multi-stage smoothing
+      const targetDeltaX = this.targetTransform.x - this.smoothTransform.x;
+      const targetDeltaY = this.targetTransform.y - this.smoothTransform.y;
+      
+      const smoothDeltaX = this.smoothTransform.x - this.ultraSmoothTransform.x;
+      const smoothDeltaY = this.smoothTransform.y - this.ultraSmoothTransform.y;
+      
+      // Stage 2: Apply ultra-premium easing with velocity-based adjustment
+      const velocityMagnitude = Math.sqrt(this.ultraSmoothVelocity.x ** 2 + this.ultraSmoothVelocity.y ** 2);
+      const ultraDynamicSmoothingFactor = Math.min(this.adaptiveSmoothingFactor + (velocityMagnitude / 4000), 0.25);
+      
+      // Stage 3: Multi-layer transform updates for ultimate smoothness
+      // Layer 1: Smooth transform (intermediate smoothing)
+      this.smoothTransform.x += targetDeltaX * (ultraDynamicSmoothingFactor * 1.5);
+      this.smoothTransform.y += targetDeltaY * (ultraDynamicSmoothingFactor * 1.5);
+      
+      // Layer 2: Ultra-smooth transform (final smoothing)
+      this.ultraSmoothTransform.x += smoothDeltaX * ultraDynamicSmoothingFactor;
+      this.ultraSmoothTransform.y += smoothDeltaY * ultraDynamicSmoothingFactor;
+      
+      // Stage 4: Update the current transform with ultra-smooth values
+      this.currentTransform = { ...this.ultraSmoothTransform };
+      this.onTransformUpdate?.(this.currentTransform);
+      
+      // Stage 5: Continue the smoothing loop with ultra-precise threshold
+      const remainingDistance = Math.sqrt(targetDeltaX * targetDeltaX + targetDeltaY * targetDeltaY);
+      const ultraSmoothDistance = Math.sqrt(smoothDeltaX * smoothDeltaX + smoothDeltaY * smoothDeltaY);
+      
+      if (remainingDistance > 0.05 || ultraSmoothDistance > 0.02) { // Ultra-precise thresholds
+        this.smoothingAnimationId = requestAnimationFrame(ultraPremiumSmoothingLoop);
+      } else {
+        // Snap to final position for precision
+        this.smoothTransform = { ...this.targetTransform };
+        this.ultraSmoothTransform = { ...this.targetTransform };
+        this.currentTransform = { ...this.targetTransform };
+        this.onTransformUpdate?.(this.currentTransform);
+        this.isSmoothing = false;
+      }
+    };
+    
+    this.smoothingAnimationId = requestAnimationFrame(ultraPremiumSmoothingLoop);
+  }
+  
+  // Keep original method for backward compatibility
+  private startHybridSmoothing(): void {
+    this.startUltraPremiumSmoothing();
+  }
+  
+  private stopHybridSmoothing(): void {
+    this.isSmoothing = false;
+    if (this.smoothingAnimationId) {
+      cancelAnimationFrame(this.smoothingAnimationId);
+      this.smoothingAnimationId = null;
+    }
+    
+    // Clean up position history gradually for smooth transition
+    setTimeout(() => {
+      this.positionHistory = [];
+    }, 50);
+  }
+  
+  // SMOOTH CANVAS DRAG: Light momentum for natural feel
+  private startLightMomentum(): void {
+    const velocityMagnitude = Math.sqrt(this.velocity.x ** 2 + this.velocity.y ** 2);
+    
+    // Only apply momentum if velocity is significant enough
+    if (velocityMagnitude < 50) {
+      this.velocity = { x: 0, y: 0 };
+      return;
+    }
+    
+    console.log('✨ [SMOOTH-CANVAS-DRAG] Starting light momentum:', velocityMagnitude.toFixed(1), 'px/s');
+    
+    this.isDecelerating = true;
+    const deceleration = 0.88; // Gentle deceleration
+    const minVelocity = 10; // Stop when velocity is low
+    
+    let momentumVelocity = { ...this.velocity };
+    
+    const animateLightMomentum = () => {
+      if (!this.isDecelerating) return;
+      
+      // Apply velocity to transform
+      const deltaTime = 16; // 60fps
+      const deltaX = (momentumVelocity.x * deltaTime) / 1000;
+      const deltaY = (momentumVelocity.y * deltaTime) / 1000;
+      
+      // Update transform with momentum
+      this.currentTransform = {
+        ...this.currentTransform,
+        x: this.currentTransform.x + deltaX,
+        y: this.currentTransform.y + deltaY
+      };
+      
+      this.onTransformUpdate?.(this.currentTransform);
+      
+      // Apply deceleration
+      momentumVelocity.x *= deceleration;
+      momentumVelocity.y *= deceleration;
+      
+      // Check if we should continue
+      const currentVelocityMagnitude = Math.sqrt(momentumVelocity.x ** 2 + momentumVelocity.y ** 2);
+      
+      if (currentVelocityMagnitude > minVelocity) {
+        this.momentumAnimationId = requestAnimationFrame(animateLightMomentum);
+      } else {
+        console.log('✨ [SMOOTH-CANVAS-DRAG] Light momentum completed');
+        this.velocity = { x: 0, y: 0 };
+        this.isDecelerating = false;
+        this.momentumAnimationId = null;
+      }
+    };
+    
+    this.momentumAnimationId = requestAnimationFrame(animateLightMomentum);
+  }
+  
+  // Keep original method for backward compatibility
+  private startAdvancedMomentum(): void {
+    this.startLightMomentum();
+  }
+
   // Bound methods for global event listeners
   private handleGlobalMouseMove = (event: MouseEvent) => {
     console.log('🔧 [InteractionManager] Global mouse move received');
@@ -902,3 +970,4 @@ export class InteractionManager {
     console.log('🔧 [InteractionManager] Global listeners cleaned up');
   };
 }
+      

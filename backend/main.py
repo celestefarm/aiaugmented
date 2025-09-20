@@ -57,7 +57,7 @@ async def root():
     return {"message": "Server is running"}
 
 # Import routers
-from routers import health, auth, workspaces, nodes, edges, agents, messages, documents, interactions, cognitive_analysis
+from routers import health, auth, workspaces, nodes, edges, agents, messages, documents, interactions, cognitive_analysis, ai_summarization
 
 # Include routers
 app.include_router(health.router, prefix="/api/v1")
@@ -70,6 +70,7 @@ app.include_router(interactions.router, prefix="/api/v1")
 app.include_router(messages.router, prefix="/api/v1")
 app.include_router(documents.router, prefix="/api/v1")
 app.include_router(cognitive_analysis.router, prefix="/api/v1")
+app.include_router(ai_summarization.router, prefix="/api/v1")
 
 if __name__ == "__main__":
     import uvicorn

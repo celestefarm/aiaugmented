@@ -15,7 +15,8 @@ import SparringSession from './SparringSession';
 import { CognitiveAnalysis } from './CognitiveAnalysis';
 import { generateDisplayTitle, generateSmartDisplayTitle } from '@/utils/nodeUtils';
 import { useTooltip } from '@/hooks/useTooltip';
-import { NodeTooltip } from './NodeTooltip';
+import { EnhancedNodeTooltip } from './EnhancedNodeTooltip';
+import { NodeWithTooltip } from './NodeWithTooltip';
 import { FullContextModal } from './FullContextModal';
 import { ProcessedContent } from '@/utils/tooltipContentUtils';
 
@@ -911,15 +912,6 @@ const ExplorationMap: React.FC = () => {
     handleMouseUp(e);
   }, [handleMouseUp]);
 
-  const handleCanvasDoubleClick = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    
-    // Only allow double-click node creation in IDLE state
-    if (interactionState.state !== 'IDLE') return;
-    
-    const canvasPos = screenToCanvas(e.clientX, e.clientY);
-    createNode(canvasPos.x, canvasPos.y);
-  }, [interactionState.state, screenToCanvas, createNode]);
 
   const handleCanvasRightClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -1549,7 +1541,7 @@ const handleModalClose = useCallback(() => {
           )}
         </div>
 
-        {/* Map Area - RESPONSIVE CANVAS */}
+        {/* Map Area - ULTRA-SMOOTH RESPONSIVE CANVAS */}
         <div
           ref={canvasRef}
           className={`flex-1 select-none overflow-hidden relative ${
@@ -1562,44 +1554,64 @@ const handleModalClose = useCallback(() => {
             boxShadow: 'inset 0 0 40px -10px rgba(107, 107, 58, 0.3)',
             height: '100vh',
             paddingTop: '4rem',
+            // SMOOTHNESS ENHANCEMENT: Optimize for smooth animations
+            willChange: interactionState.state === 'PANNING' ? 'transform' : 'auto',
+            backfaceVisibility: 'hidden',
+            perspective: '1000px',
+            transformStyle: 'preserve-3d',
           }}
           onMouseDown={(e) => {
-            console.log('🎯 [CANVAS] Canvas mouse down event triggered');
+            console.log('🎯 [CANVAS-DRAG-FIX] Canvas mouse down event triggered');
             
-            // CRITICAL FIX: Only handle canvas events if the target is actually the canvas
-            // Don't interfere with node events - let them bubble up naturally
             const target = e.target as HTMLElement;
             
-            // Check if this is a node element - if so, don't handle canvas events
-            if (target.closest('[id^="node-"]') || target.id.startsWith('node-')) {
-              console.log('🎯 [CANVAS] Click on node element, ignoring canvas handler');
+            // Priority 1: Check if this is a node element - let node events handle themselves
+            const isNodeElement = target.closest('[id^="node-"]') || target.id.startsWith('node-');
+            if (isNodeElement) {
+              console.log('🎯 [CANVAS-DRAG-FIX] Click on node element, allowing node handler to process');
+              return; // Let node events bubble up naturally
+            }
+            
+            // Priority 2: Check if this is a UI element (buttons, inputs, etc.)
+            const isUIElement = target.closest('button') ||
+                               target.closest('input') ||
+                               target.closest('textarea') ||
+                               target.closest('[role="button"]') ||
+                               target.closest('.tooltip') ||
+                               target.closest('[data-tooltip]');
+            if (isUIElement) {
+              console.log('🎯 [CANVAS-DRAG-FIX] Click on UI element, ignoring canvas handler');
               return;
             }
             
-            // Check if click is in toolbar area (top 120px of canvas)
+            // Priority 3: Check if click is in toolbar area (top 120px of canvas)
             const rect = canvasRef.current?.getBoundingClientRect();
             if (rect) {
               const relativeY = e.clientY - rect.top;
-              
               if (relativeY < 120) {
-                console.log('🎯 [CANVAS] Click in toolbar area, ignoring canvas handler');
-                return; // Don't handle canvas events in toolbar area
+                console.log('🎯 [CANVAS-DRAG-FIX] Click in toolbar area, ignoring canvas handler');
+                return;
               }
             }
             
-            // Only handle canvas panning if the click is directly on the canvas background
-            // This allows node events to fire properly without interference
-            if (target === e.currentTarget) {
-              console.log('🎯 [CANVAS] Direct canvas click detected, calling handleCanvasMouseDown');
-              handleCanvasMouseDown(e);
-            } else {
-              console.log('🎯 [CANVAS] Click on child element, allowing event to bubble');
-            }
+            // CANVAS DRAG FIX: Handle canvas panning for ANY click in the canvas area
+            // This is the key fix - don't restrict to only direct canvas clicks
+            console.log('🎯 [CANVAS-DRAG-FIX] Valid canvas area click - enabling panning');
+            console.log('🎯 [CANVAS-DRAG-FIX] Event details:', {
+              clientX: e.clientX,
+              clientY: e.clientY,
+              targetTag: target.tagName,
+              targetClass: target.className,
+              isDirectCanvas: target === e.currentTarget,
+              interactionState: interactionState.state
+            });
+            
+            // Call the canvas mouse down handler to enable panning
+            handleCanvasMouseDown(e);
           }}
           onMouseMove={handleCanvasMouseMove}
           onMouseUp={handleCanvasMouseUp}
           onMouseLeave={handleCanvasMouseUp}
-          onDoubleClick={handleCanvasDoubleClick}
           onContextMenu={handleCanvasRightClick}
           onWheel={handleWheel}
           tabIndex={0}
@@ -1613,18 +1625,6 @@ const handleModalClose = useCallback(() => {
               <div>Edges: {edges.length}</div>
               <div>Loading: {mapLoading ? 'Yes' : 'No'}</div>
               {mapError && <div className="text-red-400">Error: {mapError}</div>}
-              {/* CRITICAL DEBUG: Show node ID status */}
-              {nodes.length > 0 && (
-                <div className="mt-2 pt-2 border-t border-gray-600/30">
-                  <div className="text-[10px] text-gray-400">Node IDs:</div>
-                  {nodes.slice(0, 3).map((node, i) => (
-                    <div key={i} className={`text-[10px] ${node.id && node.id !== 'undefined' ? 'text-green-400' : 'text-red-400'}`}>
-                      {i + 1}: {node.id || 'UNDEFINED'}
-                    </div>
-                  ))}
-                  {nodes.length > 3 && <div className="text-[10px] text-gray-500">...and {nodes.length - 3} more</div>}
-                </div>
-              )}
             </div>
           </div>
 
@@ -1785,13 +1785,20 @@ const handleModalClose = useCallback(() => {
             </div>
           )}
 
-          {/* Canvas Content Container - FIXED */}
+          {/* Canvas Content Container - ULTRA-SMOOTH */}
           <div
             ref={containerRef}
             className="absolute inset-0 w-full h-full"
             style={{
               transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
               transformOrigin: '0 0',
+              // SMOOTHNESS ENHANCEMENT: Hardware acceleration and smooth transitions
+              willChange: interactionState.state === 'PANNING' ? 'transform' : 'auto',
+              backfaceVisibility: 'hidden',
+              perspective: '1000px',
+              transformStyle: 'preserve-3d',
+              // Add subtle transition when not actively panning for smooth stop
+              transition: interactionState.state === 'PANNING' ? 'none' : 'transform 0.1s cubic-bezier(0.4, 0.0, 0.2, 1)',
             }}
           >
             {/* Grid Background */}
@@ -1880,16 +1887,17 @@ const handleModalClose = useCallback(() => {
             </svg>
           </div>
 
-          {/* CRITICAL FIX: Use ONLY SimpleNode component to avoid conflicts */}
+          {/* Enhanced nodes with AI-powered tooltips */}
           {nodes.map(node => {
             // Check if this node is being dragged
             const isDragging = interactionState.state === 'DRAGGING_NODE' && interactionState.data.draggedNodeId === node.id;
             const isSelected = selectedNode === node.id;
             
             return (
-              <SimpleNode
+              <NodeWithTooltip
                 key={node.id}
                 node={node}
+                edges={edges}
                 transform={transform}
                 isSelected={isSelected}
                 isDragging={isDragging}
@@ -1898,7 +1906,20 @@ const handleModalClose = useCallback(() => {
                   setSelectedNode(node.id);
                   setFocusedNode(node.id);
                 }}
-              />
+                onModalOpen={handleModalOpen}
+              >
+                <SimpleNode
+                  node={node}
+                  transform={transform}
+                  isSelected={isSelected}
+                  isDragging={isDragging}
+                  onMouseDown={handleNodeMouseDown}
+                  onSelect={() => {
+                    setSelectedNode(node.id);
+                    setFocusedNode(node.id);
+                  }}
+                />
+              </NodeWithTooltip>
             );
           })}
         </div>

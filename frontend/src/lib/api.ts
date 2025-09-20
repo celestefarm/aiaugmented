@@ -290,6 +290,21 @@ export interface SummarizeResponse {
   confidence?: number;
 }
 
+// Executive Summary types
+export interface ExecutiveSummaryRequest {
+  node_id: string;
+  conversation_context?: string;
+  include_related_messages?: boolean;
+}
+
+export interface ExecutiveSummaryResponse {
+  executive_summary: string[];
+  confidence: number;
+  method_used: string;
+  sources_analyzed: number;
+  related_messages_count: number;
+}
+
 // API client class
 class ApiClient {
   private baseUrl: string;
@@ -361,21 +376,56 @@ class ApiClient {
         throw new Error(errorData.detail);
       }
 
-      // Handle empty responses (like logout)
+      // Handle empty responses (like logout and DELETE operations)
       const contentType = response.headers.get('content-type');
+      const contentLength = response.headers.get('content-length');
       console.log('Content-Type:', contentType);
+      console.log('Content-Length:', contentLength);
+      console.log('Response status:', response.status);
+      
+      // CRITICAL FIX: Handle 204 No Content responses properly
+      if (response.status === 204) {
+        console.log('204 No Content response - returning empty object');
+        return {} as T;
+      }
+      
+      // CRITICAL FIX: Check for empty content before trying to parse JSON
+      if (contentLength === '0' || contentLength === null) {
+        console.log('Empty content detected - returning empty object');
+        return {} as T;
+      }
       
       if (contentType && contentType.includes('application/json')) {
-        const jsonResponse = await response.json();
-        console.log('JSON Response:', jsonResponse);
-        
-        // CRITICAL: Add null/undefined check for response data
-        if (jsonResponse === null || jsonResponse === undefined) {
-          console.error('CRITICAL: API returned null/undefined response');
-          throw new Error('API returned invalid response data');
+        try {
+          // CRITICAL FIX: Add try-catch around JSON parsing to handle malformed responses
+          const responseText = await response.text();
+          console.log('Raw response text:', responseText);
+          
+          if (!responseText || responseText.trim() === '') {
+            console.log('Empty response text - returning empty object');
+            return {} as T;
+          }
+          
+          const jsonResponse = JSON.parse(responseText);
+          console.log('Parsed JSON Response:', jsonResponse);
+          
+          // CRITICAL: Add null/undefined check for response data
+          if (jsonResponse === null || jsonResponse === undefined) {
+            console.error('CRITICAL: API returned null/undefined response');
+            throw new Error('API returned invalid response data');
+          }
+          
+          return jsonResponse;
+        } catch (parseError) {
+          console.error('JSON parsing error:', parseError);
+          console.error('Failed to parse response as JSON');
+          // For DELETE operations and other cases where JSON parsing fails, return empty object
+          if (response.status >= 200 && response.status < 300) {
+            console.log('Successful response but JSON parsing failed - returning empty object');
+            return {} as T;
+          }
+          throw new Error(`Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : 'Unknown parsing error'}`);
         }
-        
-        return jsonResponse;
       }
       
       console.log('Returning empty object for non-JSON response');
@@ -671,6 +721,46 @@ class ApiClient {
     }
   }
 
+  // AI Executive Summary method
+  async generateExecutiveSummary(nodeId: string, data: Partial<ExecutiveSummaryRequest> = {}): Promise<ExecutiveSummaryResponse> {
+    console.log('=== GENERATE EXECUTIVE SUMMARY API CALL ===');
+    console.log('Node ID:', nodeId);
+    console.log('Request data:', data);
+    
+    const requestData: ExecutiveSummaryRequest = {
+      node_id: nodeId,
+      conversation_context: data.conversation_context,
+      include_related_messages: data.include_related_messages ?? true
+    };
+    
+    try {
+      const response = await this.request<ExecutiveSummaryResponse>(`/nodes/${nodeId}/executive-summary`, {
+        method: 'POST',
+        body: JSON.stringify(requestData),
+      });
+      
+      console.log('Executive summary response:', response);
+      
+      // Validate response structure
+      if (!response) {
+        console.error('CRITICAL: generateExecutiveSummary returned null/undefined');
+        throw new Error('Executive summary generation failed - API returned no data');
+      }
+      
+      if (!Array.isArray(response.executive_summary)) {
+        console.error('CRITICAL: executive_summary is not an array:', typeof response.executive_summary);
+        throw new Error('Executive summary generation failed - invalid summary format');
+      }
+      
+      console.log('✅ Executive summary generation successful');
+      return response;
+    } catch (error) {
+      console.error('=== EXECUTIVE SUMMARY API ERROR ===');
+      console.error('Error details:', error);
+      throw error;
+    }
+  }
+
   // Edge methods
   async getEdges(workspaceId: string): Promise<EdgeListResponse> {
     console.log('=== GET EDGES API CALL ===');
@@ -960,3 +1050,4 @@ export const analyzeCognitiveRelationships = apiClient.analyzeCognitiveRelations
 export const autoConnectNodes = apiClient.autoConnectNodes.bind(apiClient);
 export const summarizeNodeTitle = apiClient.summarizeNodeTitle.bind(apiClient);
 export const summarizeConversation = apiClient.summarizeConversation.bind(apiClient);
+export const generateExecutiveSummary = apiClient.generateExecutiveSummary.bind(apiClient);
