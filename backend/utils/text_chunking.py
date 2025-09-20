@@ -12,17 +12,95 @@ import json
 import logging
 from typing import List, Dict, Any, Tuple, Optional
 from dataclasses import dataclass
+from enum import Enum
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
+class ModelType(Enum):
+    """Supported model types with their context limits"""
+    GPT_4 = "gpt-4"
+    GPT_4_32K = "gpt-4-32k"
+    GPT_4_TURBO = "gpt-4-turbo"
+    GPT_4_128K = "gpt-4-128k"
+    GPT_3_5_TURBO = "gpt-3.5-turbo"
+
+@dataclass
+class ModelConfig:
+    """Model-specific configuration"""
+    model_type: ModelType
+    context_limit: int
+    max_tokens_per_chunk: int
+    max_response_tokens: int
+    safety_buffer: int
+    
+    @classmethod
+    def get_config(cls, model_name: str) -> 'ModelConfig':
+        """Get configuration for a specific model"""
+        model_name = model_name.lower().replace("openai/", "").replace("_", "-")
+        
+        configs = {
+            "gpt-4": cls(
+                model_type=ModelType.GPT_4,
+                context_limit=8192,
+                max_tokens_per_chunk=6000,
+                max_response_tokens=1500,
+                safety_buffer=692  # 8192 - 6000 - 1500
+            ),
+            "gpt-4-32k": cls(
+                model_type=ModelType.GPT_4_32K,
+                context_limit=32768,
+                max_tokens_per_chunk=28000,
+                max_response_tokens=2000,
+                safety_buffer=2768  # 32768 - 28000 - 2000
+            ),
+            "gpt-4-turbo": cls(
+                model_type=ModelType.GPT_4_TURBO,
+                context_limit=128000,
+                max_tokens_per_chunk=120000,
+                max_response_tokens=4000,
+                safety_buffer=4000  # 128000 - 120000 - 4000
+            ),
+            "gpt-4-128k": cls(
+                model_type=ModelType.GPT_4_128K,
+                context_limit=128000,
+                max_tokens_per_chunk=120000,
+                max_response_tokens=4000,
+                safety_buffer=4000
+            ),
+            "gpt-3.5-turbo": cls(
+                model_type=ModelType.GPT_3_5_TURBO,
+                context_limit=16384,
+                max_tokens_per_chunk=12000,
+                max_response_tokens=2000,
+                safety_buffer=2384  # 16384 - 12000 - 2000
+            )
+        }
+        
+        return configs.get(model_name, configs["gpt-4-32k"])  # Default to GPT-4-32K
+
 @dataclass
 class ChunkingConfig:
     """Configuration for text chunking"""
-    max_tokens_per_chunk: int = 100000  # Conservative limit for GPT-4 (128k context)
+    max_tokens_per_chunk: int = 28000   # Updated for GPT-4-32K
     max_response_tokens: int = 2000     # Reserve tokens for response
     overlap_tokens: int = 500           # Overlap between chunks for context
     min_chunk_size: int = 1000          # Minimum viable chunk size
+    safety_buffer: int = 2768           # Additional safety buffer
+    model_name: str = "gpt-4-32k"       # Default model
+    
+    @classmethod
+    def from_model(cls, model_name: str) -> 'ChunkingConfig':
+        """Create configuration from model name"""
+        model_config = ModelConfig.get_config(model_name)
+        return cls(
+            max_tokens_per_chunk=model_config.max_tokens_per_chunk,
+            max_response_tokens=model_config.max_response_tokens,
+            overlap_tokens=500,
+            min_chunk_size=1000,
+            safety_buffer=model_config.safety_buffer,
+            model_name=model_name
+        )
 
 class TokenEstimator:
     """Estimates token count for text using simple heuristics"""
@@ -61,11 +139,16 @@ class TokenEstimator:
         return TokenEstimator.estimate_tokens(json_str)
 
 class TextChunker:
-    """Handles chunking of large text inputs"""
+    """Handles chunking of large text inputs with model-specific optimization"""
     
-    def __init__(self, config: ChunkingConfig = None):
-        self.config = config or ChunkingConfig()
+    def __init__(self, config: ChunkingConfig = None, model_name: str = None):
+        if model_name:
+            self.config = ChunkingConfig.from_model(model_name)
+            logger.info(f"Initialized TextChunker for model: {model_name}")
+        else:
+            self.config = config or ChunkingConfig()
         self.token_estimator = TokenEstimator()
+        self.model_config = ModelConfig.get_config(self.config.model_name)
     
     def needs_chunking(self, text: str, system_prompt: str = "", max_response_tokens: int = None) -> bool:
         """
@@ -88,11 +171,20 @@ class TextChunker:
         )
         
         total_required = total_input_tokens + max_response_tokens
-        needs_chunking = total_required > self.config.max_tokens_per_chunk
+        available_context = self.config.max_tokens_per_chunk
+        needs_chunking = total_required > available_context
         
-        logger.info(f"Token analysis: input={total_input_tokens}, response={max_response_tokens}, "
-                   f"total={total_required}, limit={self.config.max_tokens_per_chunk}, "
+        logger.info(f"Token analysis for {self.config.model_name}: "
+                   f"input={total_input_tokens}, response={max_response_tokens}, "
+                   f"total={total_required}, available={available_context}, "
+                   f"context_limit={self.model_config.context_limit}, "
+                   f"safety_buffer={self.config.safety_buffer}, "
                    f"needs_chunking={needs_chunking}")
+        
+        # Additional safety check
+        if total_required > self.model_config.context_limit:
+            logger.warning(f"Total tokens ({total_required}) exceed model context limit "
+                          f"({self.model_config.context_limit}) for {self.config.model_name}")
         
         return needs_chunking
     
@@ -110,16 +202,22 @@ class TextChunker:
         if not nodes:
             return []
         
-        # Calculate available space for nodes
+        # Calculate available space for nodes with proper safety margins
         system_tokens = self.token_estimator.estimate_tokens(system_prompt)
         available_tokens = (
-            self.config.max_tokens_per_chunk - 
-            system_tokens - 
-            self.config.max_response_tokens - 
-            1000  # Safety buffer
+            self.config.max_tokens_per_chunk -
+            system_tokens -
+            self.config.max_response_tokens -
+            self.config.safety_buffer
         )
         
-        logger.info(f"Available tokens for nodes: {available_tokens}")
+        logger.info(f"Token allocation for {self.config.model_name}: "
+                   f"system={system_tokens}, response_reserve={self.config.max_response_tokens}, "
+                   f"safety_buffer={self.config.safety_buffer}, available_for_nodes={available_tokens}")
+        
+        if available_tokens <= 0:
+            logger.error(f"No tokens available for nodes! System prompt too large: {system_tokens} tokens")
+            raise ValueError(f"System prompt ({system_tokens} tokens) exceeds available space")
         
         chunks = []
         current_chunk = []
@@ -257,25 +355,29 @@ class ResultConsolidator:
         }
 
 # Global instances for easy access
-default_chunker = TextChunker()
+default_chunker = TextChunker(model_name="gpt-4-32k")  # Use GPT-4-32K by default
 result_consolidator = ResultConsolidator()
 
-def chunk_large_analysis(nodes: List[Dict], system_prompt: str) -> Tuple[bool, List[List[Dict]]]:
+def chunk_large_analysis(nodes: List[Dict], system_prompt: str, model_name: str = "gpt-4-32k") -> Tuple[bool, List[List[Dict]]]:
     """
     Convenience function to check if chunking is needed and perform it.
     
     Args:
         nodes: List of nodes to analyze
         system_prompt: System prompt for analysis
+        model_name: Model name to use for chunking configuration
         
     Returns:
         Tuple of (needs_chunking, chunks)
     """
-    # Estimate total size
-    nodes_text = "\n".join(default_chunker._format_node_for_analysis(node) for node in nodes)
+    # Create model-specific chunker
+    chunker = TextChunker(model_name=model_name)
     
-    if default_chunker.needs_chunking(nodes_text, system_prompt):
-        chunks = default_chunker.chunk_nodes_for_analysis(nodes, system_prompt)
+    # Estimate total size
+    nodes_text = "\n".join(chunker._format_node_for_analysis(node) for node in nodes)
+    
+    if chunker.needs_chunking(nodes_text, system_prompt):
+        chunks = chunker.chunk_nodes_for_analysis(nodes, system_prompt)
         return True, chunks
     else:
         return False, [nodes]  # Return single chunk with all nodes

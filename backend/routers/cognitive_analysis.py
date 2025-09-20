@@ -81,8 +81,8 @@ Return your analysis as a JSON array of relationship suggestions. Each suggestio
 
 Focus on non-obvious but meaningful connections. Think about second and third-order effects."""
 
-    # Check if chunking is needed
-    needs_chunking, node_chunks = chunk_large_analysis(nodes, system_prompt)
+    # Check if chunking is needed with GPT-4-32K configuration
+    needs_chunking, node_chunks = chunk_large_analysis(nodes, system_prompt, model_name="gpt-4-32k")
     
     if needs_chunking:
         logger.info(f"Large dataset detected. Processing {len(node_chunks)} chunks with {len(nodes)} total nodes")
@@ -124,7 +124,7 @@ Identify meaningful relationships between these nodes. Focus on strategic implic
             }
             
             payload = {
-                "model": "gpt-4",
+                "model": "gpt-4-32k",
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
@@ -179,12 +179,32 @@ Identify meaningful relationships between these nodes. Focus on strategic implic
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 400:
                 error_detail = e.response.text
-                if "context_length_exceeded" in error_detail:
-                    logger.error(f"Context length exceeded in chunk {chunk_idx + 1}. This chunk may be too large.")
-                    # Continue with other chunks
+                logger.error(f"HTTP 400 error in chunk {chunk_idx + 1}: {error_detail}")
+                
+                # Handle different types of token limit errors
+                if any(phrase in error_detail.lower() for phrase in [
+                    "context_length_exceeded", "context limit", "max_tokens",
+                    "input length", "exceed", "token"
+                ]):
+                    logger.warning(f"Token limit exceeded in chunk {chunk_idx + 1}. "
+                                 f"Estimated tokens may be inaccurate. Chunk size: {len(node_chunk)} nodes")
+                    
+                    # Log detailed token information for debugging
+                    chunk_text = ""
+                    for node in node_chunk:
+                        chunk_text += f"Node {node['id']}: {node['title']}\n{node['description']}\n\n"
+                    
+                    estimated_tokens = TokenEstimator.estimate_tokens(system_prompt + user_prompt)
+                    logger.error(f"Chunk {chunk_idx + 1} details: "
+                               f"estimated_tokens={estimated_tokens}, "
+                               f"nodes_count={len(node_chunk)}, "
+                               f"model=gpt-4-32k, "
+                               f"context_limit=32768")
+                    
+                    # Skip this chunk but continue with others
                     continue
                 else:
-                    logger.error(f"HTTP 400 error in chunk {chunk_idx + 1}: {error_detail}")
+                    logger.error(f"Other HTTP 400 error in chunk {chunk_idx + 1}: {error_detail}")
             else:
                 logger.error(f"HTTP error {e.response.status_code} in chunk {chunk_idx + 1}: {e.response.text}")
             continue
