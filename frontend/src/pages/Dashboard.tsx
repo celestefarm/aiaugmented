@@ -435,18 +435,62 @@ const Dashboard: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Workspace Dialog - Glass Effect */}
+      {/* Edit Workspace Dialog - Glass Effect with Inline Styles */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="!bg-black/40 !backdrop-blur-xl !border-white/10 !text-gray-100 !shadow-2xl max-w-md fixed left-[50%] top-[50%] z-50 grid w-full translate-x-[-50%] translate-y-[-50%] gap-4 p-6 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg">
-          <DialogHeader className="pb-4 border-b border-white/10">
-            <DialogTitle className="text-xl font-semibold bg-gradient-to-r from-yellow-400 via-yellow-300 to-yellow-500 bg-clip-text text-transparent">
+        <DialogContent
+          className="max-w-md"
+          style={{
+            background: 'rgba(0, 0, 0, 0.4)',
+            backdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            color: '#f3f4f6',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)',
+            borderRadius: '12px',
+            position: 'fixed',
+            left: '50%',
+            top: '50%',
+            zIndex: 50,
+            display: 'grid',
+            width: '100%',
+            transform: 'translate(-50%, -50%)',
+            gap: '1rem',
+            padding: '1.5rem'
+          }}
+        >
+          <DialogHeader
+            className="pb-4"
+            style={{
+              borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
+            }}
+          >
+            <DialogTitle
+              className="text-xl font-semibold"
+              style={{
+                background: 'linear-gradient(to right, #facc15, #fde047, #eab308)',
+                WebkitBackgroundClip: 'text',
+                backgroundClip: 'text',
+                color: 'transparent',
+                fontSize: '1.25rem',
+                fontWeight: '600'
+              }}
+            >
               Edit Workspace
             </DialogTitle>
           </DialogHeader>
           
           <div className="space-y-6 py-4">
             <div>
-              <Label htmlFor="edit-workspace-title" className="text-sm font-medium text-gray-200 mb-3 block">
+              <Label
+                htmlFor="edit-workspace-title"
+                className="text-sm font-medium mb-3 block"
+                style={{
+                  color: '#e5e7eb',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  marginBottom: '0.75rem',
+                  display: 'block'
+                }}
+              >
                 Workspace Title
               </Label>
               <Input
@@ -454,7 +498,23 @@ const Dashboard: React.FC = () => {
                 value={editWorkspaceTitle}
                 onChange={(e) => setEditWorkspaceTitle(e.target.value)}
                 placeholder="Enter workspace title..."
-                className="!bg-white/5 !backdrop-blur-sm !border-white/20 !text-gray-100 placeholder:text-gray-400 focus:!border-yellow-500/50 focus:!ring-2 focus:!ring-yellow-500/20 !outline-none !transition-all rounded-md px-3 py-2"
+                className="rounded-md px-3 py-2 transition-all"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  backdropFilter: 'blur(4px)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  color: '#f3f4f6',
+                  outline: 'none',
+                  width: '100%'
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = 'rgba(234, 179, 8, 0.5)';
+                  e.target.style.boxShadow = '0 0 0 2px rgba(234, 179, 8, 0.2)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                  e.target.style.boxShadow = 'none';
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !isUpdating) {
                     handleUpdateWorkspace();
@@ -464,7 +524,13 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
           
-          <div className="flex justify-end space-x-3 pt-4 border-t border-white/10">
+          <div
+            className="flex justify-end space-x-3 pt-4"
+            style={{
+              borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+              paddingTop: '1rem'
+            }}
+          >
             <Button
               variant="outline"
               onClick={() => {
@@ -473,14 +539,42 @@ const Dashboard: React.FC = () => {
                 setEditWorkspaceTitle('');
               }}
               disabled={isUpdating}
-              className="!bg-white/5 !border-white/20 !text-gray-300 hover:!bg-white/10 hover:!text-white !backdrop-blur-sm px-4 py-2 rounded-md transition-all"
+              className="px-4 py-2 rounded-md transition-all"
+              style={{
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                color: '#d1d5db',
+                backdropFilter: 'blur(4px)'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.background = 'rgba(255, 255, 255, 0.1)';
+                e.target.style.color = '#ffffff';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = 'rgba(255, 255, 255, 0.05)';
+                e.target.style.color = '#d1d5db';
+              }}
             >
               Cancel
             </Button>
             <Button
               onClick={handleUpdateWorkspace}
               disabled={!editWorkspaceTitle.trim() || isUpdating}
-              className="!bg-gradient-to-r !from-yellow-600 !to-yellow-500 hover:!from-yellow-500 hover:!to-yellow-400 !text-black !font-medium !shadow-lg !backdrop-blur-sm !border-0 px-4 py-2 rounded-md transition-all flex items-center gap-2"
+              className="px-4 py-2 rounded-md transition-all flex items-center gap-2"
+              style={{
+                background: 'linear-gradient(to right, #ca8a04, #eab308)',
+                color: '#000000',
+                fontWeight: '500',
+                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3)',
+                backdropFilter: 'blur(4px)',
+                border: 'none'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.background = 'linear-gradient(to right, #eab308, #facc15)';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = 'linear-gradient(to right, #ca8a04, #eab308)';
+              }}
             >
               {isUpdating ? (
                 <>

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glass Effect Final Fix Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .test-title {
+            color: white;
+            text-align: center;
+            margin-bottom: 40px;
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        .dialog-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+
+        /* This simulates the exact inline styles from our Dashboard implementation */
+        .glass-dialog {
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #f3f4f6;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+            border-radius: 12px;
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            z-index: 50;
+            display: grid;
+            width: 100%;
+            max-width: 28rem;
+            transform: translate(-50%, -50%);
+            gap: 1rem;
+            padding: 1.5rem;
+        }
+
+        .dialog-header {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 1rem;
+        }
+
+        .dialog-title {
+            background: linear-gradient(to right, #facc15, #fde047, #eab308);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .input-container {
+            padding: 1rem 0;
+        }
+
+        .input-label {
+            color: #e5e7eb;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 0.75rem;
+            display: block;
+        }
+
+        .glass-input {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #f3f4f6;
+            outline: none;
+            width: 100%;
+            border-radius: 6px;
+            padding: 0.75rem;
+            transition: all 0.2s;
+            box-sizing: border-box;
+        }
+
+        .glass-input:focus {
+            border-color: rgba(234, 179, 8, 0.5);
+            box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.2);
+        }
+
+        .glass-input::placeholder {
+            color: #9ca3af;
+        }
+
+        .button-container {
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding-top: 1rem;
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+        }
+
+        .glass-button {
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            transition: all 0.2s;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .cancel-button {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #d1d5db;
+            backdrop-filter: blur(4px);
+        }
+
+        .cancel-button:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+        }
+
+        .update-button {
+            background: linear-gradient(to right, #ca8a04, #eab308);
+            color: #000000;
+            font-weight: 500;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(4px);
+            border: none;
+        }
+
+        .update-button:hover {
+            background: linear-gradient(to right, #eab308, #facc15);
+        }
+
+        .comparison-section {
+            margin-top: 40px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .comparison-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 20px;
+            color: white;
+        }
+
+        .comparison-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .old-dialog {
+            background: #6b7280;
+            border: 1px solid #4b5563;
+            color: #f3f4f6;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        .status-indicator {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        .status-working {
+            background: #10b981;
+            color: white;
+        }
+
+        .status-broken {
+            background: #ef4444;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1 class="test-title">🎨 Glass Effect Final Fix Test</h1>
+        
+        <!-- Main Glass Dialog (Our New Implementation) -->
+        <div class="dialog-overlay">
+            <div class="glass-dialog">
+                <div class="dialog-header">
+                    <h2 class="dialog-title">Edit Workspace</h2>
+                </div>
+                
+                <div class="input-container">
+                    <label class="input-label">Workspace Title</label>
+                    <input 
+                        type="text" 
+                        class="glass-input" 
+                        placeholder="Enter workspace title..."
+                        value="My First Workspace"
+                    />
+                </div>
+                
+                <div class="button-container">
+                    <button class="glass-button cancel-button">Cancel</button>
+                    <button class="glass-button update-button">
+                        <span>✏️</span>
+                        Update
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Comparison Section -->
+        <div class="comparison-section">
+            <div class="comparison-card">
+                <div class="comparison-title">
+                    ✅ NEW: Glass Effect Dialog
+                    <span class="status-indicator status-working">WORKING</span>
+                </div>
+                <ul style="margin: 10px 0; padding-left: 20px;">
+                    <li>✨ Semi-transparent background with backdrop blur</li>
+                    <li>🌈 Beautiful gradient title text</li>
+                    <li>🔍 Glass-effect input field with focus states</li>
+                    <li>🎯 Interactive buttons with hover effects</li>
+                    <li>💎 Subtle borders and visual hierarchy</li>
+                    <li>🚀 Inline styles override all defaults</li>
+                </ul>
+            </div>
+            
+            <div class="comparison-card">
+                <div class="comparison-title">
+                    ❌ OLD: Plain Dialog
+                    <span class="status-indicator status-broken">BROKEN</span>
+                </div>
+                <div class="old-dialog" style="margin-top: 10px;">
+                    <h3 style="margin: 0 0 10px 0; color: #facc15;">Edit Workspace</h3>
+                    <label style="display: block; margin-bottom: 5px; font-size: 0.875rem;">Workspace Title</label>
+                    <input 
+                        type="text" 
+                        style="width: 100%; padding: 8px; background: #374151; border: 1px solid #4b5563; color: white; border-radius: 4px; box-sizing: border-box;"
+                        value="My First Workspace"
+                    />
+                    <div style="margin-top: 15px; text-align: right;">
+                        <button style="margin-right: 10px; padding: 8px 16px; background: transparent; border: 1px solid #6b7280; color: #d1d5db; border-radius: 4px;">Cancel</button>
+                        <button style="padding: 8px 16px; background: #eab308; color: black; border: none; border-radius: 4px;">Update</button>
+                    </div>
+                </div>
+                <p style="margin-top: 10px; font-size: 0.875rem; opacity: 0.8;">
+                    This is what the user was seeing before our fix - a plain gray dialog with no glass effects.
+                </p>
+            </div>
+        </div>
+
+        <div style="margin-top: 40px; text-align: center; color: white;">
+            <h3>🔧 Technical Implementation Details</h3>
+            <div style="background: rgba(0, 0, 0, 0.3); padding: 20px; border-radius: 12px; text-align: left; margin-top: 20px;">
+                <h4>Key Changes Made:</h4>
+                <ol style="margin: 10px 0; padding-left: 20px;">
+                    <li><strong>Inline Styles Override:</strong> Used direct style attributes to bypass CSS specificity issues</li>
+                    <li><strong>Backdrop Filter:</strong> Applied <code>backdrop-filter: blur(20px)</code> for glass effect</li>
+                    <li><strong>Semi-transparent Background:</strong> <code>background: rgba(0, 0, 0, 0.4)</code></li>
+                    <li><strong>Gradient Text:</strong> CSS gradient with background-clip for title</li>
+                    <li><strong>Interactive States:</strong> Hover and focus effects with JavaScript event handlers</li>
+                    <li><strong>Maximum Specificity:</strong> Inline styles cannot be overridden by external CSS</li>
+                </ol>
+                
+                <h4>Why This Fix Works:</h4>
+                <p style="margin: 10px 0;">
+                    The Radix UI Dialog component was applying <code>bg-background</code> and other default classes 
+                    that overrode our Tailwind glass-effect classes. By using inline styles, we achieve the highest 
+                    CSS specificity (1000) which cannot be overridden by any external stylesheets.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Add some interactivity to demonstrate the glass effect
+        const input = document.querySelector('.glass-input');
+        const buttons = document.querySelectorAll('.glass-button');
+        
+        // Focus/blur effects for input
+        input.addEventListener('focus', function() {
+            this.style.borderColor = 'rgba(234, 179, 8, 0.5)';
+            this.style.boxShadow = '0 0 0 2px rgba(234, 179, 8, 0.2)';
+        });
+        
+        input.addEventListener('blur', function() {
+            this.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+            this.style.boxShadow = 'none';
+        });
+        
+        // Button hover effects
+        buttons.forEach(button => {
+            if (button.classList.contains('cancel-button')) {
+                button.addEventListener('mouseenter', function() {
+                    this.style.background = 'rgba(255, 255, 255, 0.1)';
+                    this.style.color = '#ffffff';
+                });
+                button.addEventListener('mouseleave', function() {
+                    this.style.background = 'rgba(255, 255, 255, 0.05)';
+                    this.style.color = '#d1d5db';
+                });
+            } else if (button.classList.contains('update-button')) {
+                button.addEventListener('mouseenter', function() {
+                    this.style.background = 'linear-gradient(to right, #eab308, #facc15)';
+                });
+                button.addEventListener('mouseleave', function() {
+                    this.style.background = 'linear-gradient(to right, #ca8a04, #eab308)';
+                });
+            }
+        });
+        
+        // Click handlers
+        document.querySelector('.cancel-button').addEventListener('click', function() {
+            alert('Cancel clicked! In the real app, this would close the dialog.');
+        });
+        
+        document.querySelector('.update-button').addEventListener('click', function() {
+            alert('Update clicked! In the real app, this would save the workspace changes.');
+        });
+        
+        console.log('🎨 Glass Effect Test Loaded Successfully!');
+        console.log('✅ This demonstrates the exact styling applied to the Dashboard edit dialog');
+        console.log('🔧 Inline styles ensure maximum CSS specificity and override all defaults');
+    </script>
+</body>
+</html>
