@@ -41,6 +41,7 @@ interface SimpleNodeProps {
   transform: { x: number; y: number; scale: number };
   isSelected: boolean;
   isDragging: boolean;
+  agents: Agent[];
   onMouseDown: (event: React.MouseEvent, nodeId: string, nodeType: 'ai' | 'human') => void;
   onSelect: () => void;
   onTooltipClick?: (event: React.MouseEvent) => void;
@@ -51,6 +52,7 @@ const SimpleNode: React.FC<SimpleNodeProps> = ({
   transform,
   isSelected,
   isDragging,
+  agents,
   onMouseDown,
   onSelect,
   onTooltipClick
@@ -150,7 +152,10 @@ const SimpleNode: React.FC<SimpleNodeProps> = ({
       <div className="relative">
         {node.source_agent && (
           <div className="absolute top-0 left-0 text-xs text-blue-400 font-medium bg-blue-500/20 px-2 py-1 rounded border border-blue-500/30 shadow-sm z-10">
-            {node.source_agent === 'strategist' ? 'Strategist Agent' : node.source_agent}
+            {(() => {
+              const agent = agents.find(a => a.agent_id === node.source_agent);
+              return agent ? agent.name : node.source_agent;
+            })()}
           </div>
         )}
         
@@ -276,7 +281,10 @@ const ExplorationMap: React.FC = () => {
   
   // UI state
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
-  const [rightSidebarExpanded, setRightSidebarExpanded] = useState(false);
+  const [rightSidebarWidth, setRightSidebarWidth] = useState(320); // Default width in pixels
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
+  const [resizeStartX, setResizeStartX] = useState(0);
+  const [resizeStartWidth, setResizeStartWidth] = useState(0);
   const [showCustomAgentDialog, setShowCustomAgentDialog] = useState(false);
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
   const [showAgentDetailsModal, setShowAgentDetailsModal] = useState<string | null>(null);
@@ -666,6 +674,64 @@ const ExplorationMap: React.FC = () => {
       };
     }
   }, [interactionState.state, handleGlobalMouseMove, handleGlobalMouseUp]);
+
+  // Sidebar resize event listeners - Optimized for smooth performance
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizingSidebar) return;
+      
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // Use requestAnimationFrame for smooth updates
+      requestAnimationFrame(() => {
+        const deltaX = resizeStartX - e.clientX; // Negative delta means expanding
+        const newWidth = Math.max(280, Math.min(600, resizeStartWidth + deltaX));
+        setRightSidebarWidth(newWidth);
+      });
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      if (isResizingSidebar) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        setIsResizingSidebar(false);
+        setResizeStartX(0);
+        setResizeStartWidth(0);
+        
+        // Clean up body styles
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        document.body.style.pointerEvents = '';
+      }
+    };
+
+    if (isResizingSidebar) {
+      // Use passive: false for preventDefault to work
+      document.addEventListener('mousemove', handleMouseMove, { passive: false, capture: true });
+      document.addEventListener('mouseup', handleMouseUp, { passive: false, capture: true });
+      
+      // Optimize body styles for smooth dragging
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      document.body.style.pointerEvents = 'none'; // Prevent interference from other elements
+      
+      // Re-enable pointer events on the sidebar
+      const sidebar = document.querySelector('[data-sidebar="true"]');
+      if (sidebar) {
+        (sidebar as HTMLElement).style.pointerEvents = 'auto';
+      }
+      
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove, true);
+        document.removeEventListener('mouseup', handleMouseUp, true);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        document.body.style.pointerEvents = '';
+      };
+    }
+  }, [isResizingSidebar, resizeStartX, resizeStartWidth]);
 
   // Update InteractionManager with current transform
   useEffect(() => {
@@ -1929,6 +1995,7 @@ const handleModalClose = useCallback(() => {
                   transform={transform}
                   isSelected={isSelected}
                   isDragging={isDragging}
+                  agents={agents}
                   onMouseDown={handleNodeMouseDown}
                   onSelect={() => {
                     setSelectedNode(node.id);
@@ -1947,25 +2014,51 @@ const handleModalClose = useCallback(() => {
 
         {/* Right Sidebar - Sparring Session */}
         <div
-          className={`flex-shrink-0 h-screen glass-pane border-l border-gray-800/50 overflow-hidden transition-all duration-300 ease-in-out ${
-            rightSidebarExpanded ? 'w-[480px]' : 'w-80'
+          data-sidebar="true"
+          className={`flex-shrink-0 h-screen glass-pane border-l border-gray-800/50 overflow-hidden relative ${
+            isResizingSidebar ? '' : 'transition-all duration-200 ease-in-out'
           }`}
-          style={{ zIndex: 30, paddingTop: '4rem' }}
+          style={{
+            width: `${rightSidebarWidth}px`,
+            minWidth: '280px',
+            maxWidth: '600px',
+            zIndex: 30,
+            paddingTop: '4rem',
+            // Performance optimizations for smooth dragging
+            willChange: isResizingSidebar ? 'width' : 'auto',
+            backfaceVisibility: 'hidden',
+            transform: 'translateZ(0)', // Force hardware acceleration
+          }}
         >
+          {/* Resize Handle */}
+          <div
+            className={`absolute left-0 top-0 w-2 h-full cursor-col-resize z-20 ${
+              isResizingSidebar ? 'bg-[#6B6B3A]/70' : 'bg-transparent hover:bg-[#6B6B3A]/30'
+            }`}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsResizingSidebar(true);
+              setResizeStartX(e.clientX);
+              setResizeStartWidth(rightSidebarWidth);
+            }}
+            style={{
+              background: isResizingSidebar
+                ? 'linear-gradient(90deg, rgba(107, 107, 58, 0.8) 0%, rgba(107, 107, 58, 0.4) 100%)'
+                : undefined,
+              // Smooth hover transition only when not dragging
+              transition: isResizingSidebar ? 'none' : 'background-color 0.15s ease-out'
+            }}
+          >
+            {/* Visual indicator for resize handle */}
+            <div
+              className={`absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-12 bg-[#6B6B3A]/60 rounded-r transition-opacity duration-200 ${
+                isResizingSidebar ? 'opacity-100' : 'opacity-0 hover:opacity-100'
+              }`}
+            />
+          </div>
+          
           <div className="relative p-3 h-full overflow-hidden" style={{ height: 'calc(100vh - 4rem)' }}>
-            {/* Toggle Button */}
-            <button
-              onClick={() => setRightSidebarExpanded(!rightSidebarExpanded)}
-              className="absolute top-4 left-3 z-10 w-8 h-8 rounded bg-[#6B6B3A]/20 text-[#E5E7EB] hover:bg-[#6B6B3A]/30 flex items-center justify-center transition-colors"
-              aria-label={rightSidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}
-            >
-              {rightSidebarExpanded ? (
-                <ChevronRight className="w-4 h-4" />
-              ) : (
-                <ChevronLeft className="w-4 h-4" />
-              )}
-            </button>
-            
             <SparringSession onAddToMap={addIdeaToMapLocal} />
           </div>
         </div>

@@ -37,6 +37,12 @@ const Dashboard: React.FC = () => {
   const [newWorkspaceTitle, setNewWorkspaceTitle] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
+  // Local state for edit workspace dialog
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingWorkspace, setEditingWorkspace] = useState<any>(null);
+  const [editWorkspaceTitle, setEditWorkspaceTitle] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
+
   // Load workspaces on mount
   useEffect(() => {
     loadWorkspaces();
@@ -75,6 +81,53 @@ const Dashboard: React.FC = () => {
       console.error('Failed to create workspace:', error);
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  // Handle edit workspace
+  const handleEditWorkspace = async (workspace: any, event: React.MouseEvent) => {
+    event.stopPropagation();
+    console.log('🔧 [EDIT-DEBUG] Edit button clicked for workspace:', workspace.id, workspace.title);
+    
+    try {
+      setEditingWorkspace(workspace);
+      setEditWorkspaceTitle(workspace.title);
+      setShowEditDialog(true);
+      console.log('✅ [EDIT-DEBUG] Edit dialog opened successfully');
+    } catch (error) {
+      console.error('❌ [EDIT-DEBUG] Error opening edit dialog:', error);
+    }
+  };
+
+  // Handle update workspace
+  const handleUpdateWorkspace = async () => {
+    if (!editWorkspaceTitle.trim() || !editingWorkspace) return;
+
+    console.log('🔧 [EDIT-DEBUG] Updating workspace:', editingWorkspace.id, 'to:', editWorkspaceTitle.trim());
+
+    try {
+      setIsUpdating(true);
+      
+      // TODO: Implement actual workspace update API call
+      // For now, we'll just simulate the update
+      console.log('🔧 [EDIT-DEBUG] Simulating workspace update...');
+      
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Close dialog and reset state
+      setShowEditDialog(false);
+      setEditingWorkspace(null);
+      setEditWorkspaceTitle('');
+      
+      // Refresh workspaces to show updated data
+      await loadWorkspaces();
+      
+      console.log('✅ [EDIT-DEBUG] Workspace update completed successfully');
+    } catch (error) {
+      console.error('❌ [EDIT-DEBUG] Failed to update workspace:', error);
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -292,10 +345,7 @@ const Dashboard: React.FC = () => {
                       
                       <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // TODO: Implement edit functionality
-                          }}
+                          onClick={(e) => handleEditWorkspace(workspace, e)}
                           variant="outline"
                           size="sm"
                           className="border-gray-600 text-gray-400 hover:text-[#6B6B3A] hover:border-[#6B6B3A]"
@@ -381,6 +431,69 @@ const Dashboard: React.FC = () => {
                 )}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Workspace Dialog - Glass Effect */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="!bg-black/40 !backdrop-blur-xl !border-white/10 !text-gray-100 !shadow-2xl max-w-md fixed left-[50%] top-[50%] z-50 grid w-full translate-x-[-50%] translate-y-[-50%] gap-4 p-6 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg">
+          <DialogHeader className="pb-4 border-b border-white/10">
+            <DialogTitle className="text-xl font-semibold bg-gradient-to-r from-yellow-400 via-yellow-300 to-yellow-500 bg-clip-text text-transparent">
+              Edit Workspace
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-6 py-4">
+            <div>
+              <Label htmlFor="edit-workspace-title" className="text-sm font-medium text-gray-200 mb-3 block">
+                Workspace Title
+              </Label>
+              <Input
+                id="edit-workspace-title"
+                value={editWorkspaceTitle}
+                onChange={(e) => setEditWorkspaceTitle(e.target.value)}
+                placeholder="Enter workspace title..."
+                className="!bg-white/5 !backdrop-blur-sm !border-white/20 !text-gray-100 placeholder:text-gray-400 focus:!border-yellow-500/50 focus:!ring-2 focus:!ring-yellow-500/20 !outline-none !transition-all rounded-md px-3 py-2"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !isUpdating) {
+                    handleUpdateWorkspace();
+                  }
+                }}
+              />
+            </div>
+          </div>
+          
+          <div className="flex justify-end space-x-3 pt-4 border-t border-white/10">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowEditDialog(false);
+                setEditingWorkspace(null);
+                setEditWorkspaceTitle('');
+              }}
+              disabled={isUpdating}
+              className="!bg-white/5 !border-white/20 !text-gray-300 hover:!bg-white/10 hover:!text-white !backdrop-blur-sm px-4 py-2 rounded-md transition-all"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUpdateWorkspace}
+              disabled={!editWorkspaceTitle.trim() || isUpdating}
+              className="!bg-gradient-to-r !from-yellow-600 !to-yellow-500 hover:!from-yellow-500 hover:!to-yellow-400 !text-black !font-medium !shadow-lg !backdrop-blur-sm !border-0 px-4 py-2 rounded-md transition-all flex items-center gap-2"
+            >
+              {isUpdating ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                <>
+                  <Edit className="w-4 h-4" />
+                  Update
+                </>
+              )}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

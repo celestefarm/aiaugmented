@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sidebar Drag Test</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #0A0A0A;
+            color: white;
+            display: flex;
+            height: 100vh;
+        }
+        
+        .main-content {
+            flex: 1;
+            background: #1a1a1a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .sidebar {
+            background: rgba(20, 20, 20, 0.8);
+            border-left: 1px solid rgba(107, 107, 58, 0.5);
+            position: relative;
+            transition: width 0.2s ease-in-out;
+            min-width: 280px;
+            max-width: 600px;
+        }
+        
+        .resize-handle {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 4px;
+            height: 100%;
+            cursor: col-resize;
+            background: transparent;
+            transition: background 0.2s;
+        }
+        
+        .resize-handle:hover {
+            background: rgba(107, 107, 58, 0.3);
+        }
+        
+        .resize-handle.dragging {
+            background: rgba(107, 107, 58, 0.7);
+        }
+        
+        .sidebar-content {
+            padding: 20px;
+            height: 100%;
+            overflow: hidden;
+        }
+        
+        .status {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(107, 107, 58, 0.2);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="status" id="status">
+        Sidebar Width: <span id="width-display">320</span>px | Status: <span id="drag-status">Ready</span>
+    </div>
+    
+    <div class="main-content">
+        <h1>Main Content Area</h1>
+        <p>Try dragging the left edge of the sidebar to resize it!</p>
+    </div>
+    
+    <div class="sidebar" id="sidebar" style="width: 320px;">
+        <div class="resize-handle" id="resize-handle"></div>
+        <div class="sidebar-content">
+            <h2>Resizable Sidebar</h2>
+            <p>This sidebar can be resized by dragging the left edge.</p>
+            <p>Minimum width: 280px</p>
+            <p>Maximum width: 600px</p>
+            <p>Current width: <span id="current-width">320</span>px</p>
+        </div>
+    </div>
+
+    <script>
+        let isResizing = false;
+        let startX = 0;
+        let startWidth = 0;
+        
+        const sidebar = document.getElementById('sidebar');
+        const resizeHandle = document.getElementById('resize-handle');
+        const widthDisplay = document.getElementById('width-display');
+        const currentWidth = document.getElementById('current-width');
+        const dragStatus = document.getElementById('drag-status');
+        
+        function updateWidth(width) {
+            widthDisplay.textContent = width;
+            currentWidth.textContent = width;
+        }
+        
+        resizeHandle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            isResizing = true;
+            startX = e.clientX;
+            startWidth = parseInt(window.getComputedStyle(sidebar).width, 10);
+            
+            resizeHandle.classList.add('dragging');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            dragStatus.textContent = 'Dragging';
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            
+            e.preventDefault();
+            const deltaX = startX - e.clientX; // Negative delta means expanding
+            const newWidth = Math.max(280, Math.min(600, startWidth + deltaX));
+            
+            sidebar.style.width = newWidth + 'px';
+            updateWidth(newWidth);
+        });
+        
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                resizeHandle.classList.remove('dragging');
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+                dragStatus.textContent = 'Ready';
+            }
+        });
+        
+        // Initialize display
+        updateWidth(320);
+    </script>
+</body>
+</html>

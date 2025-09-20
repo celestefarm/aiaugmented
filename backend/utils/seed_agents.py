@@ -60,8 +60,8 @@ DEFAULT_AGENTS = [
         }
     },
     {
-        "agent_id": "risk-compliance",
-        "name": "Risk & Compliance Agent",
+        "agent_id": "risk-agent",
+        "name": "Risk Agent",
         "ai_role": "Identify regulatory risks, compliance requirements, and mitigation strategies",
         "human_role": "Validate regulatory interpretation, assess risk tolerance",
         "is_custom": False,
@@ -75,108 +75,93 @@ DEFAULT_AGENTS = [
         }
     },
     {
-        "agent_id": "market-analyst",
-        "name": "Market Analyst Agent",
-        "ai_role": "Analyze market trends, competitive landscape, and customer insights",
-        "human_role": "Provide market context, validate assumptions with local knowledge",
+        "agent_id": "execution-agent",
+        "name": "Execution Agent",
+        "ai_role": "Drive execution excellence, monitor progress, and ensure strategic initiatives are delivered",
+        "human_role": "Provide execution context, validate implementation approaches",
         "is_custom": False,
         "is_active": True,
         "model_name": "openai/gpt-4-32k",  # Add model configuration
         "full_description": {
-            "role": "Market Intelligence Specialist",
-            "mission": "Deliver data-driven market insights to inform strategic decisions",
-            "expertise": ["Market research", "Competitive analysis", "Customer behavior"],
-            "approach": "Evidence-based market analysis with actionable insights"
+            "role": "Execution Excellence Specialist",
+            "mission": "Transform strategic plans into actionable results through disciplined execution",
+            "expertise": ["Project management", "Performance tracking", "Implementation strategy"],
+            "approach": "Results-driven execution analysis with focus on delivery and accountability"
         }
     },
     {
-        "agent_id": "financial-advisor",
-        "name": "Financial Advisor Agent",
-        "ai_role": "Evaluate financial implications, ROI projections, and budget requirements",
-        "human_role": "Validate financial assumptions, provide budget constraints",
+        "agent_id": "market-competition-agent",
+        "name": "Market & Competition Agent",
+        "ai_role": "Analyze market trends, competitive landscape, and strategic positioning opportunities",
+        "human_role": "Provide market context, validate competitive assumptions",
         "is_custom": False,
         "is_active": True,
         "model_name": "openai/gpt-4-32k",  # Add model configuration
         "full_description": {
-            "role": "Financial Strategy Consultant",
-            "mission": "Ensure strategic decisions are financially sound and sustainable",
-            "expertise": ["Financial modeling", "ROI analysis", "Budget planning"],
-            "approach": "Rigorous financial analysis with clear cost-benefit evaluation"
+            "role": "Market Intelligence & Competitive Strategy Specialist",
+            "mission": "Deliver comprehensive market insights and competitive intelligence for strategic advantage",
+            "expertise": ["Market research", "Competitive analysis", "Strategic positioning"],
+            "approach": "Evidence-based market analysis with competitive intelligence and positioning strategies"
         }
     },
     {
-        "agent_id": "operations-expert",
-        "name": "Operations Expert Agent",
-        "ai_role": "Assess operational feasibility, resource requirements, and implementation challenges",
-        "human_role": "Validate operational constraints, provide implementation insights",
+        "agent_id": "mentor-agent",
+        "name": "Mentor Agent",
+        "ai_role": "Provide strategic guidance, leadership development, and decision-making support",
+        "human_role": "Share experience, validate leadership approaches",
         "is_custom": False,
         "is_active": True,
         "model_name": "openai/gpt-4-32k",  # Add model configuration
         "full_description": {
-            "role": "Operational Excellence Advisor",
-            "mission": "Ensure strategic plans are operationally viable and executable",
-            "expertise": ["Process optimization", "Resource planning", "Implementation strategy"],
-            "approach": "Practical operational assessment with focus on execution readiness"
+            "role": "Strategic Mentor & Leadership Advisor",
+            "mission": "Guide strategic thinking and leadership development through experienced counsel",
+            "expertise": ["Strategic guidance", "Leadership development", "Decision frameworks"],
+            "approach": "Mentorship-driven strategic advice with focus on capability building and wisdom transfer"
         }
     },
     {
-        "agent_id": "technology-architect",
-        "name": "Technology Architect Agent",
-        "ai_role": "Evaluate technology requirements, digital transformation needs, and tech stack decisions",
-        "human_role": "Validate technical feasibility, provide technology constraints",
+        "agent_id": "stakeholder-agent",
+        "name": "Stakeholder Agent",
+        "ai_role": "Analyze stakeholder interests, manage relationships, and ensure alignment across constituencies",
+        "human_role": "Validate stakeholder perspectives, provide relationship context",
         "is_custom": False,
         "is_active": True,
         "model_name": "openai/gpt-4-32k",  # Add model configuration
         "full_description": {
-            "role": "Technology Strategy Specialist",
-            "mission": "Align technology capabilities with strategic objectives",
-            "expertise": ["Technology assessment", "Digital transformation", "Architecture design"],
-            "approach": "Strategic technology evaluation with focus on scalability and integration"
+            "role": "Stakeholder Relationship & Alignment Specialist",
+            "mission": "Ensure strategic decisions consider and align diverse stakeholder interests",
+            "expertise": ["Stakeholder analysis", "Relationship management", "Consensus building"],
+            "approach": "Stakeholder-centric analysis with focus on alignment, communication, and relationship optimization"
         }
     },
     {
-        "agent_id": "customer-advocate",
-        "name": "Customer Advocate Agent",
-        "ai_role": "Represent customer perspective, analyze user experience impact, and customer value proposition",
-        "human_role": "Validate customer insights, provide user feedback and preferences",
+        "agent_id": "brief-agent",
+        "name": "Brief Agent",
+        "ai_role": "Synthesize complex information into clear, actionable strategic briefs and communications",
+        "human_role": "Validate key messages, provide communication preferences",
         "is_custom": False,
         "is_active": True,
         "model_name": "openai/gpt-4-32k",  # Add model configuration
         "full_description": {
-            "role": "Customer Experience Champion",
-            "mission": "Ensure strategic decisions prioritize customer value and satisfaction",
-            "expertise": ["Customer experience", "User research", "Value proposition design"],
-            "approach": "Customer-centric analysis with focus on user needs and satisfaction"
+            "role": "Strategic Communication & Brief Specialist",
+            "mission": "Transform complex strategic analysis into clear, compelling, and actionable communications",
+            "expertise": ["Strategic communication", "Information synthesis", "Executive briefing"],
+            "approach": "Communication-focused analysis with emphasis on clarity, impact, and actionable insights"
         }
     },
     {
-        "agent_id": "sustainability-advisor",
-        "name": "Sustainability Advisor Agent",
-        "ai_role": "Assess environmental impact, sustainability metrics, and ESG considerations",
-        "human_role": "Validate sustainability priorities, provide ESG context",
+        "agent_id": "foresight-agent",
+        "name": "Foresight Agent",
+        "ai_role": "Identify emerging trends, future scenarios, and long-term strategic implications",
+        "human_role": "Validate future assumptions, provide industry foresight",
         "is_custom": False,
         "is_active": True,
         "model_name": "openai/gpt-4-32k",  # Add model configuration
         "full_description": {
-            "role": "ESG Strategy Consultant",
-            "mission": "Integrate sustainability and social responsibility into strategic planning",
-            "expertise": ["Environmental impact", "ESG compliance", "Sustainable business practices"],
-            "approach": "Comprehensive sustainability assessment with long-term impact focus"
-        }
-    },
-    {
-        "agent_id": "innovation-catalyst",
-        "name": "Innovation Catalyst Agent",
-        "ai_role": "Identify innovation opportunities, emerging trends, and disruptive potential",
-        "human_role": "Validate innovation feasibility, provide creative insights",
-        "is_custom": False,
-        "is_active": True,
-        "model_name": "openai/gpt-4-32k",  # Add model configuration
-        "full_description": {
-            "role": "Innovation Strategy Leader",
-            "mission": "Drive strategic innovation and identify future growth opportunities",
-            "expertise": ["Innovation management", "Trend analysis", "Disruptive technology"],
-            "approach": "Forward-thinking innovation analysis with practical implementation pathways"
+            "role": "Strategic Foresight & Future Planning Specialist",
+            "mission": "Anticipate future trends and scenarios to inform long-term strategic planning",
+            "expertise": ["Trend analysis", "Scenario planning", "Future forecasting"],
+            "approach": "Forward-looking strategic analysis with focus on emerging opportunities and long-term implications"
         }
     }
 ]

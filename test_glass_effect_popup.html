@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glass Effect Edit Popup Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #0A0A0A 0%, #1A1A1A 100%);
+            font-family: 'Inter', system-ui, sans-serif;
+            min-height: 100vh;
+            color: #E5E7EB;
+        }
+
+        /* Enhanced Glass Tooltip */
+        .enhanced-glass-tooltip {
+            background: linear-gradient(135deg,
+                rgba(255, 255, 255, 0.1) 0%,
+                rgba(255, 255, 255, 0.05) 100%);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            box-shadow:
+                0 8px 32px rgba(0, 0, 0, 0.3),
+                0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+            overflow: hidden;
+            position: relative;
+            max-width: 400px;
+            margin: 50px auto;
+        }
+
+        .enhanced-glass-tooltip::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg,
+                transparent 0%,
+                rgba(255, 255, 255, 0.4) 50%,
+                transparent 100%);
+        }
+
+        /* Glass Header */
+        .glass-header {
+            padding: 20px 20px 0 20px;
+            background: linear-gradient(135deg,
+                rgba(107, 107, 58, 0.2) 0%,
+                rgba(107, 107, 58, 0.1) 100%);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Metallic Gold Text */
+        .metallic-gold {
+            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 600;
+        }
+
+        /* Metallic Silver Text */
+        .metallic-silver {
+            background: linear-gradient(135deg, #cbd5e1 0%, #94a3b8 50%, #64748b 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Text Shadow */
+        .text-shadow {
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Metallic Divider */
+        .metallic-divider {
+            height: 1px;
+            background: linear-gradient(90deg,
+                transparent 0%,
+                rgba(251, 191, 36, 0.3) 20%,
+                rgba(251, 191, 36, 0.6) 50%,
+                rgba(251, 191, 36, 0.3) 80%,
+                transparent 100%);
+            margin-top: 8px;
+        }
+
+        /* Sans Refined Typography */
+        .sans-refined {
+            font-family: 'Inter', 'system-ui', '-apple-system', sans-serif;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        /* Glass Content */
+        .glass-content {
+            padding: 16px 20px;
+        }
+
+        /* Luxury Glass Input */
+        .luxury-glass {
+            background: linear-gradient(135deg,
+                rgba(15, 23, 42, 0.8) 0%,
+                rgba(30, 41, 59, 0.7) 50%,
+                rgba(15, 23, 42, 0.8) 100%);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(251, 191, 36, 0.2);
+            box-shadow:
+                0 8px 32px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1),
+                0 0 40px rgba(251, 191, 36, 0.1);
+            border-radius: 8px;
+            padding: 12px 16px;
+            width: 100%;
+            color: #E5E7EB;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .luxury-glass:focus {
+            border-color: rgba(107, 107, 58, 0.5);
+            box-shadow:
+                0 8px 32px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1),
+                0 0 40px rgba(107, 107, 58, 0.3),
+                0 0 0 2px rgba(107, 107, 58, 0.2);
+        }
+
+        /* Glass Actions */
+        .glass-actions {
+            padding: 0 20px 16px 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Button Styles */
+        .button-container {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .refined-close {
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid rgba(251, 191, 36, 0.2);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            padding: 10px 16px;
+            border-radius: 8px;
+            color: #E5E7EB;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .refined-close:hover {
+            background: rgba(251, 191, 36, 0.1);
+            border-color: rgba(251, 191, 36, 0.4);
+            transform: scale(1.05);
+        }
+
+        .luxury-button {
+            background: linear-gradient(135deg,
+                rgba(251, 191, 36, 0.1) 0%,
+                rgba(251, 191, 36, 0.2) 50%,
+                rgba(251, 191, 36, 0.1) 100%);
+            border: 1px solid rgba(251, 191, 36, 0.3);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            padding: 10px 16px;
+            border-radius: 8px;
+            color: #E5E7EB;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .luxury-button:hover {
+            background: linear-gradient(135deg,
+                rgba(251, 191, 36, 0.2) 0%,
+                rgba(251, 191, 36, 0.3) 50%,
+                rgba(251, 191, 36, 0.2) 100%);
+            border-color: rgba(251, 191, 36, 0.5);
+            box-shadow: 0 0 20px rgba(251, 191, 36, 0.3);
+            transform: scale(1.05);
+        }
+
+        .hover-elevate {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .hover-elevate:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow:
+                0 20px 60px rgba(0, 0, 0, 0.4),
+                0 0 60px rgba(251, 191, 36, 0.2);
+        }
+
+        /* Demo Controls */
+        .demo-controls {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .demo-button {
+            background: rgba(107, 107, 58, 0.2);
+            border: 1px solid rgba(107, 107, 58, 0.4);
+            color: #E5E7EB;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .demo-button:hover {
+            background: rgba(107, 107, 58, 0.3);
+            transform: translateY(-2px);
+        }
+
+        /* Icon placeholder */
+        .icon {
+            width: 16px;
+            height: 16px;
+            background: currentColor;
+            border-radius: 2px;
+            opacity: 0.8;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="demo-controls">
+        <h1 class="metallic-gold text-shadow">Glass Effect Edit Popup Test</h1>
+        <p>Click the button below to test the enhanced glass-effect edit dialog</p>
+        <button class="demo-button" onclick="toggleDialog()">Show Edit Dialog</button>
+    </div>
+
+    <!-- Enhanced Glass Effect Edit Dialog -->
+    <div id="editDialog" class="enhanced-glass-tooltip hidden">
+        <!-- Glass Header -->
+        <div class="glass-header">
+            <h2 class="metallic-gold text-shadow" style="margin: 0; font-size: 20px;">
+                Edit Workspace
+            </h2>
+            <div class="metallic-divider"></div>
+        </div>
+        
+        <!-- Glass Content -->
+        <div class="glass-content" style="padding: 20px;">
+            <label class="sans-refined" style="display: block; margin-bottom: 12px; font-size: 12px; color: #E5E7EB;">
+                Workspace Title
+            </label>
+            <input 
+                type="text" 
+                class="luxury-glass" 
+                placeholder="Enter workspace title..."
+                value="My Strategic Workspace"
+                style="box-sizing: border-box;"
+            />
+        </div>
+        
+        <!-- Glass Actions -->
+        <div class="glass-actions">
+            <div class="button-container">
+                <button class="refined-close" onclick="toggleDialog()">
+                    Cancel
+                </button>
+                <button class="luxury-button hover-elevate">
+                    <div class="icon"></div>
+                    <span class="metallic-gold">Update</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 50px; text-align: center; color: #666;">
+        <h3>Glass Effect Features Demonstrated:</h3>
+        <ul style="text-align: left; max-width: 600px; margin: 0 auto;">
+            <li>✨ Enhanced glass tooltip with advanced backdrop blur</li>
+            <li>🎨 Metallic gold and silver text gradients</li>
+            <li>💎 Luxury glass input with focus effects</li>
+            <li>🌟 Refined button styles with hover animations</li>
+            <li>📐 Sophisticated typography and spacing</li>
+            <li>🎭 Elegant dividers and visual hierarchy</li>
+            <li>🔮 Hover elevation effects</li>
+            <li>✨ Smooth transitions and animations</li>
+        </ul>
+    </div>
+
+    <script>
+        function toggleDialog() {
+            const dialog = document.getElementById('editDialog');
+            dialog.classList.toggle('hidden');
+        }
+
+        // Add some interactive feedback
+        document.addEventListener('DOMContentLoaded', function() {
+            const input = document.querySelector('.luxury-glass');
+            const updateButton = document.querySelector('.luxury-button');
+            
+            input.addEventListener('focus', function() {
+                console.log('🔍 Input focused - luxury glass effect activated');
+            });
+            
+            updateButton.addEventListener('click', function() {
+                console.log('✅ Update button clicked - glass effect interaction successful');
+                alert('Glass effect edit dialog working perfectly! ✨');
+            });
+        });
+    </script>
+</body>
+</html>

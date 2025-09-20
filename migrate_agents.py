@@ -1,92 +1,42 @@
-#!/usr/bin/env python3
-"""
-Migration script to update existing agents with model_name field
-"""
 import asyncio
+from motor.motor_asyncio import AsyncIOMotorClient
 import sys
 import os
-sys.path.append('backend')
 
-from backend.database import connect_to_mongo, close_mongo_connection, get_database
+# Add the backend directory to the path so we can import modules
+sys.path.append(os.path.join(os.path.dirname(__file__), 'backend'))
 
+from backend.utils.seed_agents import seed_agents
 
-async def migrate_strategist_agent():
-    """Update the existing Strategist agent with model_name"""
-    print("🔄 Migrating Strategist Agent with AI Model Configuration")
-    print("=" * 60)
-    
-    # Connect to database
-    await connect_to_mongo()
+async def migrate_agents():
+    """Clear existing agents and reseed with new agent names"""
+    client = AsyncIOMotorClient('mongodb://localhost:27017')
+    db = client.wild_beaver_climb
     
     try:
-        db = get_database()
-        if db is None:
-            print("❌ Database connection failed")
-            return
-            
-        agents_collection = db.agents
+        # Clear existing agents
+        print("🗑️  Clearing existing agents...")
+        result = await db.agents.delete_many({})
+        print(f"✅ Deleted {result.deleted_count} existing agents")
         
-        # Check if Strategist exists
-        strategist = await agents_collection.find_one({"agent_id": "strategist"})
+        # Reseed with new agents
+        print("🌱 Seeding new agents...")
+        success = await seed_agents()
         
-        if not strategist:
-            print("❌ Strategist agent not found in database")
-            return
+        if success:
+            print("✅ Successfully migrated agents with new names!")
             
-        print(f"✅ Found Strategist agent: {strategist.get('name', 'Unknown')}")
-        
-        # Update with model_name
-        update_result = await agents_collection.update_one(
-            {"agent_id": "strategist"},
-            {
-                "$set": {
-                    "model_name": "openai/gpt-4"
-                }
-            }
-        )
-        
-        if update_result.modified_count > 0:
-            print("✅ Successfully updated Strategist agent with GPT-4 model")
-            
-            # Verify the update
-            updated_strategist = await agents_collection.find_one({"agent_id": "strategist"})
-            print(f"🧠 Model configured: {updated_strategist.get('model_name', 'None')}")
-            
+            # Verify the new agents
+            print("\n📋 New agents in database:")
+            async for agent in db.agents.find({}, {'agent_id': 1, 'name': 1}):
+                print(f"  - ID: {agent['agent_id']}, Name: {agent['name']}")
         else:
-            print("⚠️  No changes made - agent may already be updated")
+            print("❌ Failed to seed new agents")
             
-        # Also update all other agents to have model_name: null for consistency
-        print("\n🔄 Updating other agents for consistency...")
-        other_agents_result = await agents_collection.update_many(
-            {
-                "agent_id": {"$ne": "strategist"},
-                "model_name": {"$exists": False}
-            },
-            {
-                "$set": {
-                    "model_name": None
-                }
-            }
-        )
-        
-        print(f"✅ Updated {other_agents_result.modified_count} other agents")
-        
-        # List all agents with their model configuration
-        print(f"\n📋 Current Agent Configuration:")
-        agents_cursor = agents_collection.find({})
-        async for agent in agents_cursor:
-            model_status = agent.get('model_name', 'None')
-            ai_ready = "🤖" if model_status else "📝"
-            print(f"   {ai_ready} {agent.get('name', 'Unknown')} - Model: {model_status}")
-            
-        print(f"\n🎉 Migration completed successfully!")
-        
     except Exception as e:
         print(f"❌ Migration failed: {e}")
-        
     finally:
-        await close_mongo_connection()
-
+        client.close()
 
 if __name__ == "__main__":
-    asyncio.run(migrate_strategist_agent())
+    asyncio.run(migrate_agents())
