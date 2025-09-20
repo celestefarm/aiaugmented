@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Info, Mic, Paperclip, Plus, Upload, ChevronLeft, ChevronRight, X, Clock, User, Target, Users, Briefcase, Edit, Trash2, Undo, Redo, Save, ZoomIn, ZoomOut, Check, Link, MoreVertical, Grid3X3, RefreshCw } from 'lucide-react';
+import { Info, Mic, Paperclip, Plus, Upload, ChevronLeft, ChevronRight, X, Clock, User, Target, Users, Briefcase, Trash2, Undo, Redo, Save, ZoomIn, ZoomOut, Check, Link, MoreVertical, Grid3X3, RefreshCw } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,13 +9,15 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useMap } from '@/contexts/MapContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useAgentChat, Agent, ChatMessage } from '@/contexts/AgentChatContext';
-import { Node, Edge, NodeCreateRequest, NodeUpdateRequest, EdgeCreateRequest, RelationshipSuggestion, summarizeConversation } from '@/lib/api';
+import { useInteraction } from '@/contexts/InteractionContext';
+import { Node, Edge, NodeCreateRequest, NodeUpdateRequest, EdgeCreateRequest, RelationshipSuggestion, summarizeConversation, clearAllNodes } from '@/lib/api';
 import SparringSession from './SparringSession';
 import { CognitiveAnalysis } from './CognitiveAnalysis';
-import NodeEditModal from './NodeEditModal';
 import { generateDisplayTitle, generateSmartDisplayTitle } from '@/utils/nodeUtils';
 import { useTooltip } from '@/hooks/useTooltip';
 import { NodeTooltip } from './NodeTooltip';
+import { FullContextModal } from './FullContextModal';
+import { ProcessedContent } from '@/utils/tooltipContentUtils';
 
 interface CustomAgentData {
   name: string;
@@ -31,171 +33,157 @@ interface MapHistory {
   timestamp: number;
 }
 
-// NodeWithTooltip component that integrates the new tooltip system
-interface NodeWithTooltipProps {
+
+// New SimpleNode component that uses InteractionManager
+interface SimpleNodeProps {
   node: Node;
-  edges: Edge[];
-  nodePosition: { x: number; y: number };
+  transform: { x: number; y: number; scale: number };
   isSelected: boolean;
-  isFocused: boolean;
-  isValidTarget: boolean;
-  isDragged: boolean;
-  onMouseDown: (e: React.MouseEvent) => void;
-  onDoubleClick: (e: React.MouseEvent) => void;
-  onContextMenu: (e: React.MouseEvent) => void;
-  onKeyDown: (e: React.KeyboardEvent) => void;
-  getNodeStyle: (type: string, isSelected: boolean, isFocused: boolean, isValidTarget: boolean) => string;
-  getNodeIcon: (type: string) => React.ReactNode;
-  getNodeTypeColor: (type: string) => string;
-  getSmartTitle: (node: Node, context: 'card' | 'tooltip' | 'list') => { title: string; isLoading: boolean };
-  formatTimestamp: (timestamp?: string | number) => string;
-  formatConversationText: (text: string) => string[];
-  NODE_WIDTH: number;
+  isDragging: boolean;
+  onMouseDown: (event: React.MouseEvent, nodeId: string, nodeType: 'ai' | 'human') => void;
+  onSelect: () => void;
 }
 
-const NodeWithTooltip: React.FC<NodeWithTooltipProps> = ({
+const SimpleNode: React.FC<SimpleNodeProps> = ({
   node,
-  edges,
-  nodePosition,
+  transform,
   isSelected,
-  isFocused,
-  isValidTarget,
-  isDragged,
+  isDragging,
   onMouseDown,
-  onDoubleClick,
-  onContextMenu,
-  onKeyDown,
-  getNodeStyle,
-  getNodeIcon,
-  getNodeTypeColor,
-  getSmartTitle,
-  formatTimestamp,
-  formatConversationText,
-  NODE_WIDTH,
+  onSelect
 }) => {
-  const tooltip = useTooltip({
-    placement: 'top',
-    offset: 12,
-    delay: 300,
-  });
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    console.log(`🎯 [SimpleNode] Node ${node.id} (${node.title}) mousedown`);
+    
+    // Determine node type based on source_agent or type
+    const nodeType: 'ai' | 'human' = node.source_agent ? 'ai' : 'human';
+    
+    onMouseDown(e, node.id, nodeType);
+    onSelect();
+  }, [node.id, node.title, node.source_agent, onMouseDown, onSelect]);
+
+  const getNodeIcon = (type: string) => {
+    switch (type) {
+      case 'human':
+        return <User className="w-4 h-4 text-[#6B6B3A]" />;
+      case 'ai':
+        return <Target className="w-4 h-4 text-blue-400" />;
+      case 'risk':
+        return <X className="w-4 h-4 text-red-400" />;
+      case 'dependency':
+        return <Link className="w-4 h-4 text-gray-400" />;
+      case 'decision':
+        return <Check className="w-4 h-4 text-yellow-400" />;
+      default:
+        return <Info className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
+  const getNodeTypeColor = (type: string) => {
+    switch (type) {
+      case 'human':
+        return 'glow-olive-text';
+      case 'ai':
+        return 'text-blue-300';
+      case 'risk':
+        return 'text-red-300';
+      case 'dependency':
+        return 'text-gray-300';
+      case 'decision':
+        return 'text-yellow-300';
+      default:
+        return 'text-gray-300';
+    }
+  };
 
   return (
-    <>
-      <div
-        className={getNodeStyle(node.type, isSelected, isFocused, isValidTarget)}
-        style={{
-          position: 'absolute',
-          left: nodePosition.x,
-          top: nodePosition.y,
-          zIndex: isDragged ? 30 : 20,
-          opacity: isDragged ? 0.8 : 1,
-          transform: isDragged ? 'scale(1.05)' : 'scale(1)',
-          transition: isDragged ? 'none' : 'transform 0.2s ease',
-        }}
-        onMouseDown={onMouseDown}
-        onDoubleClick={onDoubleClick}
-        onContextMenu={onContextMenu}
-        onKeyDown={onKeyDown}
-        tabIndex={0}
-        role="button"
-        aria-label={`Node: ${node.title}`}
-        aria-describedby={`node-desc-${node.id}`}
-      >
-        <div className="relative">
-          {/* Agent Label - Now inside the node box, top-left */}
-          {node.source_agent && (
-            <div className="absolute top-0 left-0 text-xs text-blue-400 font-medium bg-blue-500/20 px-2 py-1 rounded border border-blue-500/30 shadow-sm z-10">
-              {node.source_agent === 'strategist' ? 'Strategist Agent' : node.source_agent}
+    <div
+      id={`node-${node.id}`}
+      className={`absolute glass-pane p-4 w-60 cursor-grab active:cursor-grabbing hover:scale-105 transition-all duration-200 group pointer-events-auto select-none ${
+        isSelected ? 'ring-2 ring-[#6B6B3A] ring-opacity-70 shadow-lg shadow-[#6B6B3A]/20' : ''
+      } ${
+        node.type === 'human' ? 'pulse-glow border-[#6B6B3A]/30 bg-gradient-to-br from-[#6B6B3A]/5 to-[#6B6B3A]/10' :
+        node.type === 'ai' ? 'bg-gradient-to-br from-blue-500/10 to-purple-500/10 border-blue-400/40 shadow-lg shadow-blue-500/10' :
+        node.type === 'risk' ? 'bg-gradient-to-br from-red-500/10 to-orange-500/10 border-red-400/40 shadow-lg shadow-red-500/10' :
+        node.type === 'dependency' ? 'bg-gradient-to-br from-gray-500/10 to-slate-500/10 border-gray-400/40 shadow-lg shadow-gray-500/10' :
+        node.type === 'decision' ? 'bg-gradient-to-br from-yellow-500/10 to-amber-500/10 border-yellow-400/40 shadow-lg shadow-yellow-500/10' :
+        'bg-gradient-to-br from-gray-400/5 to-gray-500/10 border-gray-400/30'
+      }`}
+      style={{
+        left: node.x * transform.scale + transform.x,
+        top: node.y * transform.scale + transform.y,
+        zIndex: isDragging ? 1000 : 20,
+        opacity: isDragging ? 0.8 : 1,
+        transform: isDragging ? 'scale(1.05)' : 'scale(1)',
+        pointerEvents: 'auto',
+        userSelect: 'none'
+      }}
+      onMouseDown={handleMouseDown}
+    >
+      <div className="relative">
+        {node.source_agent && (
+          <div className="absolute top-0 left-0 text-xs text-blue-400 font-medium bg-blue-500/20 px-2 py-1 rounded border border-blue-500/30 shadow-sm z-10">
+            {node.source_agent === 'strategist' ? 'Strategist Agent' : node.source_agent}
+          </div>
+        )}
+        
+        <div className={node.source_agent ? 'pt-8' : ''}>
+          <div className="flex items-center gap-2 mb-2">
+            {getNodeIcon(node.type)}
+            <h3 className={`font-bold text-sm ${getNodeTypeColor(node.type)}`}>
+              {node.title.length > 25 ? node.title.substring(0, 25) + '...' : node.title}
+            </h3>
+          </div>
+        
+          {node.key_message && (
+            <div className="text-xs text-gray-200 mb-2 leading-relaxed font-medium">
+              {node.key_message}
             </div>
           )}
           
-          {/* Tooltip Icon Button - Top-right corner with new tooltip system */}
-          <button
-            ref={tooltip.refs.setReference}
-            {...tooltip.getReferenceProps()}
-            className="absolute top-0 right-0 w-6 h-6 rounded-full bg-gray-700/80 hover:bg-gray-600/80 flex items-center justify-center transition-colors z-10"
-            aria-label="Toggle tooltip"
-          >
-            <Info className="w-3 h-3 text-gray-300" />
-          </button>
-          
-          {/* Add top padding when agent label is present */}
-          <div className={node.source_agent ? 'pt-8' : ''}>
-            <div className="flex items-center gap-2 mb-2">
-              {getNodeIcon(node.type)}
-              <h3 className={`font-bold text-sm ${getNodeTypeColor(node.type)}`}>
-                {getSmartTitle(node, 'card').title}
-              </h3>
-            </div>
-          
-            {/* Key Message - 2-line summary under title */}
-            {node.key_message && (
-              <div className="text-xs text-gray-200 mb-2 leading-relaxed font-medium">
-                {node.key_message}
-              </div>
-            )}
-            
-            {/* Fallback to truncated title or generic placeholder if no key message */}
-            {!node.key_message && (
-              <p
-                id={`node-desc-${node.id}`}
-                className="text-xs text-gray-300 mb-2 line-clamp-2"
-              >
-                {(() => {
-                  // Use summarized title as subtext if available and different from main title
-                  const smartTitle = getSmartTitle(node, 'card');
-                  if (node.summarized_titles?.card &&
-                      node.summarized_titles.card !== node.title &&
-                      node.summarized_titles.card !== smartTitle.title) {
-                    return node.summarized_titles.card;
-                  }
-                  // Fallback to truncated main title or generic placeholder
-                  if (node.title.length > 50) {
-                    return node.title.substring(0, 50) + '...';
-                  }
-                  return 'Click to view details';
-                })()}
-              </p>
-            )}
-          </div>
-          
-          <div className="flex justify-between items-center text-xs">
-            <div className="flex items-center gap-2">
-              {node.confidence && (
-                <span className="text-[#6B6B3A] bg-[#6B6B3A]/10 px-1.5 py-0.5 rounded">
-                  {node.confidence}%
-                </span>
-              )}
-              <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                node.type === 'human' ? 'bg-[#6B6B3A]/20 text-[#6B6B3A]' :
-                node.type === 'ai' ? 'bg-blue-500/20 text-blue-300' :
-                node.type === 'risk' ? 'bg-red-500/20 text-red-300' :
-                node.type === 'dependency' ? 'bg-gray-500/20 text-gray-300' :
-                node.type === 'decision' ? 'bg-yellow-500/20 text-yellow-300' :
-                'bg-gray-400/20 text-gray-300'
-              }`}>
-                {node.type}
+          {!node.key_message && (
+            <p className="text-xs text-gray-300 mb-2 line-clamp-2">
+              {node.title.length > 50 ? node.title.substring(0, 50) + '...' : 'Click to view details'}
+            </p>
+          )}
+        </div>
+        
+        <div className="flex justify-between items-center text-xs">
+          <div className="flex items-center gap-2">
+            {node.confidence && (
+              <span className="text-[#6B6B3A] bg-[#6B6B3A]/10 px-1.5 py-0.5 rounded">
+                {node.confidence}%
               </span>
-            </div>
-            <span className="text-gray-500">
-              {formatTimestamp(node.created_at)}
+            )}
+            <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+              node.type === 'human' ? 'bg-[#6B6B3A]/20 text-[#6B6B3A]' :
+              node.type === 'ai' ? 'bg-blue-500/20 text-blue-300' :
+              node.type === 'risk' ? 'bg-red-500/20 text-red-300' :
+              node.type === 'dependency' ? 'bg-gray-500/20 text-gray-300' :
+              node.type === 'decision' ? 'bg-yellow-500/20 text-yellow-300' :
+              'bg-gray-400/20 text-gray-300'
+            }`}>
+              {node.type}
             </span>
           </div>
+          <span className="text-gray-500">
+            {(() => {
+              if (!node.created_at) return '';
+              const date = new Date(node.created_at);
+              const now = new Date();
+              const diffMs = now.getTime() - date.getTime();
+              const diffMins = Math.floor(diffMs / 60000);
+              const diffHours = Math.floor(diffMins / 60);
+              
+              if (diffMins < 1) return 'just now';
+              if (diffMins < 60) return `${diffMins}m ago`;
+              if (diffHours < 24) return `${diffHours}h ago`;
+              return date.toLocaleDateString();
+            })()}
+          </span>
         </div>
       </div>
-
-      {/* New Tooltip System using React Portal */}
-      <NodeTooltip
-        node={node}
-        edges={edges}
-        isOpen={tooltip.isOpen}
-        refs={tooltip.refs}
-        floatingStyles={tooltip.floatingStyles}
-        arrowRef={tooltip.arrowRef}
-        context={tooltip.context}
-        getFloatingProps={tooltip.getFloatingProps}
-      />
-    </>
+    </div>
   );
 };
 
@@ -237,13 +225,33 @@ const ExplorationMap: React.FC = () => {
     addMessageToMap
   } = useAgentChat();
   
-  // Canvas interaction state - FIXED
+  // Use enhanced InteractionContext with new InteractionManager
+  const {
+    interactionState,
+    interactionManager,
+    handleCanvasMouseDown,
+    handleNodeMouseDown,
+    handleGlobalMouseMove,
+    handleGlobalMouseUp,
+    updateTransform,
+    startConnecting,
+    cancelInteraction,
+    setCreationMode,
+    onNodeAddedFromChat,
+    // Legacy methods for backward compatibility
+    transitionToPanning,
+    transitionToNodeDragging,
+    transitionToConnecting,
+    transitionToIdle,
+    updatePanStart,
+    updateDraggedNodePosition,
+    registerNodePositionUpdateCallback,
+    registerTransformUpdateCallback,
+    registerNodeSelectCallback
+  } = useInteraction();
+  
+  // Canvas transform state (separate from interaction state)
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [draggedNode, setDraggedNode] = useState<string | null>(null);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [draggedNodePosition, setDraggedNodePosition] = useState<{ x: number; y: number } | null>(null);
   
   // UI state
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
@@ -260,11 +268,7 @@ const ExplorationMap: React.FC = () => {
   
   // Enhanced functionality state
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
-  const [isCreatingConnection, setIsCreatingConnection] = useState(false);
-  const [connectionStart, setConnectionStart] = useState<string | null>(null);
   const [connectionPreview, setConnectionPreview] = useState<{ x: number; y: number } | null>(null);
-  const [showNodeEditor, setShowNodeEditor] = useState(false);
-  const [editingNode, setEditingNode] = useState<Node | null>(null);
   const [history, setHistory] = useState<MapHistory[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [lastSaved, setLastSaved] = useState<number>(Date.now());
@@ -278,6 +282,19 @@ const ExplorationMap: React.FC = () => {
   
   // Smart title management
   const [smartTitles, setSmartTitles] = useState<Record<string, { title: string; isLoading: boolean }>>({});
+  
+  // Modal state management - decoupled from tooltip
+  const [modalState, setModalState] = useState<{
+    isOpen: boolean;
+    node: Node | null;
+    edges: Edge[];
+    processedContent: ProcessedContent | null;
+  }>({
+    isOpen: false,
+    node: null,
+    edges: [],
+    processedContent: null
+  });
   
   // Performance refs
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -611,6 +628,99 @@ const ExplorationMap: React.FC = () => {
     }
   }, [transform]);
 
+  // Legacy mouse handlers - now simplified since InteractionManager handles most logic
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    // Only handle connection preview for legacy compatibility
+    if (interactionState.state === 'CONNECTING') {
+      updateConnectionPreview(e);
+    }
+  }, [interactionState]);
+
+  // Update connection preview (legacy)
+  const updateConnectionPreview = useCallback((e: React.MouseEvent) => {
+    const canvasPos = screenToCanvas(e.clientX, e.clientY);
+    setConnectionPreview(canvasPos);
+  }, [screenToCanvas]);
+
+  // Simplified mouse up handler
+  const handleMouseUp = useCallback(async (e: React.MouseEvent) => {
+    // Most mouse up handling is now done by InteractionManager
+    // This is kept for legacy compatibility
+  }, []);
+
+  // Enhanced global event listeners using InteractionManager
+  useEffect(() => {
+    // Always attach global listeners when not in IDLE state
+    if (interactionState.state !== 'IDLE') {
+      console.log('🔍 [ExplorationMap] Attaching global listeners for state:', interactionState.state);
+      document.addEventListener('mousemove', handleGlobalMouseMove, { passive: false });
+      document.addEventListener('mouseup', handleGlobalMouseUp, { passive: false });
+      
+      return () => {
+        console.log('🔍 [ExplorationMap] Cleaning up global listeners');
+        document.removeEventListener('mousemove', handleGlobalMouseMove);
+        document.removeEventListener('mouseup', handleGlobalMouseUp);
+      };
+    }
+  }, [interactionState.state, handleGlobalMouseMove, handleGlobalMouseUp]);
+
+  // Update InteractionManager with current transform
+  useEffect(() => {
+    updateTransform(transform);
+  }, [transform, updateTransform]);
+
+  // Register callbacks with InteractionManager
+  useEffect(() => {
+    // Register node position update callback
+    registerNodePositionUpdateCallback(async (nodeId: string, position: { x: number; y: number }) => {
+      console.log('🔄 [ExplorationMap] Node position update callback:', nodeId, position);
+      try {
+        const node = nodes.find(n => n.id === nodeId);
+        if (!node) {
+          console.error('Node not found for position update:', nodeId);
+          return;
+        }
+
+        const updateData: NodeUpdateRequest = {
+          title: node.title,
+          description: node.description,
+          type: node.type,
+          x: position.x,
+          y: position.y,
+          confidence: node.confidence,
+          feasibility: node.feasibility,
+          source_agent: node.source_agent
+        };
+
+        await updateNodeAPI(nodeId, updateData);
+        showNotification(`Moved ${node.title}`);
+      } catch (error) {
+        console.error('Failed to update node position:', error);
+        showNotification('Failed to update node position');
+      }
+    });
+
+    // Register transform update callback (for canvas panning)
+    registerTransformUpdateCallback((newTransform: { x: number; y: number; scale: number }) => {
+      console.log('🔄 [ExplorationMap] Transform update callback:', newTransform);
+      setTransform(newTransform);
+    });
+
+    // Register node select callback
+    registerNodeSelectCallback((nodeId: string) => {
+      console.log('🔄 [ExplorationMap] Node select callback:', nodeId);
+      setSelectedNode(nodeId);
+      setFocusedNode(nodeId);
+    });
+  }, [
+    registerNodePositionUpdateCallback,
+    registerTransformUpdateCallback,
+    registerNodeSelectCallback,
+    nodes,
+    updateNodeAPI,
+    showNotification
+  ]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -661,10 +771,14 @@ const ExplorationMap: React.FC = () => {
           case 'c':
           case 'C':
             e.preventDefault();
-            setIsCreatingConnection(!isCreatingConnection);
-            setConnectionStart(null);
-            setConnectionPreview(null);
-            showNotification(isCreatingConnection ? 'Cancelled connection mode' : 'Connection mode activated - click two nodes to connect');
+            if (interactionState.state === 'CONNECTING') {
+              transitionToIdle();
+              setConnectionPreview(null);
+              showNotification('Cancelled connection mode');
+            } else if (interactionState.state === 'IDLE') {
+              transitionToConnecting();
+              showNotification('Connection mode activated - Ctrl+click nodes to connect');
+            }
             break;
           case 'Delete':
           case 'Backspace':
@@ -675,11 +789,12 @@ const ExplorationMap: React.FC = () => {
             break;
           case 'Escape':
             e.preventDefault();
-            setIsCreatingConnection(false);
-            setConnectionStart(null);
+            // Cancel any active interaction and return to IDLE
+            transitionToIdle();
             setConnectionPreview(null);
             setSelectedNode(null);
             setShowContextMenu(null);
+            showNotification('Operation cancelled');
             break;
           case 'Tab':
             e.preventDefault();
@@ -692,111 +807,64 @@ const ExplorationMap: React.FC = () => {
               setSelectedNode(nodeIds[nextIndex]);
             }
             break;
-          case 'Enter':
-            if (focusedNode) {
-              e.preventDefault();
-              const node = nodes.find(n => n.id === focusedNode);
-              if (node) {
-                setEditingNode({ ...node });
-                setShowNodeEditor(true);
-              }
-            }
-            break;
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, selectedNode, deleteNode, nodes, edges, transform, handleZoom, isCreatingConnection, focusedNode, createNode, showNotification]);
+  }, [undo, redo, selectedNode, deleteNode, nodes, edges, transform, handleZoom, interactionState, focusedNode, createNode, showNotification, transitionToIdle, transitionToConnecting]);
 
-  // Canvas mouse event handlers - FIXED
-  const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setShowContextMenu(null);
+  // Legacy event dispatcher - now simplified since InteractionManager handles most logic
+  const handleMouseDown = useCallback((e: React.MouseEvent, target: 'canvas' | 'node', nodeId?: string) => {
+    console.log('🔍 [ExplorationMap] Legacy handleMouseDown - delegating to InteractionManager');
+    // This is kept for any remaining legacy calls, but most logic is now in InteractionManager
+    if (target === 'canvas') {
+      handleCanvasMouseDown(e);
+    } else if (target === 'node' && nodeId) {
+      // Determine node type from nodes array
+      const node = nodes.find(n => n.id === nodeId);
+      const nodeType = node?.type === 'ai' ? 'ai' : 'human';
+      handleNodeMouseDown(e, nodeId, nodeType);
+    }
+  }, [handleCanvasMouseDown, handleNodeMouseDown, nodes]);
+
+  // Handle connection target selection
+  const handleConnectionTarget = useCallback((nodeId: string) => {
+    const { connectionStart } = interactionState.data;
     
-    if (draggedNode || isCreatingConnection) return;
-    
-    setIsDragging(true);
-    setDragStart({ x: e.clientX, y: e.clientY });
-    setSelectedNode(null);
-    setFocusedNode(null);
-  }, [draggedNode, isCreatingConnection]);
+    if (connectionStart && connectionStart !== nodeId) {
+      createConnection(connectionStart, nodeId);
+      transitionToIdle();
+      setConnectionPreview(null);
+    } else if (!connectionStart) {
+      transitionToConnecting(nodeId);
+      showNotification('Click another node to create connection');
+    }
+  }, [interactionState, createConnection, transitionToIdle, transitionToConnecting, showNotification]);
+
+  // Remove the old handleCanvasMouseDown since it's now provided by InteractionContext
+  // The InteractionContext handleCanvasMouseDown will be used directly
 
   const handleCanvasMouseMove = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    
-    // Update connection preview
-    if (isCreatingConnection && connectionStart) {
-      const canvasPos = screenToCanvas(e.clientX, e.clientY);
-      setConnectionPreview(canvasPos);
-    }
-    
-    if (draggedNode) {
-      // Handle node dragging with real-time visual updates
-      const canvasPos = screenToCanvas(e.clientX, e.clientY);
-      const snappedPos = snapToGrid(canvasPos.x - dragOffset.x, canvasPos.y - dragOffset.y);
-      
-      // Update the dragged node's position for real-time visual feedback
-      setDraggedNodePosition(snappedPos);
-    } else if (isDragging) {
-      // Handle canvas panning
-      const deltaX = e.clientX - dragStart.x;
-      const deltaY = e.clientY - dragStart.y;
-      
-      setTransform(prev => ({
-        ...prev,
-        x: prev.x + deltaX,
-        y: prev.y + deltaY
-      }));
-      
-      setDragStart({ x: e.clientX, y: e.clientY });
-    }
-  }, [draggedNode, isDragging, dragStart, dragOffset, screenToCanvas, snapToGrid, isCreatingConnection, connectionStart]);
+    // Delegate to centralized handler
+    handleMouseMove(e);
+  }, [handleMouseMove]);
 
   const handleCanvasMouseUp = useCallback(async (e: React.MouseEvent) => {
-    e.preventDefault();
-    
-    if (draggedNode && draggedNodePosition) {
-      // Update node position in backend
-      try {
-        const node = nodes.find(n => n.id === draggedNode);
-        if (node) {
-          const updateData: NodeUpdateRequest = {
-            title: node.title,
-            description: node.description,
-            type: node.type,
-            x: draggedNodePosition.x,
-            y: draggedNodePosition.y,
-            confidence: node.confidence,
-            feasibility: node.feasibility,
-            source_agent: node.source_agent
-          };
-          
-          await updateNodeAPI(draggedNode, updateData);
-          showNotification(`Moved ${node.title}`);
-        }
-      } catch (error) {
-        console.error('Failed to update node position:', error);
-        showNotification('Failed to update node position');
-      }
-    }
-    
-    // Clean up drag state
-    setIsDragging(false);
-    setDraggedNode(null);
-    setDragOffset({ x: 0, y: 0 });
-    setDraggedNodePosition(null);
-  }, [draggedNode, draggedNodePosition, nodes, updateNodeAPI, showNotification]);
+    // Delegate to centralized handler
+    handleMouseUp(e);
+  }, [handleMouseUp]);
 
   const handleCanvasDoubleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     
-    if (draggedNode || isCreatingConnection) return;
+    // Only allow double-click node creation in IDLE state
+    if (interactionState.state !== 'IDLE') return;
     
     const canvasPos = screenToCanvas(e.clientX, e.clientY);
     createNode(canvasPos.x, canvasPos.y);
-  }, [draggedNode, isCreatingConnection, screenToCanvas, createNode]);
+  }, [interactionState.state, screenToCanvas, createNode]);
 
   const handleCanvasRightClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -808,76 +876,10 @@ const ExplorationMap: React.FC = () => {
     handleZoom(-e.deltaY, e.clientX, e.clientY);
   }, [handleZoom]);
 
-  // Node event handlers - FIXED
-  const handleNodeMouseDown = useCallback((e: React.MouseEvent, nodeId: string) => {
-    e.stopPropagation();
-    e.preventDefault();
-    
-    
-    if (isCreatingConnection) {
-      if (connectionStart && connectionStart !== nodeId) {
-        createConnection(connectionStart, nodeId);
-        setIsCreatingConnection(false);
-        setConnectionStart(null);
-        setConnectionPreview(null);
-      } else if (!connectionStart) {
-        setConnectionStart(nodeId);
-        showNotification('Click another node to create connection');
-      }
-      return;
-    }
-    
-    setSelectedNode(nodeId);
-    setFocusedNode(nodeId);
-    setDraggedNode(nodeId);
-    
-    // Calculate offset for smooth dragging
-    const node = nodes.find(n => n.id === nodeId);
-    if (node) {
-      const canvasPos = screenToCanvas(e.clientX, e.clientY);
-      setDragOffset({
-        x: canvasPos.x - node.x,
-        y: canvasPos.y - node.y
-      });
-    }
-  }, [isCreatingConnection, connectionStart, createConnection, nodes, screenToCanvas, showNotification]);
+  // Remove the old handleNodeMouseDown since it's now provided by InteractionContext
+  // The InteractionContext handleNodeMouseDown will be used directly
 
 
-  // Handle edit node from context menu or toolbar
-  const handleEditNode = useCallback((nodeId: string) => {
-    console.log('=== HANDLE EDIT NODE - OPENING EDIT MODAL ===');
-    console.log('Node ID:', nodeId);
-    
-    const node = nodes.find(n => n.id === nodeId);
-    console.log('Found node:', node);
-    
-    if (node) {
-      const editingNodeCopy = { ...node };
-      console.log('Setting editingNode to:', editingNodeCopy);
-      console.log('editingNode ID type:', typeof editingNodeCopy.id);
-      console.log('editingNode ID value:', editingNodeCopy.id);
-      console.log('editingNode title:', editingNodeCopy.title);
-      console.log('editingNode description length:', editingNodeCopy.description?.length || 0);
-      
-      setEditingNode(editingNodeCopy);
-      setShowNodeEditor(true);
-      
-      console.log('Edit modal should now be open');
-    } else {
-      console.error('CRITICAL: Node not found for ID:', nodeId);
-    }
-  }, [nodes]);
-
-  const handleNodeDoubleClick = useCallback((e: React.MouseEvent, nodeId: string) => {
-    console.log('=== NODE DOUBLE CLICK - DELEGATING TO HANDLE EDIT NODE ===');
-    console.log('Event:', e);
-    console.log('Node ID:', nodeId);
-    
-    e.stopPropagation();
-    e.preventDefault();
-    
-    handleEditNode(nodeId);
-  }, [handleEditNode]);
 
   const handleNodeRightClick = useCallback((e: React.MouseEvent, nodeId: string) => {
     e.preventDefault();
@@ -895,7 +897,10 @@ const ExplorationMap: React.FC = () => {
 
   // Check if node is a valid connection target
   const isValidConnectionTarget = useCallback((nodeId: string) => {
-    if (!isCreatingConnection || !connectionStart) return false;
+    if (interactionState.state !== 'CONNECTING') return false;
+    
+    const { connectionStart } = interactionState.data;
+    if (!connectionStart) return false;
     if (nodeId === connectionStart) return false;
     
     // Check if connection already exists
@@ -905,7 +910,7 @@ const ExplorationMap: React.FC = () => {
     );
     
     return !existingConnection;
-  }, [isCreatingConnection, connectionStart, edges]);
+  }, [interactionState, edges]);
 
   // Agent management functions
   const toggleAgent = async (agentId: string) => {
@@ -1017,6 +1022,83 @@ const ExplorationMap: React.FC = () => {
     }
   }, [nodes, showNotification, refreshMapData]);
 
+  // Handle clearing all nodes from the canvas
+  const handleClearAllNodes = useCallback(async () => {
+    console.log('=== CLEAR ALL NODES HANDLER CALLED ===');
+    console.log('Current workspace:', currentWorkspace);
+    console.log('Nodes count:', nodes.length);
+    
+    if (!currentWorkspace) {
+      console.log('No workspace selected');
+      showNotification('No workspace selected');
+      return;
+    }
+
+    if (nodes.length === 0) {
+      console.log('No nodes to clear');
+      showNotification('No nodes to clear');
+      return;
+    }
+
+    try {
+      console.log('Starting clear all nodes operation...');
+      showNotification('Clearing all nodes...');
+      
+      console.log('Calling clearAllNodes API with workspace ID:', currentWorkspace.id);
+      console.log('clearAllNodes function type:', typeof clearAllNodes);
+      console.log('clearAllNodes function:', clearAllNodes);
+      
+      // Call the API function correctly
+      const result = await clearAllNodes(currentWorkspace.id);
+      console.log('Clear all nodes API result:', result);
+      
+      // Refresh the map data to reflect the changes
+      console.log('Refreshing map data...');
+      await refreshMapData();
+      console.log('Map data refreshed');
+      
+      // Clear local state
+      console.log('Clearing local state...');
+      setSelectedNode(null);
+      setFocusedNode(null);
+      setConnectionPreview(null);
+      
+      const successMessage = `Successfully cleared ${result.deleted_nodes} nodes and ${result.deleted_edges} connections`;
+      console.log('Success message:', successMessage);
+      showNotification(successMessage);
+    } catch (error) {
+      console.error('=== CLEAR ALL NODES ERROR ===');
+      console.error('Error details:', error);
+      console.error('Error type:', typeof error);
+      console.error('Error message:', error instanceof Error ? error.message : 'Unknown error');
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      
+      const errorMessage = `Failed to clear nodes: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      console.log('Error message:', errorMessage);
+      showNotification(errorMessage);
+    }
+  }, [currentWorkspace, nodes.length, showNotification, refreshMapData]);
+
+// Handle modal open - completely independent of tooltip lifecycle
+const handleModalOpen = useCallback((node: Node, edges: Edge[], processedContent: ProcessedContent) => {
+  setModalState({
+    isOpen: true,
+    node,
+    edges,
+    processedContent
+  });
+}, []);
+
+// Handle modal close - simple state reset
+const handleModalClose = useCallback(() => {
+  setModalState({
+    isOpen: false,
+    node: null,
+    edges: [],
+    processedContent: null
+  });
+}, []);
+
   // Navigation functions - removed since we now have proper workspace management
 
   // Utility functions
@@ -1068,7 +1150,17 @@ const ExplorationMap: React.FC = () => {
     }
   };
 
-  const getNodeStyle = (type: string, isSelected: boolean = false, isFocused: boolean = false, isValidTarget: boolean = false) => {
+  // Helper function to determine if a node was created by a human or AI agent
+  const getNodeCreator = useCallback((node: Node): 'human' | 'ai' => {
+    // If the node has a source_agent field, it was created by an AI agent
+    if (node.source_agent && node.source_agent.trim() !== '') {
+      return 'ai';
+    }
+    // Otherwise, it was created by a human user
+    return 'human';
+  }, []);
+
+  const getNodeStyle = (node: Node, isSelected: boolean = false, isFocused: boolean = false, isValidTarget: boolean = false) => {
     const baseStyle = 'glass-pane p-4 w-60 cursor-grab active:cursor-grabbing hover:scale-105 transition-all duration-200 group pointer-events-auto select-none';
     let additionalStyles = '';
     
@@ -1084,19 +1176,30 @@ const ExplorationMap: React.FC = () => {
       additionalStyles += ' ring-2 ring-green-400 ring-opacity-70 shadow-lg shadow-green-400/20 animate-pulse';
     }
     
-    switch (type) {
+    // Determine creator-based styling
+    const creator = getNodeCreator(node);
+    let creatorStyle = '';
+    
+    if (creator === 'human') {
+      creatorStyle = 'node-human-created';
+    } else {
+      creatorStyle = 'node-ai-created';
+    }
+    
+    // Apply creator-based styling with fallback to type-based styling
+    switch (node.type) {
       case 'human':
-        return `${baseStyle} pulse-glow border-[#6B6B3A]/30 bg-gradient-to-br from-[#6B6B3A]/5 to-[#6B6B3A]/10 ${additionalStyles}`;
+        return `${baseStyle} pulse-glow border-[#6B6B3A]/30 bg-gradient-to-br from-[#6B6B3A]/5 to-[#6B6B3A]/10 ${creatorStyle} ${additionalStyles}`;
       case 'ai':
-        return `${baseStyle} bg-gradient-to-br from-blue-500/10 to-purple-500/10 border-blue-400/40 shadow-lg shadow-blue-500/10 ${additionalStyles}`;
+        return `${baseStyle} bg-gradient-to-br from-blue-500/10 to-purple-500/10 border-blue-400/40 shadow-lg shadow-blue-500/10 ${creatorStyle} ${additionalStyles}`;
       case 'risk':
-        return `${baseStyle} bg-gradient-to-br from-red-500/10 to-orange-500/10 border-red-400/40 shadow-lg shadow-red-500/10 ${additionalStyles}`;
+        return `${baseStyle} bg-gradient-to-br from-red-500/10 to-orange-500/10 border-red-400/40 shadow-lg shadow-red-500/10 ${creatorStyle} ${additionalStyles}`;
       case 'dependency':
-        return `${baseStyle} bg-gradient-to-br from-gray-500/10 to-slate-500/10 border-gray-400/40 shadow-lg shadow-gray-500/10 ${additionalStyles}`;
+        return `${baseStyle} bg-gradient-to-br from-gray-500/10 to-slate-500/10 border-gray-400/40 shadow-lg shadow-gray-500/10 ${creatorStyle} ${additionalStyles}`;
       case 'decision':
-        return `${baseStyle} bg-gradient-to-br from-yellow-500/10 to-amber-500/10 border-yellow-400/40 shadow-lg shadow-yellow-500/10 ${additionalStyles}`;
+        return `${baseStyle} bg-gradient-to-br from-yellow-500/10 to-amber-500/10 border-yellow-400/40 shadow-lg shadow-yellow-500/10 ${creatorStyle} ${additionalStyles}`;
       default:
-        return `${baseStyle} bg-gradient-to-br from-gray-400/5 to-gray-500/10 border-gray-400/30 ${additionalStyles}`;
+        return `${baseStyle} bg-gradient-to-br from-gray-400/5 to-gray-500/10 border-gray-400/30 ${creatorStyle} ${additionalStyles}`;
     }
   };
 
@@ -1232,23 +1335,6 @@ const ExplorationMap: React.FC = () => {
           >
             {showContextMenu.nodeId ? (
               <>
-                <button
-                  onClick={() => {
-                    console.log('=== CONTEXT MENU EDIT CLICKED ===');
-                    console.log('Context menu nodeId:', showContextMenu.nodeId);
-                    
-                    if (showContextMenu.nodeId) {
-                      handleEditNode(showContextMenu.nodeId);
-                    } else {
-                      console.error('CRITICAL: No nodeId in context menu');
-                    }
-                    setShowContextMenu(null);
-                  }}
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-gray-700/50 flex items-center space-x-2"
-                >
-                  <Edit className="w-4 h-4" />
-                  <span>Edit Node</span>
-                </button>
                 <button
                   onClick={() => {
                     if (showContextMenu.nodeId) {
@@ -1429,8 +1515,9 @@ const ExplorationMap: React.FC = () => {
         <div
           ref={canvasRef}
           className={`flex-1 select-none overflow-hidden relative ${
-            isDragging ? 'cursor-grabbing' :
-            isCreatingConnection ? 'cursor-crosshair' :
+            interactionState.state === 'PANNING' ? 'cursor-grabbing' :
+            interactionState.state === 'CONNECTING' ? 'cursor-crosshair' :
+            interactionState.state === 'DRAGGING_NODE' ? 'cursor-grabbing' :
             'cursor-grab'
           }`}
           style={{
@@ -1438,7 +1525,29 @@ const ExplorationMap: React.FC = () => {
             height: '100vh',
             paddingTop: '4rem',
           }}
-          onMouseDown={handleCanvasMouseDown}
+          onMouseDown={(e) => {
+            console.log('🔍 CANVAS MOUSE DOWN - Target:', e.target);
+            console.log('🔍 CANVAS MOUSE DOWN - Event details:', {
+              clientX: e.clientX,
+              clientY: e.clientY,
+              target: e.target,
+              currentTarget: e.currentTarget
+            });
+            
+            // Check if click is in toolbar area (top 120px of canvas)
+            const rect = canvasRef.current?.getBoundingClientRect();
+            if (rect) {
+              const relativeY = e.clientY - rect.top;
+              console.log('🔍 CANVAS MOUSE DOWN - Relative Y:', relativeY);
+              
+              if (relativeY < 120) {
+                console.log('🔍 CANVAS MOUSE DOWN - Click in toolbar area, ignoring');
+                return; // Don't handle canvas events in toolbar area
+              }
+            }
+            
+            handleCanvasMouseDown(e);
+          }}
           onMouseMove={handleCanvasMouseMove}
           onMouseUp={handleCanvasMouseUp}
           onMouseLeave={handleCanvasMouseUp}
@@ -1460,7 +1569,7 @@ const ExplorationMap: React.FC = () => {
           </div>
 
           {/* Top Toolbar */}
-          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex space-x-2 z-40">
+          <div className="absolute top-20 left-1/2 transform -translate-x-1/2 flex space-x-2 z-40">
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -1505,25 +1614,29 @@ const ExplorationMap: React.FC = () => {
             
             <Tooltip>
               <TooltipTrigger asChild>
-                <button 
+                <button
                   onClick={() => {
-                    setIsCreatingConnection(!isCreatingConnection);
-                    setConnectionStart(null);
-                    setConnectionPreview(null);
-                    showNotification(isCreatingConnection ? 'Cancelled connection mode' : 'Connection mode activated');
+                    if (interactionState.state === 'CONNECTING') {
+                      transitionToIdle();
+                      setConnectionPreview(null);
+                      showNotification('Cancelled connection mode');
+                    } else if (interactionState.state === 'IDLE') {
+                      transitionToConnecting();
+                      showNotification('Connection mode activated - Ctrl+click nodes to connect');
+                    }
                   }}
                   className={`glass-pane px-4 py-2 text-sm font-medium transition-colors flex items-center space-x-2 ${
-                    isCreatingConnection 
-                      ? 'text-[#6B6B3A] bg-[#6B6B3A]/20 border-[#6B6B3A]/40' 
+                    interactionState.state === 'CONNECTING'
+                      ? 'text-[#6B6B3A] bg-[#6B6B3A]/20 border-[#6B6B3A]/40'
                       : 'text-[#E5E7EB] hover:text-[#6B6B3A]'
                   }`}
                   aria-label="Toggle connection mode (C)"
                 >
                   <Link className="w-4 h-4" />
-                  <span>{isCreatingConnection ? 'Cancel Connection' : 'Connect Nodes'}</span>
+                  <span>{interactionState.state === 'CONNECTING' ? 'Cancel Connection' : 'Connect Nodes'}</span>
                 </button>
               </TooltipTrigger>
-              <TooltipContent>Connect Nodes (C)</TooltipContent>
+              <TooltipContent>Connect Nodes (C) - Ctrl+click to connect</TooltipContent>
             </Tooltip>
 
             <Tooltip>
@@ -1547,6 +1660,31 @@ const ExplorationMap: React.FC = () => {
                 </button>
               </TooltipTrigger>
               <TooltipContent>Auto-Arrange Nodes</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={async () => {
+                    if (nodes.length === 0) {
+                      showNotification('No nodes to clear');
+                      return;
+                    }
+                    
+                    const confirmed = window.confirm(`Are you sure you want to clear all ${nodes.length} nodes? This action cannot be undone.`);
+                    if (!confirmed) return;
+                    
+                    await handleClearAllNodes();
+                  }}
+                  disabled={nodes.length === 0}
+                  className="glass-pane px-4 py-2 text-sm font-medium text-red-400 hover:text-red-300 transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Clear all nodes from canvas"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Clear All ({nodes.length})</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Clear All Nodes - Cannot be undone!</TooltipContent>
             </Tooltip>
 
             <div className="flex space-x-1">
@@ -1611,22 +1749,6 @@ const ExplorationMap: React.FC = () => {
               <div className="flex space-x-1">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button
-                      onClick={() => {
-                        console.log('=== TOOLBAR EDIT BUTTON CLICKED ===');
-                        console.log('Selected node:', selectedNode);
-                        handleEditNode(selectedNode);
-                      }}
-                      className="glass-pane px-3 py-2 text-sm font-medium text-[#E5E7EB] hover:text-[#6B6B3A] transition-colors"
-                      aria-label="Edit selected node"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>Edit Node (Enter)</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
                     <button 
                       onClick={() => deleteNode(selectedNode)}
                       className="glass-pane px-3 py-2 text-sm font-medium text-red-400 hover:text-red-300 transition-colors"
@@ -1642,9 +1764,9 @@ const ExplorationMap: React.FC = () => {
           </div>
 
           {/* Connection creation hint */}
-          {isCreatingConnection && (
-            <div className="absolute top-20 left-1/2 transform -translate-x-1/2 glass-pane px-4 py-2 text-sm text-[#6B6B3A] z-40">
-              {connectionStart ? 'Click another node to create connection' : 'Click a node to start connection'}
+          {interactionState.state === 'CONNECTING' && (
+            <div className="absolute top-36 left-1/2 transform -translate-x-1/2 glass-pane px-4 py-2 text-sm text-[#6B6B3A] z-40">
+              {interactionState.data.connectionStart ? 'Ctrl+click another node to create connection' : 'Ctrl+click a node to start connection'}
             </div>
           )}
 
@@ -1676,7 +1798,7 @@ const ExplorationMap: React.FC = () => {
             {/* SVG Layer for Edges - FIXED */}
             <svg
               className="absolute pointer-events-none"
-              style={{ 
+              style={{
                 left: -2000,
                 top: -2000,
                 width: 4000,
@@ -1718,9 +1840,9 @@ const ExplorationMap: React.FC = () => {
               })}
 
               {/* Connection preview line */}
-              {isCreatingConnection && connectionStart && connectionPreview && (
+              {interactionState.state === 'CONNECTING' && interactionState.data.connectionStart && connectionPreview && (
                 (() => {
-                  const startNode = nodes.find(n => n.id === connectionStart);
+                  const startNode = nodes.find(n => n.id === interactionState.data.connectionStart);
                   if (!startNode) return null;
                   
                   const fromX = startNode.x + NODE_WIDTH / 2 + 2000;
@@ -1741,40 +1863,26 @@ const ExplorationMap: React.FC = () => {
                 })()
               )}
             </svg>
-
-            {/* Nodes Layer - NEW TOOLTIP SYSTEM */}
-            {nodes.map(node => {
-              // Use dragged position if this node is being dragged, otherwise use stored position
-              const nodePosition = draggedNode === node.id && draggedNodePosition
-                ? draggedNodePosition
-                : { x: node.x, y: node.y };
-              
-              return (
-                <NodeWithTooltip
-                  key={node.id}
-                  node={node}
-                  edges={edges}
-                  nodePosition={nodePosition}
-                  isSelected={selectedNode === node.id}
-                  isFocused={focusedNode === node.id}
-                  isValidTarget={isValidConnectionTarget(node.id)}
-                  isDragged={draggedNode === node.id}
-                  onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
-                  onDoubleClick={(e) => handleNodeDoubleClick(e, node.id)}
-                  onContextMenu={(e) => handleNodeRightClick(e, node.id)}
-                  onKeyDown={(e) => handleNodeKeyDown(e, node.id)}
-                  getNodeStyle={getNodeStyle}
-                  getNodeIcon={getNodeIcon}
-                  getNodeTypeColor={getNodeTypeColor}
-                  getSmartTitle={getSmartTitle}
-                  formatTimestamp={formatTimestamp}
-                  formatConversationText={formatConversationText}
-                  NODE_WIDTH={NODE_WIDTH}
-                />
-              );
-            })}
           </div>
+
+          {/* New SimpleNode components using InteractionManager */}
+          {nodes.map(node => (
+            <SimpleNode
+              key={node.id}
+              node={node}
+              transform={transform}
+              isSelected={selectedNode === node.id}
+              isDragging={interactionState.state === 'DRAGGING_NODE' && interactionState.data.draggedNodeId === node.id}
+              onMouseDown={handleNodeMouseDown}
+              onSelect={() => {
+                setSelectedNode(node.id);
+                setFocusedNode(node.id);
+                showNotification(`Selected: ${node.title}`);
+              }}
+            />
+          ))}
         </div>
+
 
         {/* Right Sidebar - Sparring Session */}
         <div className="flex-shrink-0 w-80 h-screen glass-pane border-l border-gray-800/50 overflow-hidden" style={{ zIndex: 30, paddingTop: '4rem' }}>
@@ -1783,19 +1891,6 @@ const ExplorationMap: React.FC = () => {
           </div>
         </div>
 
-        {/* Node Editor Modal */}
-        <NodeEditModal
-          isOpen={showNodeEditor}
-          node={editingNode}
-          onClose={() => {
-            setShowNodeEditor(false);
-            setEditingNode(null);
-          }}
-          onSave={async (nodeId: string, updateData: NodeUpdateRequest) => {
-            await updateNodeAPI(nodeId, updateData);
-          }}
-          onShowNotification={showNotification}
-        />
 
         {/* Agent Details Modal - Luxury Glass-Floating Design */}
         {showAgentDetailsModal && (
@@ -2083,6 +2178,17 @@ const ExplorationMap: React.FC = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Full Context Modal - Now managed at ExplorationMap level */}
+        {modalState.node && modalState.processedContent && (
+          <FullContextModal
+            node={modalState.node}
+            edges={modalState.edges}
+            processedContent={modalState.processedContent}
+            isOpen={modalState.isOpen}
+            onClose={handleModalClose}
+          />
+        )}
       </div>
     </TooltipProvider>
   );

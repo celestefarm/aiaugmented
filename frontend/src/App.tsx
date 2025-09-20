@@ -5,6 +5,7 @@ import { WorkspaceProvider } from './contexts/WorkspaceContext';
 import { MapProvider } from './contexts/MapContext';
 import { AgentChatProvider } from './contexts/AgentChatContext';
 import { DocumentProvider } from './contexts/DocumentContext';
+import { InteractionProvider } from './contexts/InteractionContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import Index from './pages/Index';
 import Auth from './pages/Auth';
@@ -17,26 +18,28 @@ function App() {
         <MapProvider>
           <AgentChatProvider>
             <DocumentProvider>
-              <Router>
-                <Routes>
-                  <Route path="/auth" element={<Auth />} />
-                  <Route path="/" element={
-                    <ProtectedRoute>
-                      <Index />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/workspace" element={
-                    <ProtectedRoute>
-                      <Index />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/dashboard" element={
-                    <ProtectedRoute>
-                      <Dashboard />
-                    </ProtectedRoute>
-                  } />
-                </Routes>
-              </Router>
+              <InteractionProvider>
+                <Router>
+                  <Routes>
+                    <Route path="/auth" element={<Auth />} />
+                    <Route path="/" element={
+                      <ProtectedRoute>
+                        <Index />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/workspace" element={
+                      <ProtectedRoute>
+                        <Index />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/dashboard" element={
+                      <ProtectedRoute>
+                        <Dashboard />
+                      </ProtectedRoute>
+                    } />
+                  </Routes>
+                </Router>
+              </InteractionProvider>
             </DocumentProvider>
           </AgentChatProvider>
         </MapProvider>

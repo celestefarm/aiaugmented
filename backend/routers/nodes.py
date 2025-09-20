@@ -158,7 +158,7 @@ async def create_node(
     # Create node document
     now = datetime.utcnow()
     node_create = NodeCreate(
-        workspace_id=ObjectId(workspace_id),
+        workspace_id=workspace_id,
         title=node_data.title,
         description=node_data.description,
         type=node_data.type,
@@ -177,6 +177,10 @@ async def create_node(
     
     # Get the created node
     node_doc = await database.nodes.find_one({"_id": node_id})
+    # Convert ObjectId fields to strings for Pydantic validation
+    node_doc['_id'] = str(node_doc['_id'])
+    if isinstance(node_doc.get('workspace_id'), ObjectId):
+        node_doc['workspace_id'] = str(node_doc['workspace_id'])
     node_in_db = NodeInDB(**node_doc)
     
     return node_in_db.to_response()
@@ -339,6 +343,73 @@ async def delete_node(
         )
     
     return None
+
+
+@router.delete("/workspaces/{workspace_id}/nodes", status_code=status.HTTP_200_OK)
+async def clear_all_nodes(
+    workspace_id: str,
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Clear all nodes and edges from a workspace.
+    
+    Args:
+        workspace_id: Workspace ID
+        current_user: Current authenticated user (from dependency)
+        
+    Returns:
+        Success message with count of deleted items
+        
+    Raises:
+        HTTPException: If workspace not found or access denied
+    """
+    # Verify workspace access
+    await verify_workspace_access(workspace_id, current_user)
+    
+    # Get database instance
+    database = get_database()
+    
+    # Count nodes before deletion
+    node_count = await database.nodes.count_documents({
+        "$or": [
+            {"workspace_id": workspace_id},  # String format
+            {"workspace_id": ObjectId(workspace_id)}  # ObjectId format
+        ]
+    })
+    
+    # Count edges before deletion
+    edge_count = await database.edges.count_documents({
+        "$or": [
+            {"workspace_id": workspace_id},  # String format
+            {"workspace_id": ObjectId(workspace_id)}  # ObjectId format
+        ]
+    })
+    
+    # Delete all edges in the workspace first
+    await database.edges.delete_many({
+        "$or": [
+            {"workspace_id": workspace_id},  # String format
+            {"workspace_id": ObjectId(workspace_id)}  # ObjectId format
+        ]
+    })
+    
+    # Delete all nodes in the workspace
+    await database.nodes.delete_many({
+        "$or": [
+            {"workspace_id": workspace_id},  # String format
+            {"workspace_id": ObjectId(workspace_id)}  # ObjectId format
+        ]
+    })
+    
+    print(f"=== CLEAR NODES DEBUG ===")
+    print(f"Workspace ID: {workspace_id}")
+    print(f"Deleted {node_count} nodes and {edge_count} edges")
+    
+    return {
+        "message": f"Successfully cleared workspace",
+        "deleted_nodes": node_count,
+        "deleted_edges": edge_count
+    }
 
 
 @router.post("/workspaces/{workspace_id}/nodes/auto-arrange", status_code=status.HTTP_200_OK)

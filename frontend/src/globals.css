@@ -109,6 +109,19 @@
   text-shadow: 0 0 8px rgba(107, 107, 58, 0.5);
 }
 
+/* Node creator-based styling */
+.node-human-created {
+  background: rgba(107, 107, 58, 0.08) !important;
+  border-color: rgba(107, 107, 58, 0.25) !important;
+  box-shadow: 0 0 20px -8px rgba(107, 107, 58, 0.3) !important;
+}
+
+.node-ai-created {
+  background: rgba(59, 130, 246, 0.08) !important;
+  border-color: rgba(59, 130, 246, 0.25) !important;
+  box-shadow: 0 0 20px -8px rgba(59, 130, 246, 0.3) !important;
+}
+
 /* Custom scrollbar for elements with overflow-y-auto */
 .overflow-y-auto::-webkit-scrollbar {
   width: 8px;

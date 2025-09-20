@@ -105,9 +105,9 @@ export const FullContextModal: React.FC<FullContextModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center">
+    <div className="fixed inset-0 z-[10001] flex items-center justify-center">
       {/* Backdrop */}
-      <div 
+      <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />

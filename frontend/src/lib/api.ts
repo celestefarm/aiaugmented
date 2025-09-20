@@ -578,6 +578,50 @@ class ApiClient {
     });
   }
 
+  async clearAllNodes(workspaceId: string): Promise<{ message: string; deleted_nodes: number; deleted_edges: number }> {
+    console.log('=== CLEAR ALL NODES API CALL ===');
+    console.log('Workspace ID:', workspaceId);
+    console.log('API endpoint:', `/workspaces/${workspaceId}/nodes`);
+    console.log('Method: DELETE');
+    
+    try {
+      const response = await this.request<{ message: string; deleted_nodes: number; deleted_edges: number }>(`/workspaces/${workspaceId}/nodes`, {
+        method: 'DELETE',
+      });
+      
+      console.log('=== CLEAR ALL NODES API RESPONSE ===');
+      console.log('Response:', response);
+      console.log('Response type:', typeof response);
+      
+      // Validate response structure
+      if (!response) {
+        console.error('CRITICAL: clearAllNodes returned null/undefined');
+        throw new Error('Clear all nodes failed - API returned no data');
+      }
+      
+      if (typeof response !== 'object') {
+        console.error('CRITICAL: clearAllNodes returned non-object:', typeof response, response);
+        throw new Error('Clear all nodes failed - API returned invalid data type');
+      }
+      
+      // Validate required properties
+      const requiredProps = ['message', 'deleted_nodes', 'deleted_edges'];
+      for (const prop of requiredProps) {
+        if (!(prop in response)) {
+          console.error(`CRITICAL: clearAllNodes missing required property: ${prop}`);
+          throw new Error(`Clear all nodes failed - missing ${prop} in response`);
+        }
+      }
+      
+      console.log('✅ Clear all nodes validation passed');
+      return response;
+    } catch (error) {
+      console.error('=== CLEAR ALL NODES API ERROR ===');
+      console.error('Error in clearAllNodes:', error);
+      throw error;
+    }
+  }
+
   async summarizeNodeTitle(nodeId: string, context: string = 'card', maxLength?: number): Promise<SummarizeResponse> {
     console.log('=== SUMMARIZE NODE TITLE API CALL ===');
     console.log('Node ID:', nodeId);
@@ -880,40 +924,39 @@ class ApiClient {
 // Export singleton instance
 export const apiClient = new ApiClient();
 
-// Export individual methods for convenience
-export const {
-  signup,
-  login,
-  logout,
-  getCurrentUser,
-  updateProfile,
-  getWorkspaces,
-  getWorkspace,
-  createWorkspace,
-  updateWorkspace,
-  deleteWorkspace,
-  getNodes,
-  createNode,
-  updateNode,
-  deleteNode,
-  getEdges,
-  createEdge,
-  deleteEdge,
-  getAgents,
-  activateAgent,
-  deactivateAgent,
-  interactWithAgent,
-  getAgentInfo,
-  getMessages,
-  sendMessage,
-  addMessageToMap,
-  autoArrangeNodes,
-  generateBrief,
-  exportWorkspace,
-  isAuthenticated,
-  clearAuth,
-  analyzeCognitiveRelationships,
-  autoConnectNodes,
-  summarizeNodeTitle,
-  summarizeConversation,
-} = apiClient;
+// Export individual methods for convenience with proper context binding
+export const signup = apiClient.signup.bind(apiClient);
+export const login = apiClient.login.bind(apiClient);
+export const logout = apiClient.logout.bind(apiClient);
+export const getCurrentUser = apiClient.getCurrentUser.bind(apiClient);
+export const updateProfile = apiClient.updateProfile.bind(apiClient);
+export const getWorkspaces = apiClient.getWorkspaces.bind(apiClient);
+export const getWorkspace = apiClient.getWorkspace.bind(apiClient);
+export const createWorkspace = apiClient.createWorkspace.bind(apiClient);
+export const updateWorkspace = apiClient.updateWorkspace.bind(apiClient);
+export const deleteWorkspace = apiClient.deleteWorkspace.bind(apiClient);
+export const getNodes = apiClient.getNodes.bind(apiClient);
+export const createNode = apiClient.createNode.bind(apiClient);
+export const updateNode = apiClient.updateNode.bind(apiClient);
+export const deleteNode = apiClient.deleteNode.bind(apiClient);
+export const clearAllNodes = apiClient.clearAllNodes.bind(apiClient);
+export const getEdges = apiClient.getEdges.bind(apiClient);
+export const createEdge = apiClient.createEdge.bind(apiClient);
+export const deleteEdge = apiClient.deleteEdge.bind(apiClient);
+export const getAgents = apiClient.getAgents.bind(apiClient);
+export const activateAgent = apiClient.activateAgent.bind(apiClient);
+export const deactivateAgent = apiClient.deactivateAgent.bind(apiClient);
+export const interactWithAgent = apiClient.interactWithAgent.bind(apiClient);
+export const getAgentInfo = apiClient.getAgentInfo.bind(apiClient);
+export const getMessages = apiClient.getMessages.bind(apiClient);
+export const sendMessage = apiClient.sendMessage.bind(apiClient);
+export const addMessageToMap = apiClient.addMessageToMap.bind(apiClient);
+export const autoArrangeNodes = apiClient.autoArrangeNodes.bind(apiClient);
+export const generateBrief = apiClient.generateBrief.bind(apiClient);
+export const exportWorkspace = apiClient.exportWorkspace.bind(apiClient);
+export const isAuthenticated = apiClient.isAuthenticated.bind(apiClient);
+export const clearAuth = apiClient.clearAuth.bind(apiClient);
+export const analyzeCognitiveRelationships = apiClient.analyzeCognitiveRelationships.bind(apiClient);
+export const autoConnectNodes = apiClient.autoConnectNodes.bind(apiClient);
+export const summarizeNodeTitle = apiClient.summarizeNodeTitle.bind(apiClient);
+export const summarizeConversation = apiClient.summarizeConversation.bind(apiClient);
