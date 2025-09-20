@@ -66,13 +66,15 @@ export class InteractionManager {
   
   // Main event handlers
   public handleMouseDown(event: MouseEvent, target: 'canvas' | 'node', nodeId?: string, nodeType?: 'ai' | 'human'): void {
-    console.log('🎯 [InteractionManager] handleMouseDown', { 
-      target, 
-      nodeId, 
+    console.log('🎯 [InteractionManager] handleMouseDown', {
+      target,
+      nodeId,
       nodeType,
       mode: this.mode,
       clientX: event.clientX,
-      clientY: event.clientY
+      clientY: event.clientY,
+      eventType: event.constructor.name,
+      isReactEvent: event.hasOwnProperty('nativeEvent')
     });
     
     // Priority 1: Check for tooltip interactions
@@ -181,13 +183,29 @@ export class InteractionManager {
   
   // Node dragging methods
   private startNodeDrag(event: MouseEvent, nodeId: string, nodeType: 'ai' | 'human'): void {
-    console.log('🎯 [InteractionManager] Starting node drag', { nodeId, nodeType });
+    console.log('🎯 [InteractionManager] Starting node drag', {
+      nodeId,
+      nodeType,
+      eventClientX: event.clientX,
+      eventClientY: event.clientY,
+      currentMode: this.mode
+    });
     
     const nodeElement = document.getElementById(`node-${nodeId}`);
     if (!nodeElement) {
-      console.error('🎯 [InteractionManager] Node element not found:', nodeId);
+      console.error('🎯 [InteractionManager] Node element not found:', `node-${nodeId}`);
+      console.error('🎯 [InteractionManager] Available node elements:',
+        Array.from(document.querySelectorAll('[id^="node-"]')).map(el => el.id));
+      console.error('🎯 [InteractionManager] All elements with node in id:',
+        Array.from(document.querySelectorAll('[id*="node"]')).map(el => ({ id: el.id, className: el.className })));
       return;
     }
+    
+    console.log('🎯 [InteractionManager] Node element found:', {
+      id: nodeElement.id,
+      className: nodeElement.className,
+      boundingRect: nodeElement.getBoundingClientRect()
+    });
     
     const rect = nodeElement.getBoundingClientRect();
     const startPosition = { x: event.clientX, y: event.clientY };
@@ -196,13 +214,25 @@ export class InteractionManager {
       y: event.clientY - rect.top
     };
     
-    // Get current node position from computed style
+    // CRITICAL FIX: Get the actual canvas coordinates from the node's data attributes or calculate from screen position
+    // The node's left/top style properties are already screen coordinates (transformed)
+    // We need to get the original canvas coordinates
     const computedStyle = window.getComputedStyle(nodeElement);
-    const currentLeft = parseFloat(computedStyle.left) || 0;
-    const currentTop = parseFloat(computedStyle.top) || 0;
+    const screenLeft = parseFloat(computedStyle.left) || 0;
+    const screenTop = parseFloat(computedStyle.top) || 0;
     
-    // Convert screen coordinates to canvas coordinates
-    const initialNodePosition = this.screenToCanvas(currentLeft, currentTop);
+    console.log('🎯 [InteractionManager] Node screen position:', { screenLeft, screenTop });
+    console.log('🎯 [InteractionManager] Current transform:', this.currentTransform);
+    
+    // IMPROVED: Convert screen coordinates back to canvas coordinates
+    // The formula used in SimpleNode is: left = node.x * transform.scale + transform.x
+    // So to get canvas coordinates: node.x = (left - transform.x) / transform.scale
+    const initialNodePosition = {
+      x: (screenLeft - this.currentTransform.x) / this.currentTransform.scale,
+      y: (screenTop - this.currentTransform.y) / this.currentTransform.scale
+    };
+    
+    console.log('🎯 [InteractionManager] Initial node canvas position:', initialNodePosition);
     
     this.dragContext = {
       nodeId,
@@ -215,8 +245,11 @@ export class InteractionManager {
     };
     
     this.mode = 'DRAGGING_NODE';
+    console.log('🎯 [InteractionManager] State changed to DRAGGING_NODE, calling onStateChange');
     this.onStateChange?.(this.mode, this.dragContext);
     this.onNodeSelect?.(nodeId);
+    
+    console.log('🎯 [InteractionManager] Callbacks called, drag context:', this.dragContext);
     
     // Add visual feedback
     nodeElement.style.zIndex = '1000';
@@ -228,7 +261,9 @@ export class InteractionManager {
       nodeId,
       nodeType,
       initialNodePosition,
-      offset
+      offset,
+      dragContextCreated: !!this.dragContext,
+      modeChanged: this.mode === 'DRAGGING_NODE'
     });
   }
   
@@ -237,11 +272,11 @@ export class InteractionManager {
     
     this.dragContext.currentPosition = currentPosition;
     
-    // Calculate movement delta
+    // Calculate movement delta in screen coordinates
     const deltaX = currentPosition.x - this.dragContext.startPosition.x;
     const deltaY = currentPosition.y - this.dragContext.startPosition.y;
     
-    // Apply transform scaling to delta
+    // Apply transform scaling to delta to get canvas delta
     const scaledDeltaX = deltaX / this.currentTransform.scale;
     const scaledDeltaY = deltaY / this.currentTransform.scale;
     
@@ -251,20 +286,33 @@ export class InteractionManager {
       y: this.dragContext.initialNodePosition.y + scaledDeltaY
     };
     
-    // Convert back to screen coordinates for DOM update
-    const newScreenPosition = this.canvasToScreen(newCanvasPosition.x, newCanvasPosition.y);
+    // Convert canvas position to screen coordinates for DOM positioning
+    // This must match the formula used in SimpleNode: left = node.x * transform.scale + transform.x
+    const newScreenPosition = {
+      x: newCanvasPosition.x * this.currentTransform.scale + this.currentTransform.x,
+      y: newCanvasPosition.y * this.currentTransform.scale + this.currentTransform.y
+    };
     
-    // Update DOM element position immediately for smooth visual feedback
+    // CRITICAL FIX: Update DOM position directly without requestAnimationFrame to avoid React conflicts
     const nodeElement = document.getElementById(`node-${this.dragContext.nodeId}`);
     if (nodeElement) {
+      // CRITICAL: Set position using left/top for consistency with SimpleNode positioning
       nodeElement.style.left = `${newScreenPosition.x}px`;
       nodeElement.style.top = `${newScreenPosition.y}px`;
+      // Add visual feedback during drag
+      nodeElement.style.transform = 'scale(1.05)';
+      nodeElement.style.zIndex = '1000';
+      nodeElement.style.opacity = '0.8';
+      // CRITICAL FIX: Prevent React from overriding these changes
+      nodeElement.style.willChange = 'transform';
     }
     
     console.log('🎯 [InteractionManager] Node drag updated', {
       nodeId: this.dragContext.nodeId,
-      canvasPosition: newCanvasPosition,
-      screenPosition: newScreenPosition
+      mouseDelta: { deltaX, deltaY },
+      canvasDelta: { scaledDeltaX, scaledDeltaY },
+      newCanvasPosition,
+      newScreenPosition
     });
   }
   
@@ -285,21 +333,34 @@ export class InteractionManager {
       y: this.dragContext.initialNodePosition.y + scaledDeltaY
     };
     
-    // Reset visual feedback
+    // Convert final canvas position to screen coordinates using the same formula as SimpleNode
+    const finalScreenPosition = {
+      x: finalCanvasPosition.x * this.currentTransform.scale + this.currentTransform.x,
+      y: finalCanvasPosition.y * this.currentTransform.scale + this.currentTransform.y
+    };
+    
+    // CRITICAL FIX: Reset visual feedback and set final position directly
     const nodeElement = document.getElementById(`node-${this.dragContext.nodeId}`);
     if (nodeElement) {
+      // Reset visual feedback to match SimpleNode defaults
       nodeElement.style.zIndex = '20';
       nodeElement.style.opacity = '1';
-      nodeElement.style.transform = 'scale(1)';
       nodeElement.style.cursor = 'grab';
+      nodeElement.style.transform = 'scale(1)';
+      nodeElement.style.willChange = 'auto';
+      
+      // CRITICAL: Set final position using left/top to match SimpleNode positioning
+      nodeElement.style.left = `${finalScreenPosition.x}px`;
+      nodeElement.style.top = `${finalScreenPosition.y}px`;
     }
     
-    // Notify parent component to save position
+    // Notify parent component to save the canvas position to the database
     this.onNodePositionUpdate?.(this.dragContext.nodeId, finalCanvasPosition);
     
     console.log('🎯 [InteractionManager] Node drag completed', {
       nodeId: this.dragContext.nodeId,
-      finalPosition: finalCanvasPosition
+      finalCanvasPosition,
+      finalScreenPosition
     });
     
     this.dragContext = null;
@@ -392,6 +453,17 @@ export class InteractionManager {
     return this.dragContext;
   }
   
+  // Method to check if currently dragging (for preventing auto-arrange interference)
+  public isDragging(): boolean {
+    return this.mode === 'DRAGGING_NODE';
+  }
+  
+  // Method to get dragged node ID (for conflict prevention)
+  public getDraggedNodeId(): string | null {
+    return this.dragContext?.nodeId || null;
+  }
+  
+  
   public startConnecting(): void {
     this.mode = 'CONNECTING';
     this.connectionStart = null;
@@ -401,7 +473,7 @@ export class InteractionManager {
   public cancelInteraction(): void {
     console.log('🎯 [InteractionManager] Cancelling interaction');
     
-    // Reset visual feedback if dragging
+    // CRITICAL FIX: Reset visual feedback if dragging - direct DOM manipulation
     if (this.dragContext) {
       const nodeElement = document.getElementById(`node-${this.dragContext.nodeId}`);
       if (nodeElement) {
@@ -409,6 +481,13 @@ export class InteractionManager {
         nodeElement.style.opacity = '1';
         nodeElement.style.transform = 'scale(1)';
         nodeElement.style.cursor = 'grab';
+        nodeElement.style.willChange = 'auto';
+        // Reset any transform translate that might have been applied during drag
+        const computedStyle = window.getComputedStyle(nodeElement);
+        const currentLeft = parseFloat(computedStyle.left) || 0;
+        const currentTop = parseFloat(computedStyle.top) || 0;
+        nodeElement.style.left = `${currentLeft}px`;
+        nodeElement.style.top = `${currentTop}px`;
       }
     }
     

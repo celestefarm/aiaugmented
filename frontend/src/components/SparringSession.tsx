@@ -147,18 +147,6 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
     }
   };
 
-  const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    
-    if (diffMins < 1) return 'just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return date.toLocaleDateString();
-  };
 
   const getActiveAgentNames = () => {
     return activeAgents
@@ -247,9 +235,6 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
                       {message.author}
                     </span>
                   </div>
-                  <span className="text-xs text-gray-500">
-                    {formatTimestamp(message.created_at)}
-                  </span>
                 </div>
 
                 {/* Message Content */}

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Info, Mic, Paperclip, Plus, Upload, ChevronLeft, ChevronRight, X, Clock, User, Target, Users, Briefcase, Trash2, Undo, Redo, Save, ZoomIn, ZoomOut, Check, Link, MoreVertical, Grid3X3, RefreshCw } from 'lucide-react';
+import { Info, Mic, Paperclip, Plus, Upload, ChevronLeft, ChevronRight, X, Clock, User, Target, Users, Briefcase, Trash2, Undo, Redo, Save, ZoomIn, ZoomOut, Check, Link, MoreVertical, RefreshCw } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -53,10 +53,43 @@ const SimpleNode: React.FC<SimpleNodeProps> = ({
   onSelect
 }) => {
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    console.log(`🎯 [SimpleNode] Node ${node.id} (${node.title}) mousedown`);
+    console.log(`🎯 [SimpleNode] Node ${node.id} (${node.title}) mousedown`, {
+      eventType: e.constructor.name,
+      nativeEvent: e.nativeEvent?.constructor.name,
+      clientX: e.clientX,
+      clientY: e.clientY,
+      target: e.target,
+      currentTarget: e.currentTarget,
+      elementId: e.currentTarget.id
+    });
+    
+    // CRITICAL FIX: Check if this is a tooltip or UI interaction
+    const target = e.target as HTMLElement;
+    if (target.closest('.tooltip') ||
+        target.closest('[data-tooltip]') ||
+        target.closest('.node-tooltip') ||
+        target.closest('[data-state="open"]') ||
+        target.closest('[role="tooltip"]') ||
+        target.closest('button') ||
+        target.closest('input') ||
+        target.closest('textarea')) {
+      console.log('🎯 [SimpleNode] UI interaction detected, not starting drag');
+      return;
+    }
     
     // Determine node type based on source_agent or type
     const nodeType: 'ai' | 'human' = node.source_agent ? 'ai' : 'human';
+    
+    console.log(`🎯 [SimpleNode] About to call onMouseDown with:`, {
+      nodeId: node.id,
+      nodeType,
+      onMouseDownType: typeof onMouseDown,
+      elementExists: !!document.getElementById(`node-${node.id}`)
+    });
+    
+    // CRITICAL FIX: Prevent default and stop propagation ONLY for drag events
+    e.preventDefault();
+    e.stopPropagation();
     
     onMouseDown(e, node.id, nodeType);
     onSelect();
@@ -110,15 +143,25 @@ const SimpleNode: React.FC<SimpleNodeProps> = ({
         'bg-gradient-to-br from-gray-400/5 to-gray-500/10 border-gray-400/30'
       }`}
       style={{
-        left: node.x * transform.scale + transform.x,
-        top: node.y * transform.scale + transform.y,
+        // CRITICAL FIX: Use consistent coordinate calculation
+        left: `${node.x * transform.scale + transform.x}px`,
+        top: `${node.y * transform.scale + transform.y}px`,
         zIndex: isDragging ? 1000 : 20,
         opacity: isDragging ? 0.8 : 1,
         transform: isDragging ? 'scale(1.05)' : 'scale(1)',
         pointerEvents: 'auto',
-        userSelect: 'none'
+        userSelect: 'none',
+        position: 'absolute',
+        // CRITICAL FIX: Prevent React from overriding drag positions
+        willChange: isDragging ? 'transform' : 'auto'
       }}
       onMouseDown={handleMouseDown}
+      // CRITICAL FIX: Prevent context menu during drag
+      onContextMenu={(e) => {
+        if (isDragging) {
+          e.preventDefault();
+        }
+      }}
     >
       <div className="relative">
         {node.source_agent && (
@@ -166,21 +209,6 @@ const SimpleNode: React.FC<SimpleNodeProps> = ({
               {node.type}
             </span>
           </div>
-          <span className="text-gray-500">
-            {(() => {
-              if (!node.created_at) return '';
-              const date = new Date(node.created_at);
-              const now = new Date();
-              const diffMs = now.getTime() - date.getTime();
-              const diffMins = Math.floor(diffMs / 60000);
-              const diffHours = Math.floor(diffMins / 60);
-              
-              if (diffMins < 1) return 'just now';
-              if (diffMins < 60) return `${diffMins}m ago`;
-              if (diffHours < 24) return `${diffHours}h ago`;
-              return date.toLocaleDateString();
-            })()}
-          </span>
         </div>
       </div>
     </div>
@@ -255,6 +283,7 @@ const ExplorationMap: React.FC = () => {
   
   // UI state
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
+  const [rightSidebarExpanded, setRightSidebarExpanded] = useState(false);
   const [showCustomAgentDialog, setShowCustomAgentDialog] = useState(false);
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
   const [showAgentDetailsModal, setShowAgentDetailsModal] = useState<string | null>(null);
@@ -651,6 +680,11 @@ const ExplorationMap: React.FC = () => {
   // Enhanced global event listeners using InteractionManager
   useEffect(() => {
     // Always attach global listeners when not in IDLE state
+    console.log('🔍 [ExplorationMap] Global listeners effect triggered', {
+      currentState: interactionState.state,
+      shouldAttach: interactionState.state !== 'IDLE'
+    });
+    
     if (interactionState.state !== 'IDLE') {
       console.log('🔍 [ExplorationMap] Attaching global listeners for state:', interactionState.state);
       document.addEventListener('mousemove', handleGlobalMouseMove, { passive: false });
@@ -661,6 +695,8 @@ const ExplorationMap: React.FC = () => {
         document.removeEventListener('mousemove', handleGlobalMouseMove);
         document.removeEventListener('mouseup', handleGlobalMouseUp);
       };
+    } else {
+      console.log('🔍 [ExplorationMap] State is IDLE, not attaching global listeners');
     }
   }, [interactionState.state, handleGlobalMouseMove, handleGlobalMouseUp]);
 
@@ -1534,6 +1570,15 @@ const handleModalClose = useCallback(() => {
               currentTarget: e.currentTarget
             });
             
+            // CRITICAL FIX: Check if the target is a node or node child
+            const target = e.target as HTMLElement;
+            if (target.closest('[id^="node-"]') ||
+                target.id.startsWith('node-') ||
+                target.closest('.glass-pane')) {
+              console.log('🔍 CANVAS MOUSE DOWN - Node interaction detected, ignoring canvas handler');
+              return;
+            }
+            
             // Check if click is in toolbar area (top 120px of canvas)
             const rect = canvasRef.current?.getBoundingClientRect();
             if (rect) {
@@ -1570,29 +1615,6 @@ const handleModalClose = useCallback(() => {
 
           {/* Top Toolbar */}
           <div className="absolute top-20 left-1/2 transform -translate-x-1/2 flex space-x-2 z-40">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={async () => {
-                    try {
-                      console.log('=== MANUAL REFRESH BUTTON CLICKED ===');
-                      await refreshMapData();
-                      showNotification('Map data refreshed successfully');
-                    } catch (error) {
-                      console.error('Failed to refresh map data:', error);
-                      showNotification('Failed to refresh map data');
-                    }
-                  }}
-                  disabled={mapLoading}
-                  className="glass-pane px-4 py-2 text-sm font-medium text-[#E5E7EB] hover:text-[#6B6B3A] transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  aria-label="Refresh map data"
-                >
-                  <Clock className="w-4 h-4" />
-                  <span>Refresh</span>
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>Refresh Map Data</TooltipContent>
-            </Tooltip>
 
             <Tooltip>
               <TooltipTrigger asChild>
@@ -1639,28 +1661,6 @@ const handleModalClose = useCallback(() => {
               <TooltipContent>Connect Nodes (C) - Ctrl+click to connect</TooltipContent>
             </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={async () => {
-                    try {
-                      await autoArrangeNodes();
-                      showNotification('Nodes auto-arranged successfully');
-                    } catch (error) {
-                      console.error('Failed to auto-arrange nodes:', error);
-                      showNotification('Failed to auto-arrange nodes');
-                    }
-                  }}
-                  disabled={nodes.length === 0}
-                  className="glass-pane px-4 py-2 text-sm font-medium text-[#E5E7EB] hover:text-[#6B6B3A] transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  aria-label="Auto-arrange nodes to prevent overlapping"
-                >
-                  <Grid3X3 className="w-4 h-4" />
-                  <span>Auto-Arrange</span>
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>Auto-Arrange Nodes</TooltipContent>
-            </Tooltip>
 
             <Tooltip>
               <TooltipTrigger asChild>
@@ -1885,8 +1885,26 @@ const handleModalClose = useCallback(() => {
 
 
         {/* Right Sidebar - Sparring Session */}
-        <div className="flex-shrink-0 w-80 h-screen glass-pane border-l border-gray-800/50 overflow-hidden" style={{ zIndex: 30, paddingTop: '4rem' }}>
-          <div className="p-3 h-full overflow-hidden" style={{ height: 'calc(100vh - 4rem)' }}>
+        <div
+          className={`flex-shrink-0 h-screen glass-pane border-l border-gray-800/50 overflow-hidden transition-all duration-300 ease-in-out ${
+            rightSidebarExpanded ? 'w-[480px]' : 'w-80'
+          }`}
+          style={{ zIndex: 30, paddingTop: '4rem' }}
+        >
+          <div className="relative p-3 h-full overflow-hidden" style={{ height: 'calc(100vh - 4rem)' }}>
+            {/* Toggle Button */}
+            <button
+              onClick={() => setRightSidebarExpanded(!rightSidebarExpanded)}
+              className="absolute top-4 left-3 z-10 w-8 h-8 rounded bg-[#6B6B3A]/20 text-[#E5E7EB] hover:bg-[#6B6B3A]/30 flex items-center justify-center transition-colors"
+              aria-label={rightSidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}
+            >
+              {rightSidebarExpanded ? (
+                <ChevronRight className="w-4 h-4" />
+              ) : (
+                <ChevronLeft className="w-4 h-4" />
+              )}
+            </button>
+            
             <SparringSession onAddToMap={addIdeaToMapLocal} />
           </div>
         </div>

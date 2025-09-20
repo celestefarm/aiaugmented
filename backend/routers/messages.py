@@ -12,6 +12,7 @@ from models.node import NodeCreate, NodeInDB
 from models.user import UserResponse
 from utils.dependencies import get_current_active_user
 from utils.seed_agents import get_agent_by_id
+from utils.text_chunking import TokenEstimator, ModelConfig
 from database import get_database
 from datetime import datetime
 from bson import ObjectId
@@ -19,11 +20,18 @@ from typing import List, Tuple
 import random
 import asyncio
 import math
+import logging
 
 # Import AI functions from interactions router
 from routers.interactions import call_openai_api, create_system_prompt
 
 router = APIRouter(tags=["Messages"])
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Initialize token estimator
+token_estimator = TokenEstimator()
 
 
 async def calculate_optimal_node_position(database, workspace_id: str) -> Tuple[float, float]:
@@ -287,16 +295,40 @@ async def send_message(
                     system_prompt = create_system_prompt(agent)
                     user_prompt = message_data.content
                     
-                    # Call the appropriate AI model
-                    if agent.model_name.startswith("openai/") or agent.model_name.startswith("gpt-"):
-                        ai_response_content = await call_openai_api(agent.model_name, user_prompt, system_prompt)
+                    # Validate token limits before making API call
+                    model_name = agent.model_name.split("/")[-1] if "/" in agent.model_name else agent.model_name
+                    model_config = ModelConfig.get_config(model_name)
+                    
+                    system_tokens = token_estimator.estimate_tokens(system_prompt)
+                    user_tokens = token_estimator.estimate_tokens(user_prompt)
+                    max_response_tokens = 1000
+                    total_required = system_tokens + user_tokens + max_response_tokens
+                    
+                    logger.info(f"Agent {agent_doc['name']} token check: "
+                               f"system={system_tokens}, user={user_tokens}, "
+                               f"total_required={total_required}, limit={model_config.context_limit}")
+                    
+                    # If the request is too large, provide a fallback response
+                    if total_required > model_config.context_limit:
+                        logger.warning(f"Agent {agent_doc['name']} request too large: {total_required} > {model_config.context_limit}")
+                        ai_response_content = f"I'm {agent_doc['name']}, your {agent_doc.get('ai_role', 'AI assistant')}. Your message is quite detailed, which I appreciate! However, due to processing limits, I'll need you to break it down into smaller, more focused questions so I can provide you with the best possible assistance. Could you please rephrase your query in a more concise way?"
                     else:
-                        # Fallback for unsupported models
-                        ai_response_content = f"I'm {agent_doc['name']}, specialized in {agent_doc.get('ai_role', 'assistance')}. I'd be happy to help, but my current model ({agent.model_name}) is not yet supported in this chat interface."
+                        # Call the appropriate AI model
+                        if agent.model_name.startswith("openai/") or agent.model_name.startswith("gpt-"):
+                            ai_response_content = await call_openai_api(agent.model_name, user_prompt, system_prompt)
+                        else:
+                            # Fallback for unsupported models
+                            ai_response_content = f"I'm {agent_doc['name']}, specialized in {agent_doc.get('ai_role', 'assistance')}. I'd be happy to help, but my current model ({agent.model_name}) is not yet supported in this chat interface."
                 
             except Exception as e:
+                # Log the error for debugging
+                logger.error(f"Error generating AI response for agent {agent_doc['name']}: {e}")
+                
                 # Fallback response if AI call fails
-                ai_response_content = f"I'm {agent_doc['name']}, your {agent_doc.get('ai_role', 'AI assistant')}. I'm currently experiencing technical difficulties, but I'm here to help with your query about: {message_data.content[:100]}..."
+                if "token" in str(e).lower() or "limit" in str(e).lower():
+                    ai_response_content = f"I'm {agent_doc['name']}, your {agent_doc.get('ai_role', 'AI assistant')}. Your message is quite comprehensive! To provide you with the most helpful response, could you please break it down into smaller, more specific questions? This will help me give you more focused and actionable insights."
+                else:
+                    ai_response_content = f"I'm {agent_doc['name']}, your {agent_doc.get('ai_role', 'AI assistant')}. I'm currently experiencing technical difficulties, but I'm here to help with your query about: {message_data.content[:100]}..."
             
             # Create AI message
             ai_message = MessageCreate(

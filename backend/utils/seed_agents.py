@@ -13,7 +13,7 @@ DEFAULT_AGENTS = [
         "human_role": "Provide strategic context, validate insights, and apply judgment to personalized recommendations",
         "is_custom": False,
         "is_active": True,
-        "model_name": "openai/gpt-4",
+        "model_name": "openai/gpt-4-32k",  # Use GPT-4-32K for better token capacity
         "full_description": {
             "role": "Strategic Co-Pilot & Cognitive Twin",
             "mission": "Transform strategic thinking through personalized mentorship, cognitive pattern analysis, and decision sandbox testing",
@@ -66,6 +66,7 @@ DEFAULT_AGENTS = [
         "human_role": "Validate regulatory interpretation, assess risk tolerance",
         "is_custom": False,
         "is_active": True,
+        "model_name": "openai/gpt-4-32k",  # Add model configuration
         "full_description": {
             "role": "Risk Assessment Specialist",
             "mission": "Ensure strategic decisions account for regulatory and operational risks",
@@ -80,6 +81,7 @@ DEFAULT_AGENTS = [
         "human_role": "Provide market context, validate assumptions with local knowledge",
         "is_custom": False,
         "is_active": True,
+        "model_name": "openai/gpt-4-32k",  # Add model configuration
         "full_description": {
             "role": "Market Intelligence Specialist",
             "mission": "Deliver data-driven market insights to inform strategic decisions",
@@ -94,6 +96,7 @@ DEFAULT_AGENTS = [
         "human_role": "Validate financial assumptions, provide budget constraints",
         "is_custom": False,
         "is_active": True,
+        "model_name": "openai/gpt-4-32k",  # Add model configuration
         "full_description": {
             "role": "Financial Strategy Consultant",
             "mission": "Ensure strategic decisions are financially sound and sustainable",
@@ -108,6 +111,7 @@ DEFAULT_AGENTS = [
         "human_role": "Validate operational constraints, provide implementation insights",
         "is_custom": False,
         "is_active": True,
+        "model_name": "openai/gpt-4-32k",  # Add model configuration
         "full_description": {
             "role": "Operational Excellence Advisor",
             "mission": "Ensure strategic plans are operationally viable and executable",
@@ -122,6 +126,7 @@ DEFAULT_AGENTS = [
         "human_role": "Validate technical feasibility, provide technology constraints",
         "is_custom": False,
         "is_active": True,
+        "model_name": "openai/gpt-4-32k",  # Add model configuration
         "full_description": {
             "role": "Technology Strategy Specialist",
             "mission": "Align technology capabilities with strategic objectives",
@@ -136,6 +141,7 @@ DEFAULT_AGENTS = [
         "human_role": "Validate customer insights, provide user feedback and preferences",
         "is_custom": False,
         "is_active": True,
+        "model_name": "openai/gpt-4-32k",  # Add model configuration
         "full_description": {
             "role": "Customer Experience Champion",
             "mission": "Ensure strategic decisions prioritize customer value and satisfaction",
@@ -150,6 +156,7 @@ DEFAULT_AGENTS = [
         "human_role": "Validate sustainability priorities, provide ESG context",
         "is_custom": False,
         "is_active": True,
+        "model_name": "openai/gpt-4-32k",  # Add model configuration
         "full_description": {
             "role": "ESG Strategy Consultant",
             "mission": "Integrate sustainability and social responsibility into strategic planning",
@@ -164,6 +171,7 @@ DEFAULT_AGENTS = [
         "human_role": "Validate innovation feasibility, provide creative insights",
         "is_custom": False,
         "is_active": True,
+        "model_name": "openai/gpt-4-32k",  # Add model configuration
         "full_description": {
             "role": "Innovation Strategy Leader",
             "mission": "Drive strategic innovation and identify future growth opportunities",

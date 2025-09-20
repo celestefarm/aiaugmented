@@ -5,18 +5,26 @@ from models.user import UserInDB
 from utils.dependencies import get_current_user
 from utils.seed_agents import get_agent_by_id
 from utils.cognitive_analysis import CognitiveAnalyzer, MentorshipEngine
+from utils.text_chunking import TokenEstimator, ModelConfig
 from database import get_database
 from bson import ObjectId
 from datetime import datetime
 import httpx
 import json
 import os
+import logging
 
 router = APIRouter(tags=["interactions"])
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Initialize cognitive components
 cognitive_analyzer = CognitiveAnalyzer()
 mentorship_engine = MentorshipEngine()
+
+# Initialize token estimator
+token_estimator = TokenEstimator()
 
 
 class InteractionRequest(BaseModel):
@@ -37,7 +45,7 @@ class InteractionResponse(BaseModel):
 
 
 async def call_openai_api(model: str, prompt: str, system_prompt: str) -> str:
-    """Call OpenAI API with the given model and prompts"""
+    """Call OpenAI API with the given model and prompts, with token validation"""
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise HTTPException(
@@ -47,6 +55,51 @@ async def call_openai_api(model: str, prompt: str, system_prompt: str) -> str:
     
     # Extract model name (remove provider prefix if present)
     model_name = model.split("/")[-1] if "/" in model else model
+    
+    # Get model configuration for token limits
+    model_config = ModelConfig.get_config(model_name)
+    
+    # Estimate tokens for input
+    system_tokens = token_estimator.estimate_tokens(system_prompt)
+    user_tokens = token_estimator.estimate_tokens(prompt)
+    max_response_tokens = 1000  # Reserve for response
+    
+    total_input_tokens = system_tokens + user_tokens
+    total_required_tokens = total_input_tokens + max_response_tokens
+    
+    logger.info(f"Token estimation for {model_name}: "
+               f"system={system_tokens}, user={user_tokens}, "
+               f"response_reserve={max_response_tokens}, "
+               f"total_required={total_required_tokens}, "
+               f"context_limit={model_config.context_limit}")
+    
+    # Check if request exceeds context limit
+    if total_required_tokens > model_config.context_limit:
+        logger.error(f"Token limit exceeded: {total_required_tokens} > {model_config.context_limit}")
+        
+        # Try to truncate system prompt if it's too large
+        if system_tokens > model_config.context_limit * 0.6:  # System prompt takes >60% of context
+            max_system_tokens = int(model_config.context_limit * 0.6)
+            truncated_system_prompt = _truncate_text_to_tokens(system_prompt, max_system_tokens)
+            logger.warning(f"Truncated system prompt from {system_tokens} to ~{max_system_tokens} tokens")
+            system_prompt = truncated_system_prompt
+            system_tokens = token_estimator.estimate_tokens(system_prompt)
+        
+        # Try to truncate user prompt if still too large
+        remaining_tokens = model_config.context_limit - system_tokens - max_response_tokens
+        if user_tokens > remaining_tokens:
+            truncated_user_prompt = _truncate_text_to_tokens(prompt, remaining_tokens)
+            logger.warning(f"Truncated user prompt from {user_tokens} to ~{remaining_tokens} tokens")
+            prompt = truncated_user_prompt
+            user_tokens = token_estimator.estimate_tokens(prompt)
+        
+        # Final check
+        final_total = system_tokens + user_tokens + max_response_tokens
+        if final_total > model_config.context_limit:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Request too large even after truncation: {final_total} tokens > {model_config.context_limit} limit for {model_name}"
+            )
     
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -59,7 +112,7 @@ async def call_openai_api(model: str, prompt: str, system_prompt: str) -> str:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}
         ],
-        "max_tokens": 1000,
+        "max_tokens": max_response_tokens,
         "temperature": 0.7
     }
     
@@ -69,7 +122,7 @@ async def call_openai_api(model: str, prompt: str, system_prompt: str) -> str:
                 "https://api.openai.com/v1/chat/completions",
                 headers=headers,
                 json=payload,
-                timeout=30.0
+                timeout=60.0  # Increased timeout for potentially large requests
             )
             response.raise_for_status()
             
@@ -77,9 +130,22 @@ async def call_openai_api(model: str, prompt: str, system_prompt: str) -> str:
             return result["choices"][0]["message"]["content"]
             
         except httpx.HTTPStatusError as e:
+            error_detail = e.response.text if hasattr(e.response, 'text') else str(e)
+            
+            # Handle token limit errors specifically
+            if e.response.status_code == 400 and any(phrase in error_detail.lower() for phrase in [
+                "context_length_exceeded", "context limit", "max_tokens",
+                "input length", "exceed", "token"
+            ]):
+                logger.error(f"Token limit error from OpenAI: {error_detail}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Request exceeds model token limits. Please reduce input size or try a different approach."
+                )
+            
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"OpenAI API error: {e.response.status_code}"
+                detail=f"OpenAI API error: {e.response.status_code} - {error_detail}"
             )
         except httpx.TimeoutException:
             raise HTTPException(
@@ -91,6 +157,33 @@ async def call_openai_api(model: str, prompt: str, system_prompt: str) -> str:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to call OpenAI API: {str(e)}"
             )
+
+
+def _truncate_text_to_tokens(text: str, max_tokens: int) -> str:
+    """Truncate text to approximately fit within token limit"""
+    if not text:
+        return text
+    
+    # Estimate current tokens
+    current_tokens = token_estimator.estimate_tokens(text)
+    
+    if current_tokens <= max_tokens:
+        return text
+    
+    # Calculate approximate character limit (conservative estimate: 3 chars per token)
+    max_chars = max_tokens * 3
+    
+    if len(text) <= max_chars:
+        return text
+    
+    # Truncate at word boundary
+    truncated = text[:max_chars]
+    last_space = truncated.rfind(' ')
+    
+    if last_space > max_chars * 0.8:  # If we can find a space in the last 20%
+        truncated = truncated[:last_space]
+    
+    return truncated + "... [truncated due to length]"
 
 
 def create_system_prompt(agent) -> str:

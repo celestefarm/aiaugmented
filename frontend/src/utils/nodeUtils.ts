@@ -250,6 +250,13 @@ export async function generateSmartDisplayTitle(
   console.log('Context:', context);
   console.log('Node summarized_titles:', node.summarized_titles);
   
+  // CRITICAL FIX: Check for valid node ID before making API calls
+  if (!node.id || node.id === 'undefined' || typeof node.id !== 'string') {
+    console.error('🚫 [generateSmartDisplayTitle] Invalid node ID:', node.id);
+    console.log('Using fallback title due to invalid node ID');
+    return generateDisplayTitle(node.title, node.description, context);
+  }
+  
   const maxLengths = {
     card: 25,
     tooltip: 40,
@@ -278,7 +285,7 @@ export async function generateSmartDisplayTitle(
 
   // Try to get a new summarized title from the backend
   try {
-    console.log('Calling summarizeNodeTitle API...');
+    console.log('Calling summarizeNodeTitle API with valid node ID:', node.id);
     const result = await summarizeNodeTitle(node.id, context, maxLength);
     console.log('API result:', result);
     return result.summarized_title;
@@ -329,6 +336,11 @@ export function useSmartDisplayTitle(
         isLoading: false,
         refresh: async () => {
           try {
+            // CRITICAL FIX: Check for valid node ID before making API calls
+            if (!node.id || node.id === 'undefined' || typeof node.id !== 'string') {
+              console.error('🚫 [useSmartDisplayTitle] Invalid node ID for refresh:', node.id);
+              return;
+            }
             await summarizeNodeTitle(node.id, context, maxLength);
           } catch (error) {
             console.warn(`Failed to refresh summarized title:`, error);
@@ -346,6 +358,11 @@ export function useSmartDisplayTitle(
     isLoading: true,
     refresh: async () => {
       try {
+        // CRITICAL FIX: Check for valid node ID before making API calls
+        if (!node.id || node.id === 'undefined' || typeof node.id !== 'string') {
+          console.error('🚫 [useSmartDisplayTitle] Invalid node ID for refresh:', node.id);
+          return;
+        }
         await summarizeNodeTitle(node.id, context, maxLength);
         // Note: The actual title update would need to be handled by the component
         // since this is a pure function

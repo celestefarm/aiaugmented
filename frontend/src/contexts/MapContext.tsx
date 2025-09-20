@@ -247,14 +247,22 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
   }, [loadMapData]);
 
   // Auto-arrange nodes to prevent overlapping
-  const autoArrangeNodes = useCallback(async (): Promise<void> => {
+  const autoArrangeNodes = useCallback(async (interactionManager?: any): Promise<void> => {
     if (!currentWorkspace?.id) {
       setError('No workspace selected');
       return;
     }
 
+    // CRITICAL FIX: Check if currently dragging to prevent interference
+    if (interactionManager?.isDragging?.()) {
+      console.log('🚫 [MapContext] Cannot auto-arrange while dragging nodes');
+      setError('Cannot auto-arrange while dragging nodes');
+      return;
+    }
+
     try {
       setError(null);
+      console.log('🔄 [MapContext] Starting auto-arrange...');
       const response = await apiClient.autoArrangeNodes(currentWorkspace.id);
       console.log('Auto-arrange result:', response);
       
