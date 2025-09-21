@@ -1,0 +1,28 @@
+{
+  "name": "wild-beaver-climb",
+  "version": "1.0.0",
+  "description": "Agentic Boardroom - Strategic Decision Making Platform",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && python main.py",
+    "install:all": "npm run install:frontend && npm run install:backend",
+    "install:frontend": "cd frontend && npm install",
+    "install:backend": "cd backend && pip install -r requirements.txt",
+    "start": "npm run dev",
+    "setup": "npm run install:all && npm run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": [
+    "agentic",
+    "boardroom",
+    "strategic",
+    "decision-making",
+    "ai",
+    "collaboration"
+  ],
+  "author": "Wild Beaver Climb Team",
+  "license": "MIT"
+}

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -22,14 +23,15 @@ import {
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { 
-    workspaces, 
-    isLoading, 
-    error, 
-    loadWorkspaces, 
-    createWorkspace, 
+  const {
+    workspaces,
+    isLoading,
+    error,
+    loadWorkspaces,
+    createWorkspace,
+    updateWorkspace,
     deleteWorkspace,
-    selectWorkspace 
+    selectWorkspace
   } = useWorkspace();
 
   // Local state for create workspace dialog
@@ -101,31 +103,46 @@ const Dashboard: React.FC = () => {
 
   // Handle update workspace
   const handleUpdateWorkspace = async () => {
-    if (!editWorkspaceTitle.trim() || !editingWorkspace) return;
+    if (!editWorkspaceTitle.trim() || !editingWorkspace) {
+      console.log('❌ [EDIT-DEBUG] Validation failed - missing title or workspace');
+      console.log('  - editWorkspaceTitle:', editWorkspaceTitle);
+      console.log('  - editingWorkspace:', editingWorkspace);
+      return;
+    }
 
-    console.log('🔧 [EDIT-DEBUG] Updating workspace:', editingWorkspace.id, 'to:', editWorkspaceTitle.trim());
+    console.log('🔧 [EDIT-DEBUG] Starting workspace update process...');
+    console.log('  - Workspace ID:', editingWorkspace.id);
+    console.log('  - Current title:', editingWorkspace.title);
+    console.log('  - New title:', editWorkspaceTitle.trim());
+    console.log('  - updateWorkspace function available:', typeof updateWorkspace);
 
     try {
       setIsUpdating(true);
       
-      // TODO: Implement actual workspace update API call
-      // For now, we'll just simulate the update
-      console.log('🔧 [EDIT-DEBUG] Simulating workspace update...');
+      console.log('🔧 [EDIT-DEBUG] CRITICAL ISSUE IDENTIFIED: Currently only simulating update!');
+      console.log('🔧 [EDIT-DEBUG] The actual updateWorkspace API call is commented out as TODO');
+      console.log('🔧 [EDIT-DEBUG] This is why changes are not persisted to the database');
       
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // ACTUAL API CALL - Replace the simulation with real API call
+      console.log('🔧 [EDIT-DEBUG] Calling actual updateWorkspace API...');
+      const updatedWorkspace = await updateWorkspace(editingWorkspace.id, {
+        title: editWorkspaceTitle.trim()
+      });
+      
+      console.log('✅ [EDIT-DEBUG] API call successful, updated workspace:', updatedWorkspace);
       
       // Close dialog and reset state
       setShowEditDialog(false);
       setEditingWorkspace(null);
       setEditWorkspaceTitle('');
       
-      // Refresh workspaces to show updated data
-      await loadWorkspaces();
-      
-      console.log('✅ [EDIT-DEBUG] Workspace update completed successfully');
+      console.log('✅ [EDIT-DEBUG] Workspace update completed successfully with real API call');
     } catch (error) {
       console.error('❌ [EDIT-DEBUG] Failed to update workspace:', error);
+      console.error('❌ [EDIT-DEBUG] Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : 'No stack trace'
+      });
     } finally {
       setIsUpdating(false);
     }
@@ -435,159 +452,224 @@ const Dashboard: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Workspace Dialog - Glass Effect with Inline Styles */}
+      {/* Edit Workspace Dialog - Enhanced Glass Effect */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent
           className="max-w-md"
           style={{
-            background: 'rgba(0, 0, 0, 0.4)',
-            backdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
+            background: 'rgba(10, 10, 10, 0.3)',
+            backdropFilter: 'blur(40px) saturate(200%)',
+            WebkitBackdropFilter: 'blur(40px) saturate(200%)',
+            border: '1px solid rgba(107, 107, 58, 0.4)',
+            borderTop: '1px solid rgba(255, 255, 255, 0.3)',
+            borderLeft: '1px solid rgba(255, 255, 255, 0.2)',
             color: '#f3f4f6',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)',
-            borderRadius: '12px',
-            position: 'fixed',
-            left: '50%',
-            top: '50%',
-            zIndex: 50,
-            display: 'grid',
-            width: '100%',
-            transform: 'translate(-50%, -50%)',
-            gap: '1rem',
-            padding: '1.5rem'
+            boxShadow: `
+              0 32px 64px -12px rgba(0, 0, 0, 0.8),
+              0 0 0 1px rgba(107, 107, 58, 0.2),
+              inset 0 1px 0 rgba(255, 255, 255, 0.15),
+              inset 0 -1px 0 rgba(0, 0, 0, 0.3)
+            `,
+            borderRadius: '20px',
+            padding: '2.5rem',
+            position: 'relative',
+            overflow: 'hidden'
           }}
         >
-          <DialogHeader
-            className="pb-4"
+          {/* Glass reflection overlay */}
+          <div
             style={{
-              borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: '60%',
+              background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 50%, transparent 100%)',
+              pointerEvents: 'none',
+              borderRadius: '20px 20px 0 0',
+              zIndex: 1
             }}
-          >
-            <DialogTitle
-              className="text-xl font-semibold"
+          />
+          
+          {/* Content wrapper */}
+          <div style={{ position: 'relative', zIndex: 2 }}>
+            <DialogHeader
+              className="pb-4"
               style={{
-                background: 'linear-gradient(to right, #facc15, #fde047, #eab308)',
-                WebkitBackgroundClip: 'text',
-                backgroundClip: 'text',
-                color: 'transparent',
-                fontSize: '1.25rem',
-                fontWeight: '600'
+                borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
               }}
             >
-              Edit Workspace
-            </DialogTitle>
-          </DialogHeader>
-          
-          <div className="space-y-6 py-4">
-            <div>
-              <Label
-                htmlFor="edit-workspace-title"
-                className="text-sm font-medium mb-3 block"
+              <DialogTitle
+                className="text-xl font-semibold"
                 style={{
-                  color: '#e5e7eb',
-                  fontSize: '0.875rem',
-                  fontWeight: '500',
-                  marginBottom: '0.75rem',
-                  display: 'block'
+                  background: 'linear-gradient(to right, #facc15, #fde047, #eab308)',
+                  WebkitBackgroundClip: 'text',
+                  backgroundClip: 'text',
+                  color: 'transparent',
+                  fontSize: '1.25rem',
+                  fontWeight: '600'
                 }}
               >
-                Workspace Title
-              </Label>
-              <Input
-                id="edit-workspace-title"
-                value={editWorkspaceTitle}
-                onChange={(e) => setEditWorkspaceTitle(e.target.value)}
-                placeholder="Enter workspace title..."
-                className="rounded-md px-3 py-2 transition-all"
-                style={{
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  backdropFilter: 'blur(4px)',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                  color: '#f3f4f6',
-                  outline: 'none',
-                  width: '100%'
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = 'rgba(234, 179, 8, 0.5)';
-                  e.target.style.boxShadow = '0 0 0 2px rgba(234, 179, 8, 0.2)';
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-                  e.target.style.boxShadow = 'none';
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !isUpdating) {
-                    handleUpdateWorkspace();
-                  }
-                }}
-              />
+                Edit Workspace
+              </DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-6 py-4">
+              <div>
+                <Label
+                  htmlFor="edit-workspace-title"
+                  className="text-sm font-medium mb-3 block"
+                  style={{
+                    color: '#e5e7eb',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    marginBottom: '0.75rem',
+                    display: 'block'
+                  }}
+                >
+                  Workspace Title
+                </Label>
+                <Input
+                  id="edit-workspace-title"
+                  value={editWorkspaceTitle}
+                  onChange={(e) => setEditWorkspaceTitle(e.target.value)}
+                  placeholder="Enter workspace title..."
+                  className="rounded-lg px-4 py-3 transition-all duration-300"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%)',
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderTop: '1px solid rgba(255, 255, 255, 0.25)',
+                    color: '#f3f4f6',
+                    outline: 'none',
+                    width: '100%',
+                    fontSize: '0.95rem',
+                    fontWeight: '500',
+                    boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.1)'
+                  }}
+                  onFocus={(e) => {
+                    const target = e.target as HTMLElement;
+                    target.style.borderColor = 'rgba(107, 107, 58, 0.6)';
+                    target.style.boxShadow = `
+                      0 0 0 3px rgba(107, 107, 58, 0.15),
+                      inset 0 1px 2px rgba(0, 0, 0, 0.1),
+                      0 4px 12px rgba(107, 107, 58, 0.1)
+                    `;
+                    target.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%)';
+                  }}
+                  onBlur={(e) => {
+                    const target = e.target as HTMLElement;
+                    target.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+                    target.style.boxShadow = 'inset 0 1px 2px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.1)';
+                    target.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%)';
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !isUpdating) {
+                      handleUpdateWorkspace();
+                    }
+                  }}
+                />
+              </div>
             </div>
-          </div>
-          
-          <div
-            className="flex justify-end space-x-3 pt-4"
-            style={{
-              borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-              paddingTop: '1rem'
-            }}
-          >
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowEditDialog(false);
-                setEditingWorkspace(null);
-                setEditWorkspaceTitle('');
-              }}
-              disabled={isUpdating}
-              className="px-4 py-2 rounded-md transition-all"
+            
+            <div
+              className="flex justify-end space-x-3 pt-4"
               style={{
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                color: '#d1d5db',
-                backdropFilter: 'blur(4px)'
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.background = 'rgba(255, 255, 255, 0.1)';
-                e.target.style.color = '#ffffff';
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.background = 'rgba(255, 255, 255, 0.05)';
-                e.target.style.color = '#d1d5db';
+                borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+                paddingTop: '1rem'
               }}
             >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleUpdateWorkspace}
-              disabled={!editWorkspaceTitle.trim() || isUpdating}
-              className="px-4 py-2 rounded-md transition-all flex items-center gap-2"
-              style={{
-                background: 'linear-gradient(to right, #ca8a04, #eab308)',
-                color: '#000000',
-                fontWeight: '500',
-                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3)',
-                backdropFilter: 'blur(4px)',
-                border: 'none'
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.background = 'linear-gradient(to right, #eab308, #facc15)';
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.background = 'linear-gradient(to right, #ca8a04, #eab308)';
-              }}
-            >
-              {isUpdating ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Updating...
-                </>
-              ) : (
-                <>
-                  <Edit className="w-4 h-4" />
-                  Update
-                </>
-              )}
-            </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowEditDialog(false);
+                  setEditingWorkspace(null);
+                  setEditWorkspaceTitle('');
+                }}
+                disabled={isUpdating}
+                className="px-5 py-2.5 rounded-lg transition-all duration-300 font-medium"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderTop: '1px solid rgba(255, 255, 255, 0.25)',
+                  color: '#d1d5db',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  boxShadow: 'inset 0 1px 2px rgba(255, 255, 255, 0.1), 0 2px 4px rgba(0, 0, 0, 0.1)'
+                }}
+                onMouseEnter={(e) => {
+                  const target = e.target as HTMLElement;
+                  target.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%)';
+                  target.style.color = '#ffffff';
+                  target.style.borderColor = 'rgba(255, 255, 255, 0.25)';
+                  target.style.transform = 'translateY(-1px)';
+                  target.style.boxShadow = 'inset 0 1px 2px rgba(255, 255, 255, 0.15), 0 4px 8px rgba(0, 0, 0, 0.15)';
+                }}
+                onMouseLeave={(e) => {
+                  const target = e.target as HTMLElement;
+                  target.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%)';
+                  target.style.color = '#d1d5db';
+                  target.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+                  target.style.transform = 'translateY(0)';
+                  target.style.boxShadow = 'inset 0 1px 2px rgba(255, 255, 255, 0.1), 0 2px 4px rgba(0, 0, 0, 0.1)';
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleUpdateWorkspace}
+                disabled={!editWorkspaceTitle.trim() || isUpdating}
+                className="px-5 py-2.5 rounded-lg transition-all duration-300 flex items-center gap-2 font-medium"
+                style={{
+                  background: 'linear-gradient(135deg, #ca8a04 0%, #eab308 50%, #facc15 100%)',
+                  color: '#000000',
+                  fontWeight: '600',
+                  boxShadow: `
+                    0 0 0 1px rgba(107, 107, 58, 0.3),
+                    0 4px 12px rgba(107, 107, 58, 0.3),
+                    inset 0 1px 2px rgba(255, 255, 255, 0.2)
+                  `,
+                  backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(107, 107, 58, 0.4)',
+                  borderTop: '1px solid rgba(255, 255, 255, 0.3)'
+                }}
+                onMouseEnter={(e) => {
+                  const target = e.target as HTMLElement;
+                  target.style.background = 'linear-gradient(135deg, #eab308 0%, #facc15 50%, #fde047 100%)';
+                  target.style.transform = 'translateY(-1px)';
+                  target.style.boxShadow = `
+                    0 0 0 1px rgba(107, 107, 58, 0.4),
+                    0 6px 16px rgba(107, 107, 58, 0.4),
+                    inset 0 1px 2px rgba(255, 255, 255, 0.3)
+                  `;
+                }}
+                onMouseLeave={(e) => {
+                  const target = e.target as HTMLElement;
+                  target.style.background = 'linear-gradient(135deg, #ca8a04 0%, #eab308 50%, #facc15 100%)';
+                  target.style.transform = 'translateY(0)';
+                  target.style.boxShadow = `
+                    0 0 0 1px rgba(107, 107, 58, 0.3),
+                    0 4px 12px rgba(107, 107, 58, 0.3),
+                    inset 0 1px 2px rgba(255, 255, 255, 0.2)
+                  `;
+                }}
+              
+              >
+                {isUpdating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  <>
+                    <Edit className="w-4 h-4" />
+                    Update
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
