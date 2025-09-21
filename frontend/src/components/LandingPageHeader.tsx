@@ -1,15 +1,46 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
+import LoginForm from './auth/LoginForm';
+import SignupForm from './auth/SignupForm';
 
 const LandingPageHeader: React.FC = () => {
   const navigate = useNavigate();
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [isSignupOpen, setIsSignupOpen] = useState(false);
 
   const handleSignIn = () => {
-    navigate('/auth');
+    console.log('🔍 DEBUG: Sign In button clicked - Opening modal');
+    setIsLoginOpen(true);
   };
 
   const handleSignUp = () => {
-    navigate('/auth');
+    console.log('🔍 DEBUG: Sign Up button clicked - Opening modal');
+    setIsSignupOpen(true);
+  };
+
+  const handleAuthSuccess = () => {
+    console.log('🔍 DEBUG: Auth success - Closing modals and navigating');
+    setIsLoginOpen(false);
+    setIsSignupOpen(false);
+    navigate('/dashboard');
+  };
+
+  const handleSwitchToSignup = () => {
+    console.log('🔍 DEBUG: Switching from login to signup');
+    setIsLoginOpen(false);
+    setIsSignupOpen(true);
+  };
+
+  const handleSwitchToLogin = () => {
+    console.log('🔍 DEBUG: Switching from signup to login');
+    setIsSignupOpen(false);
+    setIsLoginOpen(true);
   };
 
   return (
@@ -88,6 +119,32 @@ const LandingPageHeader: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Login Modal */}
+      <Dialog open={isLoginOpen} onOpenChange={setIsLoginOpen}>
+        <DialogContent className="sm:max-w-md bg-[#1A1A1A] border-[#333333]">
+          <DialogHeader>
+            <DialogTitle className="text-[#E5E7EB]">Welcome Back</DialogTitle>
+          </DialogHeader>
+          <LoginForm
+            onSwitchToSignup={handleSwitchToSignup}
+            onSuccess={handleAuthSuccess}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Signup Modal */}
+      <Dialog open={isSignupOpen} onOpenChange={setIsSignupOpen}>
+        <DialogContent className="sm:max-w-md bg-[#1A1A1A] border-[#333333]">
+          <DialogHeader>
+            <DialogTitle className="text-[#E5E7EB]">Create Account</DialogTitle>
+          </DialogHeader>
+          <SignupForm
+            onSwitchToLogin={handleSwitchToLogin}
+            onSuccess={handleAuthSuccess}
+          />
+        </DialogContent>
+      </Dialog>
     </header>
   );
 };

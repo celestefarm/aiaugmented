@@ -33,9 +33,8 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToSignup, onSuccess }) =>
   };
 
   return (
-    <div className="w-full max-w-md mx-auto p-6 bg-[#1A1A1A] rounded-lg border border-[#333333]">
+    <div className="w-full">
       <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold text-[#E5E7EB] mb-2">Welcome Back</h2>
         <p className="text-[#9CA3AF]">Sign in to your account</p>
       </div>
 

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glass Effect Particles Test</title>
+    <link rel="stylesheet" href="frontend/src/styles/orbit-animation.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #0a0a0a;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        
+        .test-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .particles-demo {
+            position: relative;
+            width: 800px;
+            height: 600px;
+        }
+        
+        .test-title {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-size: 24px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <div class="test-title">Glass Effect Particles Test</div>
+        <div class="particles-demo">
+            <!-- Small square glass particles -->
+            <div class="floating-object small-square speed-slow" style="top: 100px; left: 150px;"></div>
+            <div class="floating-object small-square speed-medium" style="top: 200px; left: 300px;"></div>
+            <div class="floating-object small-square speed-fast" style="top: 150px; left: 500px;"></div>
+            
+            <!-- Large square glass particles -->
+            <div class="floating-object large-square speed-slow" style="top: 250px; left: 200px;"></div>
+            <div class="floating-object large-square speed-medium" style="top: 350px; left: 400px;"></div>
+            <div class="floating-object large-square speed-fast" style="top: 300px; left: 600px;"></div>
+            
+            <!-- Rectangle glass particles -->
+            <div class="floating-object rectangle speed-slow" style="top: 180px; left: 100px;"></div>
+            <div class="floating-object rectangle speed-medium" style="top: 320px; left: 350px;"></div>
+            <div class="floating-object rectangle speed-fast" style="top: 400px; left: 550px;"></div>
+            
+            <!-- Dot glass particles -->
+            <div class="floating-object dot speed-slow" style="top: 120px; left: 250px;"></div>
+            <div class="floating-object dot speed-medium" style="top: 280px; left: 450px;"></div>
+            <div class="floating-object dot speed-fast" style="top: 380px; left: 650px;"></div>
+            <div class="floating-object dot speed-slow" style="top: 220px; left: 120px;"></div>
+            <div class="floating-object dot speed-medium" style="top: 160px; left: 380px;"></div>
+            
+            <!-- Additional particles for better effect -->
+            <div class="floating-object small-square speed-fast" style="top: 80px; left: 400px;"></div>
+            <div class="floating-object large-square speed-slow" style="top: 420px; left: 250px;"></div>
+            <div class="floating-object rectangle speed-medium" style="top: 60px; left: 600px;"></div>
+            <div class="floating-object dot speed-fast" style="top: 340px; left: 180px;"></div>
+            <div class="floating-object small-square speed-slow" style="top: 480px; left: 480px;"></div>
+        </div>
+    </div>
+</body>
+</html>

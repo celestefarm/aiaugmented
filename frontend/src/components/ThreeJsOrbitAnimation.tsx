@@ -1,49 +1,54 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
 
+// Enhanced design constants to match the target image
+const DESIGN_CONFIG = {
+  // Ultra-vibrant color palette matching the target image exactly
+  colors: {
+    human: {
+      primary: [0xFFFF00, 0xFFD700, 0xFF8C00, 0xFF6347, 0xFF4500, 0xDC143C, 0xB22222], // Bright yellows, golds, oranges, reds
+      secondary: [0xFFA500, 0xFF7F00, 0xFF4500, 0xDC143C, 0xB22222, 0x8B0000, 0x800000], // Darker warm variants
+      glow: 0xFFFF00, // Bright yellow glow
+      emissive: 0xFF8C00 // Bright orange emissive
+    },
+    ai: {
+      primary: [0x00FFFF, 0x00BFFF, 0x1E90FF, 0x4169E1, 0x6A5ACD, 0x8A2BE2, 0x9932CC], // Bright cyans, blues, purples
+      secondary: [0x0080FF, 0x0066CC, 0x4B0082, 0x6A0DAD, 0x8B008B, 0x9400D3, 0x4B0082], // Darker cool variants
+      glow: 0x00FFFF, // Bright cyan glow
+      emissive: 0x00BFFF // Bright blue emissive
+    },
+    center: 0xFFFFFF, // Bright white for central flare
+    background: 0x0a0a0a, // Dark space
+    stars: 0xFFFFFF // White stars
+  },
+  
+  // Animation parameters for ultra-dense, complex motion
+  animation: {
+    orbitSpeed: 0.08, // Reduced speed for more elegant, slower movement
+    objectCount: 249, // Increased particle count by another 50% for ultra-maximum visual density
+    cameraDistance: 25,
+    breathingAmplitude: 0.4,
+    ringCount: 8 // More concentric rings for complexity
+  },
+  
+  // Complex orbital layout - wider orbits with increased radii
+  layout: {
+    baseRadius: 4.0,
+    maxRadius: 8.0,
+    centerOffset: 0,
+    ringSpacing: 0.7
+  }
+};
+
 interface ThreeJsOrbitAnimationProps {
   className?: string;
 }
 
-// Error boundary for Three.js failures
-const withErrorBoundary = (Component: React.ComponentType<any>) => {
-  return (props: any) => {
-    const [hasError, setHasError] = useState(false);
-    
-    useEffect(() => {
-      const handleError = (error: ErrorEvent) => {
-        if (error.message.includes('WebGL') || error.message.includes('three')) {
-          console.warn('Three.js error detected, falling back to CSS animation:', error);
-          setHasError(true);
-        }
-      };
-      
-      window.addEventListener('error', handleError);
-      return () => window.removeEventListener('error', handleError);
-    }, []);
-    
-    if (hasError) {
-      return (
-        <div className="threejs-fallback orbit-animation-container">
-          {/* Fallback CSS animation would go here */}
-          <div className="css-orbit-fallback">
-            <div className="fallback-message">Loading animation...</div>
-          </div>
-        </div>
-      );
-    }
-    
-    return <Component {...props} />;
-  };
-};
-
-interface OrbitSystem {
+interface ComplexOrbitSystem {
   objects: THREE.Mesh[];
   trails: THREE.Line[];
+  rings: THREE.Line[];
   center: THREE.Vector3;
-  radius: number;
-  speed: number;
-  color: THREE.Color;
   type: 'human' | 'ai';
 }
 
@@ -53,9 +58,9 @@ const ThreeJsOrbitAnimation: React.FC<ThreeJsOrbitAnimationProps> = ({ className
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const animationIdRef = useRef<number | null>(null);
-  const mouseRef = useRef<THREE.Vector2>(new THREE.Vector2());
-  const orbitSystemsRef = useRef<OrbitSystem[]>([]);
   const clockRef = useRef<THREE.Clock>(new THREE.Clock());
+  const orbitSystemsRef = useRef<ComplexOrbitSystem[]>([]);
+  const mouseRef = useRef<THREE.Vector2>(new THREE.Vector2());
   
   const [isLoaded, setIsLoaded] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -71,7 +76,7 @@ const ThreeJsOrbitAnimation: React.FC<ThreeJsOrbitAnimationProps> = ({ className
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
 
-  // Mouse tracking for gravitational effects
+  // Mouse tracking for subtle interaction
   const handleMouseMove = useCallback((event: MouseEvent) => {
     if (!mountRef.current) return;
     
@@ -80,194 +85,182 @@ const ThreeJsOrbitAnimation: React.FC<ThreeJsOrbitAnimationProps> = ({ className
     mouseRef.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
   }, []);
 
-  // Create orbital objects with luxury materials and sophisticated design
-  const createOrbitSystem = useCallback((
+  // Create varied polyhedral geometries - smaller sizes for more delicate appearance
+  const createPolyhedralGeometry = useCallback((index: number): THREE.BufferGeometry => {
+    const geometries = [
+      () => new THREE.IcosahedronGeometry(0.15 + Math.random() * 0.2, 0),
+      () => new THREE.DodecahedronGeometry(0.15 + Math.random() * 0.2, 0),
+      () => new THREE.OctahedronGeometry(0.15 + Math.random() * 0.2, 0),
+      () => new THREE.TetrahedronGeometry(0.2 + Math.random() * 0.25, 0),
+      () => new THREE.BoxGeometry(0.2 + Math.random() * 0.15, 0.2 + Math.random() * 0.15, 0.2 + Math.random() * 0.15),
+      () => new THREE.ConeGeometry(0.15 + Math.random() * 0.1, 0.3 + Math.random() * 0.2, 6),
+      () => new THREE.CylinderGeometry(0.1 + Math.random() * 0.1, 0.1 + Math.random() * 0.1, 0.2 + Math.random() * 0.15, 8)
+    ];
+    
+    const geometryIndex = Math.floor(Math.random() * geometries.length);
+    return geometries[geometryIndex]();
+  }, []);
+
+
+  // Create complex orbital system with multiple rings
+  const createComplexOrbitSystem = useCallback((
     type: 'human' | 'ai',
-    centerOffset: THREE.Vector3,
-    baseRadius: number,
-    color: THREE.Color,
-    objectCount: number
-  ): OrbitSystem => {
+    centerPosition: THREE.Vector3
+  ): ComplexOrbitSystem => {
     const objects: THREE.Mesh[] = [];
     const trails: THREE.Line[] = [];
+    const rings: THREE.Line[] = [];
     
-    for (let i = 0; i < objectCount; i++) {
-      // Create sophisticated geometric shapes with higher detail
-      const objectType = Math.random();
-      let geometry: THREE.BufferGeometry;
-      
-      if (objectType < 0.25) {
-        // Premium crystalline structures
-        geometry = new THREE.OctahedronGeometry(0.6, 1);
-      } else if (objectType < 0.5) {
-        // Luxury spheres with high detail
-        geometry = new THREE.SphereGeometry(0.5, 16, 12);
-      } else if (objectType < 0.75) {
-        // Elegant dodecahedrons
-        geometry = new THREE.DodecahedronGeometry(0.4, 0);
-      } else {
-        // Sophisticated icosahedrons
-        geometry = new THREE.IcosahedronGeometry(0.5, 1);
+    const colorConfig = type === 'human' ? DESIGN_CONFIG.colors.human : DESIGN_CONFIG.colors.ai;
+
+    // Create multiple concentric orbital rings
+    for (let ring = 0; ring < DESIGN_CONFIG.animation.ringCount; ring++) {
+      const ringRadius = DESIGN_CONFIG.layout.baseRadius + (ring * DESIGN_CONFIG.layout.ringSpacing);
+      const objectsInRing = Math.floor(DESIGN_CONFIG.animation.objectCount / DESIGN_CONFIG.animation.ringCount) + Math.floor(Math.random() * 5);
+
+      // Ring visualization removed for cleaner look
+
+      // Create objects in this ring
+      for (let i = 0; i < objectsInRing; i++) {
+        const geometry = createPolyhedralGeometry(i);
+        
+        // Select random color from palette
+        const colorIndex = Math.floor(Math.random() * colorConfig.primary.length);
+        const primaryColor = colorConfig.primary[colorIndex];
+        const secondaryColor = colorConfig.secondary[colorIndex];
+        
+        const material = new THREE.MeshPhysicalMaterial({
+          color: new THREE.Color(primaryColor),
+          metalness: 0.1,
+          roughness: 0.02,
+          clearcoat: 1.0,
+          clearcoatRoughness: 0.01,
+          transmission: 0.8, // Glass transmission
+          thickness: 0.3, // Glass thickness
+          ior: 1.5, // Index of refraction for glass
+          emissive: new THREE.Color(colorConfig.emissive),
+          emissiveIntensity: 0.1 + Math.random() * 0.2, // Reduced for glass effect
+          transparent: true,
+          opacity: 0.2 + Math.random() * 0.3, // Much more transparent for glass effect
+          side: THREE.DoubleSide,
+          envMapIntensity: 1.5
+        });
+
+        const object = new THREE.Mesh(geometry, material);
+        
+        // Position objects along ring
+        const angle = (i / objectsInRing) * Math.PI * 2;
+        const radiusVariation = ringRadius + (Math.random() - 0.5) * 0.5;
+        const heightVariation = (Math.random() - 0.5) * 2;
+        
+        object.position.set(
+          centerPosition.x + Math.cos(angle) * radiusVariation,
+          centerPosition.y + heightVariation,
+          centerPosition.z + Math.sin(angle) * radiusVariation
+        );
+
+        // Store orbital properties
+        object.userData = {
+          originalRadius: radiusVariation,
+          angle: angle,
+          speed: 0.5 + Math.random() * 1.0,
+          ring: ring,
+          pulsePhase: Math.random() * Math.PI * 2,
+          type: type,
+          rotationSpeed: {
+            x: (Math.random() - 0.5) * 0.02,
+            y: (Math.random() - 0.5) * 0.02,
+            z: (Math.random() - 0.5) * 0.02
+          }
+        };
+
+        objects.push(object);
+
+        // Particle trails removed for cleaner look
       }
-      
-      // Create premium materials with metallic and glass-like finishes
-      let material: THREE.Material;
-      
-      if (type === 'human') {
-        // Human system: Warm luxury materials (gold, copper, amber)
-        const materialType = Math.random();
-        if (materialType < 0.4) {
-          // Metallic gold finish
-          material = new THREE.MeshStandardMaterial({
-            color: new THREE.Color(0xffd700).multiplyScalar(0.9),
-            metalness: 0.9,
-            roughness: 0.1,
-            emissive: new THREE.Color(0xff8c42).multiplyScalar(0.05),
-            transparent: true,
-            opacity: 0.95
-          });
-        } else if (materialType < 0.7) {
-          // Copper/bronze finish
-          material = new THREE.MeshStandardMaterial({
-            color: new THREE.Color(0xb87333).multiplyScalar(1.1),
-            metalness: 0.8,
-            roughness: 0.2,
-            emissive: new THREE.Color(0xff6b35).multiplyScalar(0.08),
-            transparent: true,
-            opacity: 0.9
-          });
-        } else {
-          // Amber crystal finish
-          material = new THREE.MeshPhysicalMaterial({
-            color: new THREE.Color(0xffbf00),
-            metalness: 0.1,
-            roughness: 0.05,
-            transmission: 0.3,
-            thickness: 0.5,
-            emissive: new THREE.Color(0xff8c42).multiplyScalar(0.1),
-            transparent: true,
-            opacity: 0.85
-          });
-        }
-      } else {
-        // AI system: Cool luxury materials (platinum, sapphire, diamond)
-        const materialType = Math.random();
-        if (materialType < 0.4) {
-          // Platinum finish
-          material = new THREE.MeshStandardMaterial({
-            color: new THREE.Color(0xe5e4e2).multiplyScalar(1.1),
-            metalness: 0.95,
-            roughness: 0.05,
-            emissive: new THREE.Color(0x06b6d4).multiplyScalar(0.06),
-            transparent: true,
-            opacity: 0.95
-          });
-        } else if (materialType < 0.7) {
-          // Sapphire blue metallic
-          material = new THREE.MeshStandardMaterial({
-            color: new THREE.Color(0x0f4c75).multiplyScalar(1.3),
-            metalness: 0.85,
-            roughness: 0.15,
-            emissive: new THREE.Color(0x06b6d4).multiplyScalar(0.08),
-            transparent: true,
-            opacity: 0.9
-          });
-        } else {
-          // Diamond crystal finish
-          material = new THREE.MeshPhysicalMaterial({
-            color: new THREE.Color(0xffffff),
-            metalness: 0.0,
-            roughness: 0.0,
-            transmission: 0.4,
-            thickness: 0.3,
-            ior: 2.4,
-            emissive: new THREE.Color(0x06b6d4).multiplyScalar(0.05),
-            transparent: true,
-            opacity: 0.8
-          });
-        }
-      }
-      
-      const object = new THREE.Mesh(geometry, material);
-      
-      // Position objects in orbital rings
-      const angle = (i / objectCount) * Math.PI * 2;
-      const radiusVariation = baseRadius + (Math.random() - 0.5) * baseRadius * 0.3;
-      const heightVariation = (Math.random() - 0.5) * 2;
-      
-      object.position.set(
-        centerOffset.x + Math.cos(angle) * radiusVariation,
-        centerOffset.y + heightVariation,
-        centerOffset.z + Math.sin(angle) * radiusVariation
-      );
-      
-      // Store orbital properties
-      object.userData = {
-        originalRadius: radiusVariation,
-        angle: angle,
-        speed: (0.5 + Math.random() * 0.5) * (type === 'ai' ? 1.2 : 0.8),
-        heightOffset: heightVariation,
-        originalY: centerOffset.y + heightVariation,
-        type: type
-      };
-      
-      objects.push(object);
-      
-      // Create sophisticated particle trails with premium effects
-      const trailGeometry = new THREE.BufferGeometry();
-      const trailPositions = new Float32Array(90); // 30 points * 3 coordinates for smoother trails
-      trailGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
-      
-      // Premium trail materials with gradient effects
-      const trailMaterial = new THREE.LineBasicMaterial({
-        color: type === 'human' ?
-          new THREE.Color(0xffd700).multiplyScalar(0.6) :
-          new THREE.Color(0x06b6d4).multiplyScalar(0.7),
-        transparent: true,
-        opacity: 0.6,
-        blending: THREE.AdditiveBlending,
-        linewidth: 2
-      });
-      
-      const trail = new THREE.Line(trailGeometry, trailMaterial);
-      trail.userData = { positions: [], maxLength: 30 };
-      trails.push(trail);
     }
-    
+
     return {
       objects,
       trails,
-      center: centerOffset,
-      radius: baseRadius,
-      speed: type === 'ai' ? 1.0 : 0.8,
-      color,
+      rings,
+      center: centerPosition,
       type
     };
+  }, [createPolyhedralGeometry]);
+
+  // Create central lens flare effect
+  const createCentralFlare = useCallback((position: THREE.Vector3): THREE.Group => {
+    const flareGroup = new THREE.Group();
+    
+    // Ultra-bright central core
+    const coreGeometry = new THREE.SphereGeometry(0.4, 16, 16);
+    const coreMaterial = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(DESIGN_CONFIG.colors.center),
+      transparent: true,
+      opacity: 1.0
+    });
+    const core = new THREE.Mesh(coreGeometry, coreMaterial);
+    flareGroup.add(core);
+
+    // Multiple bright glow rings
+    for (let i = 0; i < 5; i++) {
+      const glowGeometry = new THREE.RingGeometry(0.6 + i * 0.4, 0.9 + i * 0.4, 32);
+      const glowMaterial = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(DESIGN_CONFIG.colors.center),
+        transparent: true,
+        opacity: 0.6 - i * 0.1, // Brighter initial opacity
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending
+      });
+      const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+      glow.rotation.x = Math.random() * Math.PI;
+      glow.rotation.y = Math.random() * Math.PI;
+      flareGroup.add(glow);
+    }
+
+    // More prominent lens flare spikes
+    for (let i = 0; i < 12; i++) {
+      const spikeGeometry = new THREE.PlaneGeometry(0.15, 6);
+      const spikeMaterial = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(DESIGN_CONFIG.colors.center),
+        transparent: true,
+        opacity: 0.7, // Much brighter spikes
+        blending: THREE.AdditiveBlending
+      });
+      const spike = new THREE.Mesh(spikeGeometry, spikeMaterial);
+      spike.rotation.z = (i / 12) * Math.PI * 2;
+      flareGroup.add(spike);
+    }
+
+    flareGroup.position.copy(position);
+    return flareGroup;
   }, []);
 
-  // Initialize Three.js scene
-  const initThreeJS = useCallback(() => {
+
+  // Initialize scene without font loading
+  const initComplexThreeJS = useCallback(() => {
     if (!mountRef.current) return;
 
     // Scene setup
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a0a0a);
+    scene.background = new THREE.Color(DESIGN_CONFIG.colors.background);
     sceneRef.current = scene;
 
     // Camera setup
     const camera = new THREE.PerspectiveCamera(
-      75,
+      60,
       mountRef.current.clientWidth / mountRef.current.clientHeight,
       0.1,
       1000
     );
-    camera.position.set(0, 5, 15);
+    camera.position.set(0, 0, DESIGN_CONFIG.animation.cameraDistance);
     camera.lookAt(0, 0, 0);
     cameraRef.current = camera;
 
     // Renderer setup
-    const renderer = new THREE.WebGLRenderer({ 
-      antialias: true, 
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
       alpha: true,
       powerPreference: 'high-performance'
     });
@@ -275,319 +268,160 @@ const ThreeJsOrbitAnimation: React.FC<ThreeJsOrbitAnimationProps> = ({ className
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.2;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     rendererRef.current = renderer;
 
     mountRef.current.appendChild(renderer.domElement);
 
-    // Premium lighting setup for luxury appearance
-    const ambientLight = new THREE.AmbientLight(0x1a1a2e, 0.2);
+
+    // Enhanced lighting setup for more vibrant colors
+    const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
     scene.add(ambientLight);
 
-    // Main directional light with soft shadows
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
-    directionalLight.position.set(15, 20, 10);
-    directionalLight.castShadow = true;
-    directionalLight.shadow.mapSize.width = 4096;
-    directionalLight.shadow.mapSize.height = 4096;
-    directionalLight.shadow.camera.near = 0.1;
-    directionalLight.shadow.camera.far = 50;
-    directionalLight.shadow.bias = -0.0001;
-    scene.add(directionalLight);
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    keyLight.position.set(10, 10, 5);
+    keyLight.castShadow = true;
+    scene.add(keyLight);
 
-    // Luxury accent lights positioned behind text areas
-    const humanLight = new THREE.PointLight(0xffd700, 1.5, 25);
-    humanLight.position.set(-8, 2, -3); // Behind "Human Competence" text
-    humanLight.castShadow = true;
+    // Additional colored lights for vibrancy - positioned at text areas
+    const humanLight = new THREE.PointLight(DESIGN_CONFIG.colors.human.glow, 2.0, 20);
+    humanLight.position.set(-5, 0, 2);
     scene.add(humanLight);
 
-    const aiLight = new THREE.PointLight(0x00d4ff, 1.5, 25);
-    aiLight.position.set(8, 2, -3); // Behind "AI Core Intelligence" text
-    aiLight.castShadow = true;
+    const aiLight = new THREE.PointLight(DESIGN_CONFIG.colors.ai.glow, 2.0, 20);
+    aiLight.position.set(5, 0, 2);
     scene.add(aiLight);
 
-    // Additional rim lighting for premium effect
-    const rimLight1 = new THREE.DirectionalLight(0xffd700, 0.3);
-    rimLight1.position.set(-10, 0, -10);
-    scene.add(rimLight1);
-
-    const rimLight2 = new THREE.DirectionalLight(0x00d4ff, 0.3);
-    rimLight2.position.set(10, 0, -10);
-    scene.add(rimLight2);
-
-    // Atmospheric fog for depth
-    scene.fog = new THREE.Fog(0x0a0a0a, 20, 50);
-
-    // Create orbital systems positioned behind their corresponding text
-    const humanSystem = createOrbitSystem(
-      'human',
-      new THREE.Vector3(-8, 0, -5), // Positioned behind "Human Competence" text (left side)
-      4,
-      new THREE.Color(0xffd700), // Gold/yellow color to match text positioning
-      12
-    );
-
-    const aiSystem = createOrbitSystem(
-      'ai',
-      new THREE.Vector3(8, 0, -5), // Positioned behind "AI Core Intelligence" text (right side)
-      4,
-      new THREE.Color(0x06b6d4), // Cool cyan/blue color
-      12
-    );
-
+    // Create separate orbital systems centered on each text area with overlapping radii
+    // Move centers further apart and positioned at center level
+    const humanCenter = new THREE.Vector3(-5, 0, 0);  // Left text area - further left at center level
+    const aiCenter = new THREE.Vector3(5, 0, 0);      // Right text area - further right at center level
+    
+    // Create separate systems that will overlap in the middle
+    const humanSystem = createComplexOrbitSystem('human', humanCenter);
+    const aiSystem = createComplexOrbitSystem('ai', aiCenter);
+    
     orbitSystemsRef.current = [humanSystem, aiSystem];
 
-    // Add objects to scene
-    [...humanSystem.objects, ...aiSystem.objects].forEach(obj => {
-      scene.add(obj);
+    // Create groups for each orbital system to apply vertical rotation
+    const humanGroup = new THREE.Group();
+    const aiGroup = new THREE.Group();
+    
+    // Apply 90-degree rotation on X-axis to make orbits vertical
+    humanGroup.rotation.x = Math.PI / 2;
+    aiGroup.rotation.x = Math.PI / 2;
+    
+    // Position the groups at their respective centers
+    humanGroup.position.copy(humanCenter);
+    aiGroup.position.copy(aiCenter);
+
+    // Add all human system objects to human group
+    humanSystem.objects.forEach(obj => {
+      // Adjust object position relative to group center
+      obj.position.sub(humanCenter);
+      humanGroup.add(obj);
       obj.castShadow = true;
       obj.receiveShadow = true;
     });
 
-    // Add trails to scene
-    [...humanSystem.trails, ...aiSystem.trails].forEach(trail => {
-      scene.add(trail);
+    // Add all AI system objects to AI group
+    aiSystem.objects.forEach(obj => {
+      // Adjust object position relative to group center
+      obj.position.sub(aiCenter);
+      aiGroup.add(obj);
+      obj.castShadow = true;
+      obj.receiveShadow = true;
     });
 
-    // Create connecting lines between systems
-    const connectionGeometry = new THREE.BufferGeometry();
-    const connectionPositions = new Float32Array(6); // 2 points * 3 coordinates
-    connectionGeometry.setAttribute('position', new THREE.BufferAttribute(connectionPositions, 3));
+    // Trails removed for cleaner look
+
+    // Rings removed for cleaner look
     
-    const connectionMaterial = new THREE.LineBasicMaterial({
-      color: 0x666666,
-      transparent: true,
-      opacity: 0.2,
-      blending: THREE.AdditiveBlending
-    });
+    // Add groups to scene
+    scene.add(humanGroup);
+    scene.add(aiGroup);
     
-    const connectionLine = new THREE.Line(connectionGeometry, connectionMaterial);
-    scene.add(connectionLine);
+    // Store groups for animation updates
+    scene.userData.humanGroup = humanGroup;
+    scene.userData.aiGroup = aiGroup;
 
-    // Create refined radial burst effect with 50% fewer lines for cleaner aesthetic
-    const createLuxuryRadialBurst = (center: THREE.Vector3, color: THREE.Color, type: 'human' | 'ai') => {
-      const burstGroup = new THREE.Group();
-      
-      // Create multiple layers of radial lines for depth (reduced by 50%)
-      for (let layer = 0; layer < 3; layer++) {
-        for (let i = 0; i < 16; i++) { // Reduced from 32 to 16 lines per layer
-          const angle = (i / 16) * Math.PI * 2 + (layer * 0.1);
-          const length = 12 + Math.random() * 6 + (layer * 2);
-          const heightVariation = (Math.random() - 0.5) * 3;
-          
-          const geometry = new THREE.BufferGeometry();
-          const positions = new Float32Array([
-            center.x, center.y, center.z,
-            center.x + Math.cos(angle) * length,
-            center.y + heightVariation,
-            center.z + Math.sin(angle) * length
-          ]);
-          geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-          
-          // Premium line materials with metallic appearance
-          const lineColor = type === 'human' ?
-            new THREE.Color(0xffd700).multiplyScalar(0.4 + layer * 0.1) :
-            new THREE.Color(0x00d4ff).multiplyScalar(0.4 + layer * 0.1);
-            
-          const material = new THREE.LineBasicMaterial({
-            color: lineColor,
-            transparent: true,
-            opacity: (0.15 + Math.random() * 0.15) * (1 - layer * 0.2),
-            blending: THREE.AdditiveBlending,
-            linewidth: 1 + layer * 0.5
-          });
-          
-          const line = new THREE.Line(geometry, material);
-          line.userData = {
-            originalOpacity: material.opacity,
-            layer: layer,
-            angle: angle
-          };
-          burstGroup.add(line);
-        }
-      }
-      
-      return burstGroup;
-    };
-
-    const humanBurst = createLuxuryRadialBurst(humanSystem.center, humanSystem.color, 'human');
-    const aiBurst = createLuxuryRadialBurst(aiSystem.center, aiSystem.color, 'ai');
-    scene.add(humanBurst);
-    scene.add(aiBurst);
-
-    // Add atmospheric particles for premium ambiance
-    const createAtmosphericParticles = () => {
-      const particleCount = 200;
-      const geometry = new THREE.BufferGeometry();
-      const positions = new Float32Array(particleCount * 3);
-      const colors = new Float32Array(particleCount * 3);
-      
-      for (let i = 0; i < particleCount; i++) {
-        positions[i * 3] = (Math.random() - 0.5) * 60;
-        positions[i * 3 + 1] = (Math.random() - 0.5) * 40;
-        positions[i * 3 + 2] = (Math.random() - 0.5) * 60;
-        
-        // Mix of gold and cyan particles
-        const isGold = Math.random() > 0.5;
-        if (isGold) {
-          colors[i * 3] = 1.0;     // R
-          colors[i * 3 + 1] = 0.84; // G
-          colors[i * 3 + 2] = 0.0;  // B
-        } else {
-          colors[i * 3] = 0.0;     // R
-          colors[i * 3 + 1] = 0.83; // G
-          colors[i * 3 + 2] = 1.0;  // B
-        }
-      }
-      
-      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-      
-      const material = new THREE.PointsMaterial({
-        size: 0.1,
-        transparent: true,
-        opacity: 0.3,
-        blending: THREE.AdditiveBlending,
-        vertexColors: true
-      });
-      
-      const particles = new THREE.Points(geometry, material);
-      return particles;
-    };
-
-    const atmosphericParticles = createAtmosphericParticles();
-    scene.add(atmosphericParticles);
+    // Central flare removed - replaced with simple "x" in HTML overlay
+    // const centralFlare = createCentralFlare(new THREE.Vector3(0, 0, 0));
+    // scene.add(centralFlare);
+    // scene.userData.centralFlare = centralFlare;
 
     setIsLoaded(true);
-  }, [createOrbitSystem]);
+  }, [createComplexOrbitSystem, createCentralFlare]);
 
-  // Animation loop
+  // Complex animation loop
   const animate = useCallback(() => {
     if (!sceneRef.current || !rendererRef.current || !cameraRef.current) return;
 
     const deltaTime = clockRef.current.getDelta();
     const elapsedTime = clockRef.current.getElapsedTime();
 
-    // Enhanced orbital systems animation with luxury timing
-    orbitSystemsRef.current.forEach((system, systemIndex) => {
+    // Animate orbital systems
+    orbitSystemsRef.current.forEach((system) => {
+      // Animate objects
       system.objects.forEach((object, objectIndex) => {
         const userData = object.userData;
         
-        // Sophisticated orbital motion with easing
         if (!reducedMotion) {
-          // Use different easing curves for human vs AI systems
-          const easingFactor = system.type === 'human' ?
-            Math.sin(elapsedTime * 0.3 + objectIndex * 0.5) * 0.1 + 1 : // Organic easing
-            1 + Math.cos(elapsedTime * 0.4 + objectIndex * 0.3) * 0.05; // Precise easing
+          // Complex orbital motion - human orbits move anti-clockwise, AI orbits move clockwise
+          const rotationDirection = userData.type === 'human' ? -1 : 1;
+          userData.angle += deltaTime * userData.speed * DESIGN_CONFIG.animation.orbitSpeed * rotationDirection;
           
-          userData.angle += deltaTime * userData.speed * system.speed * 0.15 * easingFactor;
-        }
-        
-        // Enhanced mouse gravitational effect with smooth falloff
-        const mouseInfluence = new THREE.Vector3(
-          mouseRef.current.x * 3,
-          -mouseRef.current.y * 3,
-          0
-        );
-        
-        const distanceToMouse = object.position.distanceTo(mouseInfluence);
-        const gravitationalPull = Math.max(0, 1 - distanceToMouse / 15) * 0.4;
-        const smoothPull = gravitationalPull * gravitationalPull; // Quadratic falloff for smoother effect
-        
-        // Calculate position with sophisticated height variation
-        const heightWave = Math.sin(elapsedTime * 0.4 + objectIndex * 0.8) * 0.8;
-        const depthWave = Math.cos(elapsedTime * 0.3 + objectIndex * 0.6) * 0.3;
-        
-        const baseX = system.center.x + Math.cos(userData.angle) * userData.originalRadius;
-        const baseZ = system.center.z + Math.sin(userData.angle) * userData.originalRadius + depthWave;
-        const baseY = userData.originalY + heightWave;
-        
-        object.position.set(
-          baseX + mouseInfluence.x * smoothPull,
-          baseY + mouseInfluence.y * smoothPull * 0.6,
-          baseZ
-        );
-        
-        // Sophisticated rotation with material-based variations
-        if (!reducedMotion) {
-          const rotationSpeed = system.type === 'ai' ? 0.8 : 0.6;
-          object.rotation.x += deltaTime * rotationSpeed * (0.8 + Math.sin(elapsedTime + objectIndex) * 0.2);
-          object.rotation.y += deltaTime * rotationSpeed * 0.5;
-          if (system.type === 'ai') {
-            object.rotation.z += deltaTime * rotationSpeed * 0.3;
-          }
+          const radius = userData.originalRadius + Math.sin(elapsedTime * 0.5 + userData.pulsePhase) * 0.3;
+          const height = Math.sin(elapsedTime * 0.3 + userData.pulsePhase) * 1.5;
           
-          // Dynamic material properties for luxury effect
-          if (object.material instanceof THREE.MeshStandardMaterial ||
-              object.material instanceof THREE.MeshPhysicalMaterial) {
-            const pulseIntensity = 0.05 + Math.sin(elapsedTime * 2 + objectIndex) * 0.02;
-            object.material.emissiveIntensity = pulseIntensity;
+          // Position objects relative to group center (0,0,0) since they're now in groups
+          object.position.set(
+            Math.cos(userData.angle) * radius,
+            height,
+            Math.sin(userData.angle) * radius
+          );
+          
+          // Complex rotation
+          object.rotation.x += userData.rotationSpeed.x;
+          object.rotation.y += userData.rotationSpeed.y;
+          object.rotation.z += userData.rotationSpeed.z;
+          
+          // Pulsing emissive intensity
+          if (object.material instanceof THREE.MeshPhysicalMaterial) {
+            const pulse = Math.sin(elapsedTime * 2 + userData.pulsePhase) * 0.1 + 0.25;
+            object.material.emissiveIntensity = pulse;
           }
         }
         
-        // Update trails
-        const trail = system.trails[objectIndex];
-        if (trail && trail.userData) {
-          trail.userData.positions.push(object.position.clone());
-          if (trail.userData.positions.length > trail.userData.maxLength) {
-            trail.userData.positions.shift();
-          }
-          
-          const positions = trail.geometry.attributes.position.array as Float32Array;
-          trail.userData.positions.forEach((pos: THREE.Vector3, i: number) => {
-            positions[i * 3] = pos.x;
-            positions[i * 3 + 1] = pos.y;
-            positions[i * 3 + 2] = pos.z;
-          });
-          trail.geometry.attributes.position.needsUpdate = true;
-        }
+        // Trail updates removed for cleaner look
       });
+
+
+      // Ring animations removed for cleaner look
     });
 
-    // Sophisticated convergence animation with luxury timing
-    const convergenceWave = Math.sin(elapsedTime * 0.08) * 0.6;
-    const convergenceEase = convergenceWave * convergenceWave * Math.sign(convergenceWave); // Cubic easing
-    
-    orbitSystemsRef.current.forEach((system, index) => {
-      const direction = index === 0 ? 1 : -1;
-      system.objects.forEach(object => {
-        object.position.x += convergenceEase * direction * 0.12;
-      });
-    });
+    // Central flare animation removed
+    // if (sceneRef.current.userData.centralFlare) {
+    //   const flare = sceneRef.current.userData.centralFlare;
+    //   flare.rotation.z += deltaTime * 0.5;
+    //
+    //   // Pulsing intensity for flare children
+    //   flare.children.forEach((child, index) => {
+    //     if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshBasicMaterial) {
+    //       const pulse = Math.sin(elapsedTime * 3 + index * 0.3) * 0.2 + 1.0;
+    //       child.material.opacity = Math.min(pulse, 1.0);
+    //     }
+    //   });
+    // }
 
-    // Elegant camera movement with cinematic feel
+    // Subtle camera movement
     if (!reducedMotion) {
-      const cameraRadius = 2.5;
-      const cameraHeight = 1.2;
-      cameraRef.current.position.x = Math.sin(elapsedTime * 0.08) * cameraRadius;
-      cameraRef.current.position.y = 5 + Math.cos(elapsedTime * 0.12) * cameraHeight;
-      cameraRef.current.position.z = 15 + Math.sin(elapsedTime * 0.06) * 1;
-      
-      // Smooth camera target with slight drift
-      const targetX = Math.sin(elapsedTime * 0.05) * 0.5;
-      const targetY = Math.cos(elapsedTime * 0.07) * 0.3;
-      cameraRef.current.lookAt(targetX, targetY, 0);
-    }
-
-    // Animate atmospheric particles
-    if (sceneRef.current) {
-      sceneRef.current.traverse((child) => {
-        if (child instanceof THREE.Points) {
-          child.rotation.y += deltaTime * 0.02;
-          child.rotation.x += deltaTime * 0.01;
-        }
-      });
-    }
-
-    // Animate radial burst lines with luxury pulsing
-    if (sceneRef.current) {
-      sceneRef.current.traverse((child) => {
-        if (child instanceof THREE.Line && child.userData.layer !== undefined) {
-          const pulse = Math.sin(elapsedTime * 1.5 + child.userData.angle * 2) * 0.3 + 0.7;
-          if (child.material instanceof THREE.LineBasicMaterial) {
-            child.material.opacity = child.userData.originalOpacity * pulse;
-          }
-        }
-      });
+      const cameraRadius = 2;
+      cameraRef.current.position.x = Math.sin(elapsedTime * 0.05) * cameraRadius;
+      cameraRef.current.position.y = Math.cos(elapsedTime * 0.03) * cameraRadius;
+      cameraRef.current.lookAt(0, 0, 0);
     }
 
     rendererRef.current.render(sceneRef.current, cameraRef.current);
@@ -608,7 +442,7 @@ const ThreeJsOrbitAnimation: React.FC<ThreeJsOrbitAnimationProps> = ({ className
 
   // Initialize and cleanup
   useEffect(() => {
-    initThreeJS();
+    initComplexThreeJS();
     
     window.addEventListener('resize', handleResize);
     window.addEventListener('mousemove', handleMouseMove);
@@ -640,7 +474,7 @@ const ThreeJsOrbitAnimation: React.FC<ThreeJsOrbitAnimationProps> = ({ className
         });
       }
     };
-  }, [initThreeJS, handleResize, handleMouseMove]);
+  }, [initComplexThreeJS, handleResize, handleMouseMove]);
 
   // Start animation when loaded
   useEffect(() => {
@@ -656,8 +490,8 @@ const ThreeJsOrbitAnimation: React.FC<ThreeJsOrbitAnimationProps> = ({ className
   }, [isLoaded, animate]);
 
   return (
-    <div 
-      ref={mountRef} 
+    <div
+      ref={mountRef}
       className={`threejs-orbit-animation ${className}`}
       style={{
         position: 'absolute',

@@ -134,3 +134,282 @@ canvas {
     animation: none;
   }
 }
+
+/* Pain Points Section Styles */
+.pain-points-section {
+  padding: 4rem 2rem;
+}
+
+.section-title {
+  font-size: 3rem;
+  font-weight: bold;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 25%, #b91c1c 50%, #dc2626 75%, #ef4444 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow:
+    0 0 10px rgba(239, 68, 68, 0.3),
+    0 0 20px rgba(239, 68, 68, 0.2);
+  animation: subtle-red-glow 3s ease-in-out infinite alternate;
+}
+
+@keyframes subtle-red-glow {
+  0% {
+    text-shadow:
+      0 0 10px rgba(239, 68, 68, 0.3),
+      0 0 20px rgba(239, 68, 68, 0.2);
+  }
+  100% {
+    text-shadow:
+      0 0 15px rgba(239, 68, 68, 0.4),
+      0 0 25px rgba(239, 68, 68, 0.3);
+  }
+}
+
+.pain-points-grid {
+  gap: 2rem;
+}
+
+.pain-point-card {
+  background: rgba(20, 20, 20, 0.8);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 12px;
+  padding: 2rem;
+  text-align: center;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.pain-point-card:hover {
+  border-color: rgba(239, 68, 68, 0.4);
+  transform: translateY(-5px);
+  box-shadow: 0 10px 30px rgba(239, 68, 68, 0.1);
+}
+
+.pain-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  filter: grayscale(0.3);
+}
+
+.pain-title {
+  color: #ef4444;
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+}
+
+.pain-description {
+  color: #d1d5db;
+  font-size: 1rem;
+  line-height: 1.6;
+  opacity: 0.9;
+}
+
+/* Solutions Section Styles */
+.solutions-section {
+  padding: 4rem 2rem;
+}
+
+.solutions-section .section-title {
+  background: linear-gradient(135deg, #10b981 0%, #059669 25%, #047857 50%, #059669 75%, #10b981 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow:
+    0 0 10px rgba(16, 185, 129, 0.3),
+    0 0 20px rgba(16, 185, 129, 0.2);
+  animation: subtle-green-glow 3s ease-in-out infinite alternate;
+}
+
+@keyframes subtle-green-glow {
+  0% {
+    text-shadow:
+      0 0 10px rgba(16, 185, 129, 0.3),
+      0 0 20px rgba(16, 185, 129, 0.2);
+  }
+  100% {
+    text-shadow:
+      0 0 15px rgba(16, 185, 129, 0.4),
+      0 0 25px rgba(16, 185, 129, 0.3);
+  }
+}
+
+.solutions-grid {
+  gap: 3rem;
+}
+
+.solution-card {
+  background: rgba(20, 20, 20, 0.8);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 16px;
+  padding: 2.5rem;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.solution-card:hover {
+  border-color: rgba(16, 185, 129, 0.4);
+  transform: translateY(-5px);
+  box-shadow: 0 15px 40px rgba(16, 185, 129, 0.1);
+}
+
+.solution-icon {
+  font-size: 3.5rem;
+  margin-bottom: 1.5rem;
+  display: block;
+}
+
+.solution-title {
+  color: #10b981;
+  font-size: 1.75rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+}
+
+.solution-description {
+  color: #e5e7eb;
+  font-size: 1.125rem;
+  line-height: 1.7;
+  margin-bottom: 1.5rem;
+}
+
+.solution-benefits {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.solution-benefits li {
+  color: #d1d5db;
+  font-size: 1rem;
+  padding: 0.5rem 0;
+  position: relative;
+  padding-left: 1.5rem;
+}
+
+.solution-benefits li:before {
+  content: "✓";
+  color: #10b981;
+  font-weight: bold;
+  position: absolute;
+  left: 0;
+}
+
+/* CTA Section Styles */
+.cta-section {
+  background: rgba(30, 30, 30, 0.9);
+  border: 1px solid rgba(156, 163, 175, 0.2);
+  border-radius: 20px;
+  padding: 3rem;
+  backdrop-filter: blur(15px);
+}
+
+.cta-title {
+  color: #ffffff;
+  font-size: 2.5rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, #6b6b6b 0%, #9ca3af 25%, #d1d5db 50%, #9ca3af 75%, #6b6b6b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.cta-description {
+  color: #d1d5db;
+  font-size: 1.25rem;
+  line-height: 1.6;
+  margin-bottom: 2rem;
+  opacity: 0.9;
+}
+
+.cta-button {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  font-size: 1.25rem;
+  font-weight: bold;
+  padding: 1rem 2.5rem;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cta-button:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(16, 185, 129, 0.3);
+}
+
+/* Responsive Design for New Sections */
+@media (max-width: 768px) {
+  .section-title {
+    font-size: 2.5rem;
+  }
+  
+  .pain-points-section,
+  .solutions-section {
+    padding: 2rem 1rem;
+  }
+  
+  .pain-point-card,
+  .solution-card {
+    padding: 1.5rem;
+  }
+  
+  .solution-title {
+    font-size: 1.5rem;
+  }
+  
+  .cta-section {
+    padding: 2rem;
+  }
+  
+  .cta-title {
+    font-size: 2rem;
+  }
+  
+  .cta-button {
+    font-size: 1rem;
+    padding: 0.875rem 2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .section-title {
+    font-size: 2rem;
+  }
+  
+  .pain-icon,
+  .solution-icon {
+    font-size: 2.5rem;
+  }
+  
+  .pain-title {
+    font-size: 1.25rem;
+  }
+  
+  .solution-title {
+    font-size: 1.25rem;
+  }
+  
+  .cta-title {
+    font-size: 1.75rem;
+  }
+}
+
+/* Accessibility - Reduced Motion for New Elements */
+@media (prefers-reduced-motion: reduce) {
+  .section-title {
+    animation: none;
+  }
+  
+  .pain-point-card:hover,
+  .solution-card:hover,
+  .cta-button:hover {
+    transform: none;
+  }
+}
