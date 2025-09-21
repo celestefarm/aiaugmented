@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -37,7 +36,16 @@ const Dashboard: React.FC = () => {
   // Local state for create workspace dialog
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newWorkspaceTitle, setNewWorkspaceTitle] = useState('');
+  const [newWorkspaceSituation, setNewWorkspaceSituation] = useState('');
+  const [newWorkspaceGoal, setNewWorkspaceGoal] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  
+  // Strategic depth fields (optional)
+  const [showStrategicDepth, setShowStrategicDepth] = useState(false);
+  const [unspokenDynamics, setUnspokenDynamics] = useState('');
+  const [breakthroughPotential, setBreakthroughPotential] = useState('');
+  const [whyThisMatters, setWhyThisMatters] = useState('');
+  const [enduringValue, setEnduringValue] = useState('');
 
   // Local state for edit workspace dialog
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -45,10 +53,33 @@ const Dashboard: React.FC = () => {
   const [editWorkspaceTitle, setEditWorkspaceTitle] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // Local state for account dialog
+  const [showAccountDialog, setShowAccountDialog] = useState(false);
+  const [accountName, setAccountName] = useState('');
+  const [accountEmail, setAccountEmail] = useState('');
+  const [accountPosition, setAccountPosition] = useState('');
+  const [accountGoal, setAccountGoal] = useState('');
+  const [isUpdatingAccount, setIsUpdatingAccount] = useState(false);
+
+  // Local state for workspace status tracking
+  const [workspaceStatuses, setWorkspaceStatuses] = useState<{[key: string]: boolean}>({});
+
   // Load workspaces on mount
   useEffect(() => {
     loadWorkspaces();
   }, []);
+
+  // Initialize workspace statuses when workspaces load
+  useEffect(() => {
+    if (workspaces.length > 0) {
+      const initialStatuses: {[key: string]: boolean} = {};
+      workspaces.forEach(workspace => {
+        // Initialize all workspaces as active by default
+        initialStatuses[workspace.id] = true;
+      });
+      setWorkspaceStatuses(initialStatuses);
+    }
+  }, [workspaces]);
 
   // Handle logout
   const handleLogout = async () => {
@@ -61,22 +92,44 @@ const Dashboard: React.FC = () => {
 
   // Handle create workspace
   const handleCreateWorkspace = async () => {
-    if (!newWorkspaceTitle.trim()) return;
+    if (!newWorkspaceTitle.trim() || !newWorkspaceSituation.trim() || !newWorkspaceGoal.trim()) {
+      console.log('❌ [CREATE-DEBUG] Validation failed - missing required fields');
+      console.log('  - title:', newWorkspaceTitle);
+      console.log('  - situation:', newWorkspaceSituation);
+      console.log('  - goal:', newWorkspaceGoal);
+      return;
+    }
 
     try {
       setIsCreating(true);
       const workspace = await createWorkspace({
         title: newWorkspaceTitle.trim(),
-        settings: {},
+        settings: {
+          situation: newWorkspaceSituation.trim(),
+          goal: newWorkspaceGoal.trim(),
+          // Strategic depth fields (optional)
+          ...(unspokenDynamics.trim() && { unspokenDynamics: unspokenDynamics.trim() }),
+          ...(breakthroughPotential.trim() && { breakthroughPotential: breakthroughPotential.trim() }),
+          ...(whyThisMatters.trim() && { whyThisMatters: whyThisMatters.trim() }),
+          ...(enduringValue.trim() && { enduringValue: enduringValue.trim() })
+        },
         transform: { x: 0, y: 0, scale: 1 }
       });
       
       setShowCreateDialog(false);
       setNewWorkspaceTitle('');
+      setNewWorkspaceSituation('');
+      setNewWorkspaceGoal('');
+      setShowStrategicDepth(false);
+      setUnspokenDynamics('');
+      setBreakthroughPotential('');
+      setWhyThisMatters('');
+      setEnduringValue('');
       
       // Navigate to the new workspace (no need to call selectWorkspace since createWorkspace now sets it as current)
       console.log('=== DASHBOARD: WORKSPACE CREATED ===');
       console.log('New workspace ID:', workspace.id);
+      console.log('Workspace context:', { situation: newWorkspaceSituation.trim(), goal: newWorkspaceGoal.trim() });
       console.log('Navigating to workspace...');
       navigate('/workspace');
     } catch (error) {
@@ -90,12 +143,20 @@ const Dashboard: React.FC = () => {
   const handleEditWorkspace = async (workspace: any, event: React.MouseEvent) => {
     event.stopPropagation();
     console.log('🔧 [EDIT-DEBUG] Edit button clicked for workspace:', workspace.id, workspace.title);
+    console.log('🔧 [EDIT-DEBUG] Current showEditDialog state:', showEditDialog);
     
     try {
       setEditingWorkspace(workspace);
       setEditWorkspaceTitle(workspace.title);
       setShowEditDialog(true);
-      console.log('✅ [EDIT-DEBUG] Edit dialog opened successfully');
+      console.log('✅ [EDIT-DEBUG] Edit dialog state set to true');
+      console.log('✅ [EDIT-DEBUG] Editing workspace:', workspace);
+      console.log('✅ [EDIT-DEBUG] Edit workspace title:', workspace.title);
+      
+      // Add a small delay to ensure state is updated
+      setTimeout(() => {
+        console.log('🔧 [EDIT-DEBUG] After timeout - showEditDialog:', showEditDialog);
+      }, 100);
     } catch (error) {
       console.error('❌ [EDIT-DEBUG] Error opening edit dialog:', error);
     }
@@ -148,8 +209,75 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  // Handle update account
+  const handleUpdateAccount = async () => {
+    if (!accountName.trim() || !accountEmail.trim() || !accountPosition.trim() || !accountGoal.trim()) {
+      console.log('❌ [ACCOUNT-DEBUG] Validation failed - missing required fields');
+      console.log('  - accountName:', accountName);
+      console.log('  - accountEmail:', accountEmail);
+      console.log('  - accountPosition:', accountPosition);
+      console.log('  - accountGoal:', accountGoal);
+      return;
+    }
+
+    console.log('🔧 [ACCOUNT-DEBUG] Starting account update process...');
+    console.log('  - Current name:', user?.name);
+    console.log('  - New name:', accountName.trim());
+    console.log('  - Current email:', user?.email);
+    console.log('  - New email:', accountEmail.trim());
+    console.log('  - New position:', accountPosition.trim());
+    console.log('  - New goal:', accountGoal.trim());
+
+    try {
+      setIsUpdatingAccount(true);
+      
+      // TODO: Implement actual user update API call
+      // For now, we'll simulate the update
+      console.log('🔧 [ACCOUNT-DEBUG] Simulating account update...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Close dialog and reset state
+      setShowAccountDialog(false);
+      setAccountName('');
+      setAccountEmail('');
+      setAccountPosition('');
+      setAccountGoal('');
+      
+      console.log('✅ [ACCOUNT-DEBUG] Account update completed successfully (simulated)');
+    } catch (error) {
+      console.error('❌ [ACCOUNT-DEBUG] Failed to update account:', error);
+    } finally {
+      setIsUpdatingAccount(false);
+    }
+  };
+
+  // Handle workspace status toggle
+  const handleToggleWorkspaceStatus = (workspaceId: string, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent workspace selection when clicking status
+    console.log('🔧 [STATUS-DEBUG] Toggling status for workspace:', workspaceId);
+    
+    setWorkspaceStatuses(prev => {
+      const newStatus = !prev[workspaceId];
+      console.log('✅ [STATUS-DEBUG] Status changed to:', newStatus ? 'Active' : 'Inactive');
+      return {
+        ...prev,
+        [workspaceId]: newStatus
+      };
+    });
+  };
+
   // Handle workspace selection
   const handleSelectWorkspace = (workspace: any) => {
+    // Check if workspace is active before allowing access
+    const isActive = workspaceStatuses[workspace.id] !== false;
+    
+    if (!isActive) {
+      console.log('❌ [ACCESS-DEBUG] Access denied - workspace is inactive:', workspace.id, workspace.title);
+      // You could show a toast notification here in the future
+      return;
+    }
+    
+    console.log('✅ [ACCESS-DEBUG] Access granted - workspace is active:', workspace.id, workspace.title);
     selectWorkspace(workspace);
     navigate('/workspace');
   };
@@ -307,11 +435,20 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
                 
-                <div className="glass-pane p-6 rounded-lg">
+                <div
+                  className="glass-pane p-6 rounded-lg cursor-pointer hover:scale-105 transition-all duration-200 group border border-gray-800/50 hover:border-[#6B6B3A]/30"
+                  onClick={() => {
+                    setAccountName(user?.name || '');
+                    setAccountEmail(user?.email || '');
+                    setAccountPosition(''); // TODO: Get from user profile when available
+                    setAccountGoal(''); // TODO: Get from user profile when available
+                    setShowAccountDialog(true);
+                  }}
+                >
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-400">Account</p>
-                      <p className="text-lg font-semibold text-white">Premium</p>
+                      <p className="text-lg font-semibold text-white group-hover:text-[#6B6B3A] transition-colors">Premium</p>
                     </div>
                     <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
                       <User className="w-6 h-6 text-green-400" />
@@ -339,230 +476,933 @@ const Dashboard: React.FC = () => {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {workspaces.map((workspace) => (
-                  <div
-                    key={workspace.id}
-                    onClick={() => handleSelectWorkspace(workspace)}
-                    className="glass-pane p-6 rounded-lg cursor-pointer hover:scale-105 transition-all duration-200 group border border-gray-800/50 hover:border-[#6B6B3A]/30"
-                  >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-white mb-2 group-hover:text-[#6B6B3A] transition-colors">
-                          {workspace.title}
-                        </h3>
-                        <p className="text-sm text-gray-400">
-                          Created {formatDate(workspace.created_at)}
-                        </p>
-                        {workspace.updated_at !== workspace.created_at && (
-                          <p className="text-xs text-gray-500">
-                            Updated {formatDate(workspace.updated_at)}
+                {workspaces.map((workspace) => {
+                  // Define isActive for this specific workspace
+                  const isActive = workspaceStatuses[workspace.id] !== false;
+                  
+                  return (
+                    <div
+                      key={workspace.id}
+                      onClick={() => handleSelectWorkspace(workspace)}
+                      className={`glass-pane p-6 rounded-lg transition-all duration-200 group border border-gray-800/50 relative ${
+                        isActive
+                          ? 'cursor-pointer hover:scale-105 hover:border-[#6B6B3A]/30'
+                          : 'cursor-not-allowed opacity-60'
+                      }`}
+                    >
+                      {/* Main content area */}
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1 pr-4">
+                          <h3 className={`text-lg font-semibold mb-2 transition-colors ${
+                            isActive
+                              ? 'text-white group-hover:text-[#6B6B3A]'
+                              : 'text-gray-400'
+                          }`}>
+                            {workspace.title}
+                          </h3>
+                          <p className={`text-sm ${isActive ? 'text-gray-400' : 'text-gray-500'}`}>
+                            Created {formatDate(workspace.created_at)}
                           </p>
-                        )}
+                          {workspace.updated_at !== workspace.created_at && (
+                            <p className={`text-xs ${isActive ? 'text-gray-500' : 'text-gray-600'}`}>
+                              Updated {formatDate(workspace.updated_at)}
+                            </p>
+                          )}
+                        </div>
+                        
+                        <div className={`flex space-x-1 transition-opacity ${
+                          isActive ? 'opacity-0 group-hover:opacity-100' : 'opacity-50'
+                        }`}>
+                          <Button
+                            onClick={(e) => handleEditWorkspace(workspace, e)}
+                            variant="outline"
+                            size="sm"
+                            disabled={!isActive}
+                            className={`border-gray-600 text-gray-400 ${
+                              isActive
+                                ? 'hover:text-[#6B6B3A] hover:border-[#6B6B3A]'
+                                : 'cursor-not-allowed opacity-50'
+                            }`}
+                          >
+                            <Edit className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            onClick={(e) => handleDeleteWorkspace(workspace.id, e)}
+                            variant="outline"
+                            size="sm"
+                            disabled={!isActive}
+                            className={`border-gray-600 text-gray-400 ${
+                              isActive
+                                ? 'hover:text-red-400 hover:border-red-400'
+                                : 'cursor-not-allowed opacity-50'
+                            }`}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
                       </div>
-                      
-                      <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button
-                          onClick={(e) => handleEditWorkspace(workspace, e)}
-                          variant="outline"
-                          size="sm"
-                          className="border-gray-600 text-gray-400 hover:text-[#6B6B3A] hover:border-[#6B6B3A]"
-                        >
-                          <Edit className="w-3 h-3" />
-                        </Button>
-                        <Button
-                          onClick={(e) => handleDeleteWorkspace(workspace.id, e)}
-                          variant="outline"
-                          size="sm"
-                          className="border-gray-600 text-gray-400 hover:text-red-400 hover:border-red-400"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </div>
                     
-                    <div className="flex items-center justify-between text-xs text-gray-500">
-                      <span>Scale: {Math.round(workspace.transform.scale * 100)}%</span>
-                      <span className="px-2 py-1 bg-[#6B6B3A]/20 text-[#6B6B3A] rounded">
-                        Active
-                      </span>
+                      {/* Fixed position status label at bottom-right */}
+                      <div className="absolute bottom-4 right-4">
+                        <button
+                          onClick={(e) => handleToggleWorkspaceStatus(workspace.id, e)}
+                          className={`px-2 py-1 rounded transition-all duration-200 hover:scale-105 cursor-pointer text-xs ${
+                            workspaceStatuses[workspace.id] !== false
+                              ? 'bg-[#6B6B3A]/20 text-[#6B6B3A] hover:bg-[#6B6B3A]/30'
+                              : 'bg-gray-500/20 text-gray-400 hover:bg-gray-500/30'
+                          }`}
+                        >
+                          {workspaceStatuses[workspace.id] !== false ? 'Active' : 'Inactive'}
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </>
         )}
       </main>
 
-      {/* Create Workspace Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-w-md glass-pane border border-gray-800/50 text-gray-100">
-          <DialogHeader>
-            <DialogTitle className="text-xl text-[#6B6B3A]">Create New Workspace</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-4">
-            <div>
-              <Label htmlFor="workspace-title" className="text-sm font-medium text-[#E5E7EB] mb-2 block">
-                Workspace Title
-              </Label>
-              <Input
-                id="workspace-title"
-                value={newWorkspaceTitle}
-                onChange={(e) => setNewWorkspaceTitle(e.target.value)}
-                placeholder="Enter workspace title..."
-                className="glass-pane text-[#E5E7EB] border-gray-600/50 focus:border-[#6B6B3A]"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !isCreating) {
-                    handleCreateWorkspace();
-                  }
+      {/* Create Workspace Dialog - Node Card Style */}
+      {showCreateDialog && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px'
+          }}
+          onClick={() => setShowCreateDialog(false)}
+        >
+          <div
+            style={{
+              background: 'linear-gradient(145deg, rgba(45, 45, 45, 0.75) 0%, rgba(35, 35, 35, 0.85) 100%)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              border: '1px solid rgba(107, 107, 58, 0.25)',
+              borderTop: '1px solid rgba(107, 107, 58, 0.35)',
+              borderRadius: '16px',
+              boxShadow: `
+                0 20px 40px rgba(0, 0, 0, 0.4),
+                0 8px 16px rgba(0, 0, 0, 0.2),
+                inset 0 1px 2px rgba(255, 255, 255, 0.08)
+              `,
+              width: '100%',
+              maxWidth: '800px',
+              position: 'relative',
+              overflow: 'hidden'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              onClick={() => {
+                setShowCreateDialog(false);
+                setNewWorkspaceTitle('');
+                setNewWorkspaceSituation('');
+                setNewWorkspaceGoal('');
+                setShowStrategicDepth(false);
+                setUnspokenDynamics('');
+                setBreakthroughPotential('');
+                setWhyThisMatters('');
+                setEnduringValue('');
+              }}
+              style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                background: 'rgba(107, 107, 58, 0.15)',
+                border: '1px solid rgba(107, 107, 58, 0.25)',
+                borderRadius: '8px',
+                width: '32px',
+                height: '32px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#9ca3af',
+                cursor: 'pointer',
+                fontSize: '18px',
+                fontWeight: '500',
+                transition: 'all 0.2s ease',
+                zIndex: 10
+              }}
+              onMouseEnter={(e) => {
+                const target = e.target as HTMLButtonElement;
+                target.style.background = 'rgba(107, 107, 58, 0.25)';
+                target.style.color = '#f3f4f6';
+              }}
+              onMouseLeave={(e) => {
+                const target = e.target as HTMLButtonElement;
+                target.style.background = 'rgba(107, 107, 58, 0.15)';
+                target.style.color = '#9ca3af';
+              }}
+            >
+              ×
+            </button>
+
+            {/* Header with icon */}
+            <div
+              style={{
+                padding: '24px 24px 20px 24px',
+                borderBottom: '1px solid rgba(107, 107, 58, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px'
+              }}
+            >
+              <div
+                style={{
+                  width: '24px',
+                  height: '24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#6b6b3a'
                 }}
-              />
+              >
+                <Plus className="w-5 h-5" />
+              </div>
+              <h2
+                style={{
+                  color: '#f3f4f6',
+                  fontSize: '18px',
+                  fontWeight: '600',
+                  margin: 0,
+                  letterSpacing: '-0.025em'
+                }}
+              >
+                Create New Workspace
+              </h2>
             </div>
-            <div className="flex justify-end space-x-3">
-              <Button
-                variant="outline"
+            
+            {/* Content area */}
+            <div
+              style={{
+                padding: '32px',
+                background: 'linear-gradient(145deg, rgba(40, 40, 40, 0.4) 0%, rgba(30, 30, 30, 0.6) 100%)',
+                margin: '0',
+                minHeight: showStrategicDepth ? '480px' : '280px',
+                transition: 'min-height 0.3s ease'
+              }}
+            >
+              {/* Main Fields - Two Column Layout */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
+                {/* Left Column */}
+                <div>
+                  {/* Workspace Title Field */}
+                  <div style={{ marginBottom: '20px' }}>
+                    <label
+                      htmlFor="create-workspace-title"
+                      style={{
+                        color: '#d1d5db',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        marginBottom: '8px',
+                        display: 'block',
+                        letterSpacing: '-0.025em'
+                      }}
+                    >
+                      Workspace Title
+                    </label>
+                    <input
+                      id="create-workspace-title"
+                      type="text"
+                      value={newWorkspaceTitle}
+                      onChange={(e) => setNewWorkspaceTitle(e.target.value)}
+                      placeholder="Enter workspace title..."
+                      style={{
+                        background: 'rgba(55, 55, 55, 0.6)',
+                        border: '1px solid rgba(107, 107, 58, 0.25)',
+                        borderRadius: '8px',
+                        color: '#f3f4f6',
+                        fontSize: '15px',
+                        fontWeight: '400',
+                        width: '100%',
+                        padding: '12px 16px',
+                        outline: 'none',
+                        transition: 'all 0.2s ease',
+                        boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.15)'
+                      }}
+                      onFocus={(e) => {
+                        const target = e.target as HTMLInputElement;
+                        target.style.borderColor = 'rgba(107, 107, 58, 0.4)';
+                        target.style.background = 'rgba(60, 60, 60, 0.7)';
+                        target.style.boxShadow = `
+                          0 0 0 3px rgba(107, 107, 58, 0.12),
+                          inset 0 1px 3px rgba(0, 0, 0, 0.15)
+                        `;
+                      }}
+                      onBlur={(e) => {
+                        const target = e.target as HTMLInputElement;
+                        target.style.borderColor = 'rgba(107, 107, 58, 0.25)';
+                        target.style.background = 'rgba(55, 55, 55, 0.6)';
+                        target.style.boxShadow = 'inset 0 1px 3px rgba(0, 0, 0, 0.15)';
+                      }}
+                    />
+                  </div>
+
+                  {/* Current Situation / Problem Field */}
+                  <div>
+                    <label
+                      htmlFor="create-workspace-situation"
+                      style={{
+                        color: '#d1d5db',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        marginBottom: '8px',
+                        display: 'block',
+                        letterSpacing: '-0.025em'
+                      }}
+                    >
+                      Current Situation / Problem
+                    </label>
+                    <textarea
+                      id="create-workspace-situation"
+                      value={newWorkspaceSituation}
+                      onChange={(e) => setNewWorkspaceSituation(e.target.value)}
+                      placeholder="Describe your current situation or the challenges you're facing..."
+                      rows={4}
+                      style={{
+                        background: 'rgba(55, 55, 55, 0.6)',
+                        border: '1px solid rgba(107, 107, 58, 0.25)',
+                        borderRadius: '8px',
+                        color: '#f3f4f6',
+                        fontSize: '15px',
+                        fontWeight: '400',
+                        width: '100%',
+                        padding: '12px 16px',
+                        outline: 'none',
+                        transition: 'all 0.2s ease',
+                        boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.15)',
+                        resize: 'vertical',
+                        minHeight: '100px',
+                        fontFamily: 'inherit'
+                      }}
+                      onFocus={(e) => {
+                        const target = e.target as HTMLTextAreaElement;
+                        target.style.borderColor = 'rgba(107, 107, 58, 0.4)';
+                        target.style.background = 'rgba(60, 60, 60, 0.7)';
+                        target.style.boxShadow = `
+                          0 0 0 3px rgba(107, 107, 58, 0.12),
+                          inset 0 1px 3px rgba(0, 0, 0, 0.15)
+                        `;
+                      }}
+                      onBlur={(e) => {
+                        const target = e.target as HTMLTextAreaElement;
+                        target.style.borderColor = 'rgba(107, 107, 58, 0.25)';
+                        target.style.background = 'rgba(55, 55, 55, 0.6)';
+                        target.style.boxShadow = 'inset 0 1px 3px rgba(0, 0, 0, 0.15)';
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Right Column */}
+                <div>
+                  {/* Goal / Desired Outcome Field */}
+                  <div>
+                    <label
+                      htmlFor="create-workspace-goal"
+                      style={{
+                        color: '#d1d5db',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        marginBottom: '8px',
+                        display: 'block',
+                        letterSpacing: '-0.025em'
+                      }}
+                    >
+                      Goal / Desired Outcome
+                    </label>
+                    <textarea
+                      id="create-workspace-goal"
+                      value={newWorkspaceGoal}
+                      onChange={(e) => setNewWorkspaceGoal(e.target.value)}
+                      placeholder="Describe what you want to achieve and your desired outcome..."
+                      rows={6}
+                      style={{
+                        background: 'rgba(55, 55, 55, 0.6)',
+                        border: '1px solid rgba(107, 107, 58, 0.25)',
+                        borderRadius: '8px',
+                        color: '#f3f4f6',
+                        fontSize: '15px',
+                        fontWeight: '400',
+                        width: '100%',
+                        padding: '12px 16px',
+                        outline: 'none',
+                        transition: 'all 0.2s ease',
+                        boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.15)',
+                        resize: 'vertical',
+                        minHeight: '140px',
+                        fontFamily: 'inherit'
+                      }}
+                      onFocus={(e) => {
+                        const target = e.target as HTMLTextAreaElement;
+                        target.style.borderColor = 'rgba(107, 107, 58, 0.4)';
+                        target.style.background = 'rgba(60, 60, 60, 0.7)';
+                        target.style.boxShadow = `
+                          0 0 0 3px rgba(107, 107, 58, 0.12),
+                          inset 0 1px 3px rgba(0, 0, 0, 0.15)
+                        `;
+                      }}
+                      onBlur={(e) => {
+                        const target = e.target as HTMLTextAreaElement;
+                        target.style.borderColor = 'rgba(107, 107, 58, 0.25)';
+                        target.style.background = 'rgba(55, 55, 55, 0.6)';
+                        target.style.boxShadow = 'inset 0 1px 3px rgba(0, 0, 0, 0.15)';
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && e.ctrlKey && !isCreating) {
+                          handleCreateWorkspace();
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Expandable Strategic Depth Section */}
+              <div style={{ marginTop: '24px', borderTop: '1px solid rgba(107, 107, 58, 0.15)', paddingTop: '20px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowStrategicDepth(!showStrategicDepth)}
+                  style={{
+                    background: 'rgba(107, 107, 58, 0.1)',
+                    border: '1px solid rgba(107, 107, 58, 0.2)',
+                    borderRadius: '8px',
+                    color: '#d1d5db',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    padding: '12px 16px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    letterSpacing: '-0.025em',
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}
+                  onMouseEnter={(e) => {
+                    const target = e.target as HTMLButtonElement;
+                    target.style.background = 'rgba(107, 107, 58, 0.15)';
+                    target.style.color = '#f3f4f6';
+                  }}
+                  onMouseLeave={(e) => {
+                    const target = e.target as HTMLButtonElement;
+                    target.style.background = 'rgba(107, 107, 58, 0.1)';
+                    target.style.color = '#d1d5db';
+                  }}
+                >
+                  <span>Add Strategic Depth</span>
+                  <span style={{
+                    transform: showStrategicDepth ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.2s ease',
+                    fontSize: '12px'
+                  }}>
+                    ▼
+                  </span>
+                </button>
+
+                {/* Collapsible Strategic Depth Fields */}
+                {showStrategicDepth && (
+                  <div style={{
+                    marginTop: '16px',
+                    padding: '20px',
+                    background: 'rgba(30, 30, 30, 0.3)',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(107, 107, 58, 0.1)'
+                  }}>
+                    {/* Strategic Depth Fields - Two Column Layout */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                      {/* Left Column */}
+                      <div>
+                        {/* Unspoken Dynamics Field */}
+                        <div style={{ marginBottom: '16px' }}>
+                          <label
+                            htmlFor="create-workspace-dynamics"
+                            style={{
+                              color: '#d1d5db',
+                              fontSize: '13px',
+                              fontWeight: '500',
+                              marginBottom: '6px',
+                              display: 'block',
+                              letterSpacing: '-0.025em'
+                            }}
+                          >
+                            Unspoken Dynamics
+                          </label>
+                          <textarea
+                            id="create-workspace-dynamics"
+                            value={unspokenDynamics}
+                            onChange={(e) => setUnspokenDynamics(e.target.value)}
+                            placeholder="What underlying forces or hidden patterns might influence this situation?"
+                            rows={3}
+                            style={{
+                              background: 'rgba(45, 45, 45, 0.6)',
+                              border: '1px solid rgba(107, 107, 58, 0.2)',
+                              borderRadius: '6px',
+                              color: '#f3f4f6',
+                              fontSize: '14px',
+                              fontWeight: '400',
+                              width: '100%',
+                              padding: '10px 12px',
+                              outline: 'none',
+                              transition: 'all 0.2s ease',
+                              boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.1)',
+                              resize: 'vertical',
+                              minHeight: '80px',
+                              fontFamily: 'inherit'
+                            }}
+                            onFocus={(e) => {
+                              const target = e.target as HTMLTextAreaElement;
+                              target.style.borderColor = 'rgba(107, 107, 58, 0.35)';
+                              target.style.background = 'rgba(50, 50, 50, 0.7)';
+                            }}
+                            onBlur={(e) => {
+                              const target = e.target as HTMLTextAreaElement;
+                              target.style.borderColor = 'rgba(107, 107, 58, 0.2)';
+                              target.style.background = 'rgba(45, 45, 45, 0.6)';
+                            }}
+                          />
+                        </div>
+
+                        {/* Why This Truly Matters Field */}
+                        <div>
+                          <label
+                            htmlFor="create-workspace-matters"
+                            style={{
+                              color: '#d1d5db',
+                              fontSize: '13px',
+                              fontWeight: '500',
+                              marginBottom: '6px',
+                              display: 'block',
+                              letterSpacing: '-0.025em'
+                            }}
+                          >
+                            Why This Truly Matters
+                          </label>
+                          <textarea
+                            id="create-workspace-matters"
+                            value={whyThisMatters}
+                            onChange={(e) => setWhyThisMatters(e.target.value)}
+                            placeholder="What deeper significance or profound impact makes this worth pursuing?"
+                            rows={3}
+                            style={{
+                              background: 'rgba(45, 45, 45, 0.6)',
+                              border: '1px solid rgba(107, 107, 58, 0.2)',
+                              borderRadius: '6px',
+                              color: '#f3f4f6',
+                              fontSize: '14px',
+                              fontWeight: '400',
+                              width: '100%',
+                              padding: '10px 12px',
+                              outline: 'none',
+                              transition: 'all 0.2s ease',
+                              boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.1)',
+                              resize: 'vertical',
+                              minHeight: '80px',
+                              fontFamily: 'inherit'
+                            }}
+                            onFocus={(e) => {
+                              const target = e.target as HTMLTextAreaElement;
+                              target.style.borderColor = 'rgba(107, 107, 58, 0.35)';
+                              target.style.background = 'rgba(50, 50, 50, 0.7)';
+                            }}
+                            onBlur={(e) => {
+                              const target = e.target as HTMLTextAreaElement;
+                              target.style.borderColor = 'rgba(107, 107, 58, 0.2)';
+                              target.style.background = 'rgba(45, 45, 45, 0.6)';
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Right Column */}
+                      <div>
+                        {/* Breakthrough Potential Field */}
+                        <div style={{ marginBottom: '16px' }}>
+                          <label
+                            htmlFor="create-workspace-breakthrough"
+                            style={{
+                              color: '#d1d5db',
+                              fontSize: '13px',
+                              fontWeight: '500',
+                              marginBottom: '6px',
+                              display: 'block',
+                              letterSpacing: '-0.025em'
+                            }}
+                          >
+                            Breakthrough Potential
+                          </label>
+                          <textarea
+                            id="create-workspace-breakthrough"
+                            value={breakthroughPotential}
+                            onChange={(e) => setBreakthroughPotential(e.target.value)}
+                            placeholder="What transformative opportunities or game-changing possibilities exist here?"
+                            rows={3}
+                            style={{
+                              background: 'rgba(45, 45, 45, 0.6)',
+                              border: '1px solid rgba(107, 107, 58, 0.2)',
+                              borderRadius: '6px',
+                              color: '#f3f4f6',
+                              fontSize: '14px',
+                              fontWeight: '400',
+                              width: '100%',
+                              padding: '10px 12px',
+                              outline: 'none',
+                              transition: 'all 0.2s ease',
+                              boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.1)',
+                              resize: 'vertical',
+                              minHeight: '80px',
+                              fontFamily: 'inherit'
+                            }}
+                            onFocus={(e) => {
+                              const target = e.target as HTMLTextAreaElement;
+                              target.style.borderColor = 'rgba(107, 107, 58, 0.35)';
+                              target.style.background = 'rgba(50, 50, 50, 0.7)';
+                            }}
+                            onBlur={(e) => {
+                              const target = e.target as HTMLTextAreaElement;
+                              target.style.borderColor = 'rgba(107, 107, 58, 0.2)';
+                              target.style.background = 'rgba(45, 45, 45, 0.6)';
+                            }}
+                          />
+                        </div>
+
+                        {/* Enduring Value Field */}
+                        <div>
+                          <label
+                            htmlFor="create-workspace-value"
+                            style={{
+                              color: '#d1d5db',
+                              fontSize: '13px',
+                              fontWeight: '500',
+                              marginBottom: '6px',
+                              display: 'block',
+                              letterSpacing: '-0.025em'
+                            }}
+                          >
+                            Enduring Value
+                          </label>
+                          <textarea
+                            id="create-workspace-value"
+                            value={enduringValue}
+                            onChange={(e) => setEnduringValue(e.target.value)}
+                            placeholder="What lasting benefits or timeless value will this create beyond immediate results?"
+                            rows={3}
+                            style={{
+                              background: 'rgba(45, 45, 45, 0.6)',
+                              border: '1px solid rgba(107, 107, 58, 0.2)',
+                              borderRadius: '6px',
+                              color: '#f3f4f6',
+                              fontSize: '14px',
+                              fontWeight: '400',
+                              width: '100%',
+                              padding: '10px 12px',
+                              outline: 'none',
+                              transition: 'all 0.2s ease',
+                              boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.1)',
+                              resize: 'vertical',
+                              minHeight: '80px',
+                              fontFamily: 'inherit'
+                            }}
+                            onFocus={(e) => {
+                              const target = e.target as HTMLTextAreaElement;
+                              target.style.borderColor = 'rgba(107, 107, 58, 0.35)';
+                              target.style.background = 'rgba(50, 50, 50, 0.7)';
+                            }}
+                            onBlur={(e) => {
+                              const target = e.target as HTMLTextAreaElement;
+                              target.style.borderColor = 'rgba(107, 107, 58, 0.2)';
+                              target.style.background = 'rgba(45, 45, 45, 0.6)';
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Footer with action buttons */}
+            <div
+              style={{
+                padding: '20px 24px 24px 24px',
+                borderTop: '1px solid rgba(107, 107, 58, 0.15)',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '12px',
+                background: 'linear-gradient(145deg, rgba(45, 45, 45, 0.6) 0%, rgba(35, 35, 35, 0.7) 100%)'
+              }}
+            >
+              <button
                 onClick={() => {
                   setShowCreateDialog(false);
                   setNewWorkspaceTitle('');
+                  setNewWorkspaceSituation('');
+                  setNewWorkspaceGoal('');
+                  setShowStrategicDepth(false);
+                  setUnspokenDynamics('');
+                  setBreakthroughPotential('');
+                  setWhyThisMatters('');
+                  setEnduringValue('');
                 }}
                 disabled={isCreating}
-                className="border-gray-600/50 text-[#E5E7EB] hover:bg-gray-800/50"
+                style={{
+                  background: 'rgba(107, 107, 58, 0.12)',
+                  border: '1px solid rgba(107, 107, 58, 0.2)',
+                  borderRadius: '8px',
+                  color: '#d1d5db',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  padding: '10px 20px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  letterSpacing: '-0.025em'
+                }}
+                onMouseEnter={(e) => {
+                  const target = e.target as HTMLButtonElement;
+                  target.style.background = 'rgba(107, 107, 58, 0.2)';
+                  target.style.color = '#f3f4f6';
+                }}
+                onMouseLeave={(e) => {
+                  const target = e.target as HTMLButtonElement;
+                  target.style.background = 'rgba(107, 107, 58, 0.12)';
+                  target.style.color = '#d1d5db';
+                }}
               >
                 Cancel
-              </Button>
-              <Button
+              </button>
+              <button
                 onClick={handleCreateWorkspace}
-                disabled={!newWorkspaceTitle.trim() || isCreating}
-                className="bg-[#6B6B3A] hover:bg-[#6B6B3A]/80 text-black"
+                disabled={!newWorkspaceTitle.trim() || !newWorkspaceSituation.trim() || !newWorkspaceGoal.trim() || isCreating}
+                style={{
+                  background: 'linear-gradient(145deg, rgba(107, 107, 58, 0.6) 0%, rgba(107, 107, 58, 0.4) 100%)',
+                  border: '1px solid rgba(107, 107, 58, 0.3)',
+                  borderRadius: '8px',
+                  color: '#f3f4f6',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  padding: '10px 20px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s ease',
+                  letterSpacing: '-0.025em',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)'
+                }}
+                onMouseEnter={(e) => {
+                  const target = e.target as HTMLButtonElement;
+                  target.style.background = 'linear-gradient(145deg, rgba(107, 107, 58, 0.7) 0%, rgba(107, 107, 58, 0.5) 100%)';
+                  target.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.25)';
+                }}
+                onMouseLeave={(e) => {
+                  const target = e.target as HTMLButtonElement;
+                  target.style.background = 'linear-gradient(145deg, rgba(107, 107, 58, 0.6) 0%, rgba(107, 107, 58, 0.4) 100%)';
+                  target.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.15)';
+                }}
               >
                 {isCreating ? (
                   <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <Loader2 className="w-4 h-4 animate-spin" />
                     Creating...
                   </>
                 ) : (
                   <>
-                    <Plus className="w-4 h-4 mr-2" />
+                    <Plus className="w-4 h-4" />
                     Create
                   </>
                 )}
-              </Button>
+              </button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
 
-      {/* Edit Workspace Dialog - Enhanced Glass Effect */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent
-          className="max-w-md"
+      {/* Edit Workspace Dialog - Node Card Style */}
+      {showEditDialog && (
+        <div
           style={{
-            background: 'rgba(10, 10, 10, 0.3)',
-            backdropFilter: 'blur(40px) saturate(200%)',
-            WebkitBackdropFilter: 'blur(40px) saturate(200%)',
-            border: '1px solid rgba(107, 107, 58, 0.4)',
-            borderTop: '1px solid rgba(255, 255, 255, 0.3)',
-            borderLeft: '1px solid rgba(255, 255, 255, 0.2)',
-            color: '#f3f4f6',
-            boxShadow: `
-              0 32px 64px -12px rgba(0, 0, 0, 0.8),
-              0 0 0 1px rgba(107, 107, 58, 0.2),
-              inset 0 1px 0 rgba(255, 255, 255, 0.15),
-              inset 0 -1px 0 rgba(0, 0, 0, 0.3)
-            `,
-            borderRadius: '20px',
-            padding: '2.5rem',
-            position: 'relative',
-            overflow: 'hidden'
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px'
           }}
+          onClick={() => setShowEditDialog(false)}
         >
-          {/* Glass reflection overlay */}
           <div
             style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              height: '60%',
-              background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 50%, transparent 100%)',
-              pointerEvents: 'none',
-              borderRadius: '20px 20px 0 0',
-              zIndex: 1
+              background: 'linear-gradient(145deg, rgba(45, 45, 45, 0.75) 0%, rgba(35, 35, 35, 0.85) 100%)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              border: '1px solid rgba(107, 107, 58, 0.25)',
+              borderTop: '1px solid rgba(107, 107, 58, 0.35)',
+              borderRadius: '16px',
+              boxShadow: `
+                0 20px 40px rgba(0, 0, 0, 0.4),
+                0 8px 16px rgba(0, 0, 0, 0.2),
+                inset 0 1px 2px rgba(255, 255, 255, 0.08)
+              `,
+              width: '100%',
+              maxWidth: '420px',
+              position: 'relative',
+              overflow: 'hidden'
             }}
-          />
-          
-          {/* Content wrapper */}
-          <div style={{ position: 'relative', zIndex: 2 }}>
-            <DialogHeader
-              className="pb-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              onClick={() => {
+                console.log('🔧 [EDIT-DEBUG] Close button clicked');
+                setShowEditDialog(false);
+                setEditingWorkspace(null);
+                setEditWorkspaceTitle('');
+              }}
               style={{
-                borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                background: 'rgba(107, 107, 58, 0.15)',
+                border: '1px solid rgba(107, 107, 58, 0.25)',
+                borderRadius: '8px',
+                width: '32px',
+                height: '32px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#9ca3af',
+                cursor: 'pointer',
+                fontSize: '18px',
+                fontWeight: '500',
+                transition: 'all 0.2s ease',
+                zIndex: 10
+              }}
+              onMouseEnter={(e) => {
+                const target = e.target as HTMLButtonElement;
+                target.style.background = 'rgba(107, 107, 58, 0.25)';
+                target.style.color = '#f3f4f6';
+              }}
+              onMouseLeave={(e) => {
+                const target = e.target as HTMLButtonElement;
+                target.style.background = 'rgba(107, 107, 58, 0.15)';
+                target.style.color = '#9ca3af';
               }}
             >
-              <DialogTitle
-                className="text-xl font-semibold"
+              ×
+            </button>
+
+            {/* Header with icon */}
+            <div
+              style={{
+                padding: '24px 24px 20px 24px',
+                borderBottom: '1px solid rgba(107, 107, 58, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px'
+              }}
+            >
+              <div
                 style={{
-                  background: 'linear-gradient(to right, #facc15, #fde047, #eab308)',
-                  WebkitBackgroundClip: 'text',
-                  backgroundClip: 'text',
-                  color: 'transparent',
-                  fontSize: '1.25rem',
-                  fontWeight: '600'
+                  width: '24px',
+                  height: '24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#6b6b3a'
+                }}
+              >
+                <Edit className="w-5 h-5" />
+              </div>
+              <h2
+                style={{
+                  color: '#f3f4f6',
+                  fontSize: '18px',
+                  fontWeight: '600',
+                  margin: 0,
+                  letterSpacing: '-0.025em'
                 }}
               >
                 Edit Workspace
-              </DialogTitle>
-            </DialogHeader>
+              </h2>
+            </div>
             
-            <div className="space-y-6 py-4">
-              <div>
-                <Label
+            {/* Content area */}
+            <div
+              style={{
+                padding: '24px',
+                background: 'linear-gradient(145deg, rgba(40, 40, 40, 0.4) 0%, rgba(30, 30, 30, 0.6) 100%)',
+                margin: '0',
+                minHeight: '120px'
+              }}
+            >
+              <div style={{ marginBottom: '20px' }}>
+                <label
                   htmlFor="edit-workspace-title"
-                  className="text-sm font-medium mb-3 block"
                   style={{
-                    color: '#e5e7eb',
-                    fontSize: '0.875rem',
+                    color: '#d1d5db',
+                    fontSize: '14px',
                     fontWeight: '500',
-                    marginBottom: '0.75rem',
-                    display: 'block'
+                    marginBottom: '8px',
+                    display: 'block',
+                    letterSpacing: '-0.025em'
                   }}
                 >
                   Workspace Title
-                </Label>
-                <Input
+                </label>
+                <input
                   id="edit-workspace-title"
+                  type="text"
                   value={editWorkspaceTitle}
                   onChange={(e) => setEditWorkspaceTitle(e.target.value)}
                   placeholder="Enter workspace title..."
-                  className="rounded-lg px-4 py-3 transition-all duration-300"
                   style={{
-                    background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%)',
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    borderTop: '1px solid rgba(255, 255, 255, 0.25)',
+                    background: 'rgba(55, 55, 55, 0.6)',
+                    border: '1px solid rgba(107, 107, 58, 0.25)',
+                    borderRadius: '8px',
                     color: '#f3f4f6',
-                    outline: 'none',
+                    fontSize: '15px',
+                    fontWeight: '400',
                     width: '100%',
-                    fontSize: '0.95rem',
-                    fontWeight: '500',
-                    boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.1)'
+                    padding: '12px 16px',
+                    outline: 'none',
+                    transition: 'all 0.2s ease',
+                    boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.15)'
                   }}
                   onFocus={(e) => {
-                    const target = e.target as HTMLElement;
-                    target.style.borderColor = 'rgba(107, 107, 58, 0.6)';
+                    const target = e.target as HTMLInputElement;
+                    target.style.borderColor = 'rgba(107, 107, 58, 0.4)';
+                    target.style.background = 'rgba(60, 60, 60, 0.7)';
                     target.style.boxShadow = `
-                      0 0 0 3px rgba(107, 107, 58, 0.15),
-                      inset 0 1px 2px rgba(0, 0, 0, 0.1),
-                      0 4px 12px rgba(107, 107, 58, 0.1)
+                      0 0 0 3px rgba(107, 107, 58, 0.12),
+                      inset 0 1px 3px rgba(0, 0, 0, 0.15)
                     `;
-                    target.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%)';
                   }}
                   onBlur={(e) => {
-                    const target = e.target as HTMLElement;
-                    target.style.borderColor = 'rgba(255, 255, 255, 0.15)';
-                    target.style.boxShadow = 'inset 0 1px 2px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.1)';
-                    target.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%)';
+                    const target = e.target as HTMLInputElement;
+                    target.style.borderColor = 'rgba(107, 107, 58, 0.25)';
+                    target.style.background = 'rgba(55, 55, 55, 0.6)';
+                    target.style.boxShadow = 'inset 0 1px 3px rgba(0, 0, 0, 0.15)';
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !isUpdating) {
@@ -573,89 +1413,79 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
             
+            {/* Footer with action buttons */}
             <div
-              className="flex justify-end space-x-3 pt-4"
               style={{
-                borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-                paddingTop: '1rem'
+                padding: '20px 24px 24px 24px',
+                borderTop: '1px solid rgba(107, 107, 58, 0.15)',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '12px',
+                background: 'linear-gradient(145deg, rgba(45, 45, 45, 0.6) 0%, rgba(35, 35, 35, 0.7) 100%)'
               }}
             >
-              <Button
-                variant="outline"
+              <button
                 onClick={() => {
+                  console.log('🔧 [EDIT-DEBUG] Cancel button clicked');
                   setShowEditDialog(false);
                   setEditingWorkspace(null);
                   setEditWorkspaceTitle('');
                 }}
                 disabled={isUpdating}
-                className="px-5 py-2.5 rounded-lg transition-all duration-300 font-medium"
                 style={{
-                  background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  borderTop: '1px solid rgba(255, 255, 255, 0.25)',
+                  background: 'rgba(107, 107, 58, 0.12)',
+                  border: '1px solid rgba(107, 107, 58, 0.2)',
+                  borderRadius: '8px',
                   color: '#d1d5db',
-                  backdropFilter: 'blur(12px)',
-                  WebkitBackdropFilter: 'blur(12px)',
-                  boxShadow: 'inset 0 1px 2px rgba(255, 255, 255, 0.1), 0 2px 4px rgba(0, 0, 0, 0.1)'
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  padding: '10px 20px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  letterSpacing: '-0.025em'
                 }}
                 onMouseEnter={(e) => {
-                  const target = e.target as HTMLElement;
-                  target.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%)';
-                  target.style.color = '#ffffff';
-                  target.style.borderColor = 'rgba(255, 255, 255, 0.25)';
-                  target.style.transform = 'translateY(-1px)';
-                  target.style.boxShadow = 'inset 0 1px 2px rgba(255, 255, 255, 0.15), 0 4px 8px rgba(0, 0, 0, 0.15)';
+                  const target = e.target as HTMLButtonElement;
+                  target.style.background = 'rgba(107, 107, 58, 0.2)';
+                  target.style.color = '#f3f4f6';
                 }}
                 onMouseLeave={(e) => {
-                  const target = e.target as HTMLElement;
-                  target.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%)';
+                  const target = e.target as HTMLButtonElement;
+                  target.style.background = 'rgba(107, 107, 58, 0.12)';
                   target.style.color = '#d1d5db';
-                  target.style.borderColor = 'rgba(255, 255, 255, 0.15)';
-                  target.style.transform = 'translateY(0)';
-                  target.style.boxShadow = 'inset 0 1px 2px rgba(255, 255, 255, 0.1), 0 2px 4px rgba(0, 0, 0, 0.1)';
                 }}
               >
                 Cancel
-              </Button>
-              <Button
+              </button>
+              <button
                 onClick={handleUpdateWorkspace}
                 disabled={!editWorkspaceTitle.trim() || isUpdating}
-                className="px-5 py-2.5 rounded-lg transition-all duration-300 flex items-center gap-2 font-medium"
                 style={{
-                  background: 'linear-gradient(135deg, #ca8a04 0%, #eab308 50%, #facc15 100%)',
-                  color: '#000000',
+                  background: 'linear-gradient(145deg, rgba(107, 107, 58, 0.6) 0%, rgba(107, 107, 58, 0.4) 100%)',
+                  border: '1px solid rgba(107, 107, 58, 0.3)',
+                  borderRadius: '8px',
+                  color: '#f3f4f6',
+                  fontSize: '14px',
                   fontWeight: '600',
-                  boxShadow: `
-                    0 0 0 1px rgba(107, 107, 58, 0.3),
-                    0 4px 12px rgba(107, 107, 58, 0.3),
-                    inset 0 1px 2px rgba(255, 255, 255, 0.2)
-                  `,
-                  backdropFilter: 'blur(8px)',
-                  WebkitBackdropFilter: 'blur(8px)',
-                  border: '1px solid rgba(107, 107, 58, 0.4)',
-                  borderTop: '1px solid rgba(255, 255, 255, 0.3)'
+                  padding: '10px 20px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s ease',
+                  letterSpacing: '-0.025em',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)'
                 }}
                 onMouseEnter={(e) => {
-                  const target = e.target as HTMLElement;
-                  target.style.background = 'linear-gradient(135deg, #eab308 0%, #facc15 50%, #fde047 100%)';
-                  target.style.transform = 'translateY(-1px)';
-                  target.style.boxShadow = `
-                    0 0 0 1px rgba(107, 107, 58, 0.4),
-                    0 6px 16px rgba(107, 107, 58, 0.4),
-                    inset 0 1px 2px rgba(255, 255, 255, 0.3)
-                  `;
+                  const target = e.target as HTMLButtonElement;
+                  target.style.background = 'linear-gradient(145deg, rgba(107, 107, 58, 0.7) 0%, rgba(107, 107, 58, 0.5) 100%)';
+                  target.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.25)';
                 }}
                 onMouseLeave={(e) => {
-                  const target = e.target as HTMLElement;
-                  target.style.background = 'linear-gradient(135deg, #ca8a04 0%, #eab308 50%, #facc15 100%)';
-                  target.style.transform = 'translateY(0)';
-                  target.style.boxShadow = `
-                    0 0 0 1px rgba(107, 107, 58, 0.3),
-                    0 4px 12px rgba(107, 107, 58, 0.3),
-                    inset 0 1px 2px rgba(255, 255, 255, 0.2)
-                  `;
+                  const target = e.target as HTMLButtonElement;
+                  target.style.background = 'linear-gradient(145deg, rgba(107, 107, 58, 0.6) 0%, rgba(107, 107, 58, 0.4) 100%)';
+                  target.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.15)';
                 }}
-              
               >
                 {isUpdating ? (
                   <>
@@ -668,11 +1498,443 @@ const Dashboard: React.FC = () => {
                     Update
                   </>
                 )}
-              </Button>
+              </button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
+
+      {/* Account Dialog - Node Card Style */}
+      {showAccountDialog && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px'
+          }}
+          onClick={() => setShowAccountDialog(false)}
+        >
+          <div
+            style={{
+              background: 'linear-gradient(145deg, rgba(45, 45, 45, 0.75) 0%, rgba(35, 35, 35, 0.85) 100%)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              border: '1px solid rgba(107, 107, 58, 0.25)',
+              borderTop: '1px solid rgba(107, 107, 58, 0.35)',
+              borderRadius: '16px',
+              boxShadow: `
+                0 20px 40px rgba(0, 0, 0, 0.4),
+                0 8px 16px rgba(0, 0, 0, 0.2),
+                inset 0 1px 2px rgba(255, 255, 255, 0.08)
+              `,
+              width: '100%',
+              maxWidth: '420px',
+              position: 'relative',
+              overflow: 'hidden'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              onClick={() => {
+                setShowAccountDialog(false);
+                setAccountName('');
+                setAccountEmail('');
+                setAccountPosition('');
+                setAccountGoal('');
+              }}
+              style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                background: 'rgba(107, 107, 58, 0.15)',
+                border: '1px solid rgba(107, 107, 58, 0.25)',
+                borderRadius: '8px',
+                width: '32px',
+                height: '32px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#9ca3af',
+                cursor: 'pointer',
+                fontSize: '18px',
+                fontWeight: '500',
+                transition: 'all 0.2s ease',
+                zIndex: 10
+              }}
+              onMouseEnter={(e) => {
+                const target = e.target as HTMLButtonElement;
+                target.style.background = 'rgba(107, 107, 58, 0.25)';
+                target.style.color = '#f3f4f6';
+              }}
+              onMouseLeave={(e) => {
+                const target = e.target as HTMLButtonElement;
+                target.style.background = 'rgba(107, 107, 58, 0.15)';
+                target.style.color = '#9ca3af';
+              }}
+            >
+              ×
+            </button>
+
+            {/* Header with icon */}
+            <div
+              style={{
+                padding: '24px 24px 20px 24px',
+                borderBottom: '1px solid rgba(107, 107, 58, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px'
+              }}
+            >
+              <div
+                style={{
+                  width: '24px',
+                  height: '24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#6b6b3a'
+                }}
+              >
+                <User className="w-5 h-5" />
+              </div>
+              <h2
+                style={{
+                  color: '#f3f4f6',
+                  fontSize: '18px',
+                  fontWeight: '600',
+                  margin: 0,
+                  letterSpacing: '-0.025em'
+                }}
+              >
+                Account Settings
+              </h2>
+            </div>
+            
+            {/* Content area */}
+            <div
+              style={{
+                padding: '24px',
+                background: 'linear-gradient(145deg, rgba(40, 40, 40, 0.4) 0%, rgba(30, 30, 30, 0.6) 100%)',
+                margin: '0',
+                minHeight: '280px'
+              }}
+            >
+              <div style={{ marginBottom: '20px' }}>
+                {/* Full Name Field */}
+                <label
+                  htmlFor="account-name"
+                  style={{
+                    color: '#d1d5db',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    marginBottom: '8px',
+                    display: 'block',
+                    letterSpacing: '-0.025em'
+                  }}
+                >
+                  Full Name
+                </label>
+                <input
+                  id="account-name"
+                  type="text"
+                  value={accountName}
+                  onChange={(e) => setAccountName(e.target.value)}
+                  placeholder="Enter your full name..."
+                  style={{
+                    background: 'rgba(55, 55, 55, 0.6)',
+                    border: '1px solid rgba(107, 107, 58, 0.25)',
+                    borderRadius: '8px',
+                    color: '#f3f4f6',
+                    fontSize: '15px',
+                    fontWeight: '400',
+                    width: '100%',
+                    padding: '12px 16px',
+                    outline: 'none',
+                    transition: 'all 0.2s ease',
+                    boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.15)',
+                    marginBottom: '16px'
+                  }}
+                  onFocus={(e) => {
+                    const target = e.target as HTMLInputElement;
+                    target.style.borderColor = 'rgba(107, 107, 58, 0.4)';
+                    target.style.background = 'rgba(60, 60, 60, 0.7)';
+                    target.style.boxShadow = `
+                      0 0 0 3px rgba(107, 107, 58, 0.12),
+                      inset 0 1px 3px rgba(0, 0, 0, 0.15)
+                    `;
+                  }}
+                  onBlur={(e) => {
+                    const target = e.target as HTMLInputElement;
+                    target.style.borderColor = 'rgba(107, 107, 58, 0.25)';
+                    target.style.background = 'rgba(55, 55, 55, 0.6)';
+                    target.style.boxShadow = 'inset 0 1px 3px rgba(0, 0, 0, 0.15)';
+                  }}
+                />
+                
+                {/* Email Field */}
+                <label
+                  htmlFor="account-email"
+                  style={{
+                    color: '#d1d5db',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    marginBottom: '8px',
+                    display: 'block',
+                    letterSpacing: '-0.025em'
+                  }}
+                >
+                  Email Address
+                </label>
+                <input
+                  id="account-email"
+                  type="email"
+                  value={accountEmail}
+                  onChange={(e) => setAccountEmail(e.target.value)}
+                  placeholder="Enter your email address..."
+                  style={{
+                    background: 'rgba(55, 55, 55, 0.6)',
+                    border: '1px solid rgba(107, 107, 58, 0.25)',
+                    borderRadius: '8px',
+                    color: '#f3f4f6',
+                    fontSize: '15px',
+                    fontWeight: '400',
+                    width: '100%',
+                    padding: '12px 16px',
+                    outline: 'none',
+                    transition: 'all 0.2s ease',
+                    boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.15)',
+                    marginBottom: '16px'
+                  }}
+                  onFocus={(e) => {
+                    const target = e.target as HTMLInputElement;
+                    target.style.borderColor = 'rgba(107, 107, 58, 0.4)';
+                    target.style.background = 'rgba(60, 60, 60, 0.7)';
+                    target.style.boxShadow = `
+                      0 0 0 3px rgba(107, 107, 58, 0.12),
+                      inset 0 1px 3px rgba(0, 0, 0, 0.15)
+                    `;
+                  }}
+                  onBlur={(e) => {
+                    const target = e.target as HTMLInputElement;
+                    target.style.borderColor = 'rgba(107, 107, 58, 0.25)';
+                    target.style.background = 'rgba(55, 55, 55, 0.6)';
+                    target.style.boxShadow = 'inset 0 1px 3px rgba(0, 0, 0, 0.15)';
+                  }}
+                />
+
+                {/* Position Field */}
+                <label
+                  htmlFor="account-position"
+                  style={{
+                    color: '#d1d5db',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    marginBottom: '8px',
+                    display: 'block',
+                    letterSpacing: '-0.025em'
+                  }}
+                >
+                  Position/Title
+                </label>
+                <input
+                  id="account-position"
+                  type="text"
+                  value={accountPosition}
+                  onChange={(e) => setAccountPosition(e.target.value)}
+                  placeholder="Enter your position or job title..."
+                  style={{
+                    background: 'rgba(55, 55, 55, 0.6)',
+                    border: '1px solid rgba(107, 107, 58, 0.25)',
+                    borderRadius: '8px',
+                    color: '#f3f4f6',
+                    fontSize: '15px',
+                    fontWeight: '400',
+                    width: '100%',
+                    padding: '12px 16px',
+                    outline: 'none',
+                    transition: 'all 0.2s ease',
+                    boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.15)',
+                    marginBottom: '16px'
+                  }}
+                  onFocus={(e) => {
+                    const target = e.target as HTMLInputElement;
+                    target.style.borderColor = 'rgba(107, 107, 58, 0.4)';
+                    target.style.background = 'rgba(60, 60, 60, 0.7)';
+                    target.style.boxShadow = `
+                      0 0 0 3px rgba(107, 107, 58, 0.12),
+                      inset 0 1px 3px rgba(0, 0, 0, 0.15)
+                    `;
+                  }}
+                  onBlur={(e) => {
+                    const target = e.target as HTMLInputElement;
+                    target.style.borderColor = 'rgba(107, 107, 58, 0.25)';
+                    target.style.background = 'rgba(55, 55, 55, 0.6)';
+                    target.style.boxShadow = 'inset 0 1px 3px rgba(0, 0, 0, 0.15)';
+                  }}
+                />
+
+                {/* Goal Field */}
+                <label
+                  htmlFor="account-goal"
+                  style={{
+                    color: '#d1d5db',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    marginBottom: '8px',
+                    display: 'block',
+                    letterSpacing: '-0.025em'
+                  }}
+                >
+                  Professional Goal
+                </label>
+                <textarea
+                  id="account-goal"
+                  value={accountGoal}
+                  onChange={(e) => setAccountGoal(e.target.value)}
+                  placeholder="Describe your professional goals or objectives..."
+                  rows={3}
+                  style={{
+                    background: 'rgba(55, 55, 55, 0.6)',
+                    border: '1px solid rgba(107, 107, 58, 0.25)',
+                    borderRadius: '8px',
+                    color: '#f3f4f6',
+                    fontSize: '15px',
+                    fontWeight: '400',
+                    width: '100%',
+                    padding: '12px 16px',
+                    outline: 'none',
+                    transition: 'all 0.2s ease',
+                    boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.15)',
+                    resize: 'vertical',
+                    minHeight: '80px',
+                    fontFamily: 'inherit'
+                  }}
+                  onFocus={(e) => {
+                    const target = e.target as HTMLTextAreaElement;
+                    target.style.borderColor = 'rgba(107, 107, 58, 0.4)';
+                    target.style.background = 'rgba(60, 60, 60, 0.7)';
+                    target.style.boxShadow = `
+                      0 0 0 3px rgba(107, 107, 58, 0.12),
+                      inset 0 1px 3px rgba(0, 0, 0, 0.15)
+                    `;
+                  }}
+                  onBlur={(e) => {
+                    const target = e.target as HTMLTextAreaElement;
+                    target.style.borderColor = 'rgba(107, 107, 58, 0.25)';
+                    target.style.background = 'rgba(55, 55, 55, 0.6)';
+                    target.style.boxShadow = 'inset 0 1px 3px rgba(0, 0, 0, 0.15)';
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && e.ctrlKey && !isUpdatingAccount) {
+                      handleUpdateAccount();
+                    }
+                  }}
+                />
+              </div>
+            </div>
+            
+            {/* Footer with action buttons */}
+            <div
+              style={{
+                padding: '20px 24px 24px 24px',
+                borderTop: '1px solid rgba(107, 107, 58, 0.15)',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '12px',
+                background: 'linear-gradient(145deg, rgba(45, 45, 45, 0.6) 0%, rgba(35, 35, 35, 0.7) 100%)'
+              }}
+            >
+              <button
+                onClick={() => {
+                  setShowAccountDialog(false);
+                  setAccountName('');
+                  setAccountEmail('');
+                  setAccountPosition('');
+                  setAccountGoal('');
+                }}
+                disabled={isUpdatingAccount}
+                style={{
+                  background: 'rgba(107, 107, 58, 0.12)',
+                  border: '1px solid rgba(107, 107, 58, 0.2)',
+                  borderRadius: '8px',
+                  color: '#d1d5db',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  padding: '10px 20px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  letterSpacing: '-0.025em'
+                }}
+                onMouseEnter={(e) => {
+                  const target = e.target as HTMLButtonElement;
+                  target.style.background = 'rgba(107, 107, 58, 0.2)';
+                  target.style.color = '#f3f4f6';
+                }}
+                onMouseLeave={(e) => {
+                  const target = e.target as HTMLButtonElement;
+                  target.style.background = 'rgba(107, 107, 58, 0.12)';
+                  target.style.color = '#d1d5db';
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateAccount}
+                disabled={!accountName.trim() || !accountEmail.trim() || isUpdatingAccount}
+                style={{
+                  background: 'linear-gradient(145deg, rgba(107, 107, 58, 0.6) 0%, rgba(107, 107, 58, 0.4) 100%)',
+                  border: '1px solid rgba(107, 107, 58, 0.3)',
+                  borderRadius: '8px',
+                  color: '#f3f4f6',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  padding: '10px 20px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s ease',
+                  letterSpacing: '-0.025em',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)'
+                }}
+                onMouseEnter={(e) => {
+                  const target = e.target as HTMLButtonElement;
+                  target.style.background = 'linear-gradient(145deg, rgba(107, 107, 58, 0.7) 0%, rgba(107, 107, 58, 0.5) 100%)';
+                  target.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.25)';
+                }}
+                onMouseLeave={(e) => {
+                  const target = e.target as HTMLButtonElement;
+                  target.style.background = 'linear-gradient(145deg, rgba(107, 107, 58, 0.6) 0%, rgba(107, 107, 58, 0.4) 100%)';
+                  target.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.15)';
+                }}
+              >
+                {isUpdatingAccount ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  <>
+                    <User className="w-4 h-4" />
+                    Update Account
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
