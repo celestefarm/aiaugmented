@@ -1,3 +1,6 @@
+/* Import orbit animation styles */
+@import './styles/orbit-animation.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

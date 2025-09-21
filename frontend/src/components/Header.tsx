@@ -69,7 +69,7 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, title, onTit
   };
 
   const handleBackToDashboard = () => {
-    navigate('/');
+    navigate('/dashboard');
   };
 
   const handleExport = async () => {

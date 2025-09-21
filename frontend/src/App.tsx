@@ -7,6 +7,7 @@ import { AgentChatProvider } from './contexts/AgentChatContext';
 import { DocumentProvider } from './contexts/DocumentContext';
 import { InteractionProvider } from './contexts/InteractionContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import LandingPage from './pages/LandingPage';
 import Index from './pages/Index';
 import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
@@ -22,11 +23,7 @@ function App() {
                 <Router>
                   <Routes>
                     <Route path="/auth" element={<Auth />} />
-                    <Route path="/" element={
-                      <ProtectedRoute>
-                        <Index />
-                      </ProtectedRoute>
-                    } />
+                    <Route path="/" element={<LandingPage />} />
                     <Route path="/workspace" element={
                       <ProtectedRoute>
                         <Index />
