@@ -418,35 +418,33 @@
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
   filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.4));
-  animation: luxury-breathing 10s ease-in-out infinite;
+  /* Remove breathing animation to prevent any positioning shifts */
 }
 
 .understand-text {
-  top: 40%; /* Moved slightly lower */
-  left: 10%; /* Spread further from center */
-  transform: translateX(-50%) translateY(-85%) translateZ(100px);
-  font-size: clamp(2.2rem, 4.5vw, 3.6rem);
+  top: 45%; /* Moved slightly higher */
+  left: 25%; /* Moved much closer to center */
+  transform: translateX(-50%) translateY(-50%) translateZ(100px);
+  font-size: clamp(1.8rem, 3.5vw, 2.8rem); /* Reduced by 2 sizes */
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0.8rem;
   line-height: 0.95;
-  animation-delay: 0s;
 }
 
 .universe-text {
-  top: 40%; /* Moved slightly lower */
-  right: 10%; /* Spread further from center */
-  transform: translateX(50%) translateY(-85%) translateZ(80px);
-  font-size: clamp(2.2rem, 4.5vw, 3.6rem);
+  top: 45%; /* Moved slightly higher */
+  right: 25%; /* Moved much closer to center */
+  transform: translateX(50%) translateY(-50%) translateZ(80px);
+  font-size: clamp(1.8rem, 3.5vw, 2.8rem); /* Reduced by 2 sizes */
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0.8rem;
   line-height: 0.95;
-  animation-delay: 2s;
 }
 
 .text-word {
@@ -459,82 +457,50 @@
   position: relative;
   transition: all 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   cursor: default;
-  opacity: 0;
-  transform: translateY(20px);
-  animation: luxury-reveal 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  opacity: 1;
+  transform: translateY(0);
+  /* Remove animation completely to prevent positioning issues */
 }
 
-/* Staggered reveal animations */
+/* Staggered reveal animations - REMOVED to prevent positioning issues */
 .understand-text .text-word:nth-child(1) {
-  animation-delay: 0.3s;
   font-size: 1.1em; /* Subtle hierarchy */
 }
 
 .understand-text .text-word:nth-child(2) {
-  animation-delay: 0.5s;
   font-size: 0.95em;
 }
 
 .universe-text .text-word:nth-child(1) {
-  animation-delay: 0.7s;
   font-size: 1.1em; /* Subtle hierarchy */
 }
 
 .universe-text .text-word:nth-child(2) {
-  animation-delay: 0.9s;
   font-size: 0.95em;
 }
 
-/* Human Competence - Warm luxury gradient with brushed metal effect */
+/* Human Competence - Pure white text without glow */
 .understand-text .text-word {
-  background: linear-gradient(135deg,
-    #ffffff 0%,
-    #fefcf3 15%,
-    #f7f3e9 30%,
-    #e8e2d4 45%,
-    #d4c5a9 60%,
-    #b8a082 75%,
-    #9d8660 90%,
-    #8b7355 100%
-  );
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  background-size: 200% 100%;
-  background-position: 0% 50%;
-  text-shadow:
-    0 0 3px rgba(255, 255, 255, 0.15),
-    0 0 8px rgba(248, 240, 227, 0.08),
-    1px 0 0 rgba(255, 255, 255, 0.1),
-    -1px 0 0 rgba(139, 115, 85, 0.1);
+  color: #ffffff;
+  background: none;
+  -webkit-background-clip: initial;
+  -webkit-text-fill-color: initial;
+  background-clip: initial;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   position: relative;
-  filter: contrast(1.1) brightness(1.05);
+  filter: none;
 }
 
-/* AI Core Intelligence - Cool luxury gradient with brushed metal effect */
+/* AI Core Intelligence - Pure white text without glow */
 .universe-text .text-word {
-  background: linear-gradient(135deg,
-    #ffffff 0%,
-    #f8fafc 15%,
-    #f1f5f9 30%,
-    #e2e8f0 45%,
-    #cbd5e1 60%,
-    #94a3b8 75%,
-    #64748b 90%,
-    #475569 100%
-  );
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  background-size: 200% 100%;
-  background-position: 0% 50%;
-  text-shadow:
-    0 0 3px rgba(255, 255, 255, 0.15),
-    0 0 8px rgba(241, 245, 249, 0.08),
-    1px 0 0 rgba(255, 255, 255, 0.1),
-    -1px 0 0 rgba(71, 85, 105, 0.1);
+  color: #ffffff;
+  background: none;
+  -webkit-background-clip: initial;
+  -webkit-text-fill-color: initial;
+  background-clip: initial;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   position: relative;
-  filter: contrast(1.1) brightness(1.05);
+  filter: none;
 }
 
 /* Animation delays removed for static text */
@@ -567,12 +533,12 @@
 /* Luxury reveal animation for text entrance */
 @keyframes luxury-reveal {
   0% {
-    opacity: 0;
-    transform: translateY(30px) scale(0.95);
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
   60% {
-    opacity: 0.8;
-    transform: translateY(-5px) scale(1.02);
+    opacity: 1;
+    transform: translateY(-2px) scale(1.01);
   }
   100% {
     opacity: 1;

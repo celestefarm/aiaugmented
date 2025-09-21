@@ -31,8 +31,8 @@ async def list_workspaces(current_user: UserResponse = Depends(get_current_activ
     # Get database instance
     database = get_database()
     
-    # Find all workspaces owned by the current user
-    cursor = database.workspaces.find({"owner_id": current_user.id})
+    # Find all workspaces owned by the current user, sorted by creation date (newest first)
+    cursor = database.workspaces.find({"owner_id": current_user.id}).sort("created_at", -1)
     workspace_docs = await cursor.to_list(length=None)
     
     # Convert to response models

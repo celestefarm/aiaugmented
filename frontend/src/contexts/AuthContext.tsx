@@ -10,6 +10,7 @@ interface AuthContextType {
   signup: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  updateUser: (data: { name?: string }) => Promise<void>;
 }
 
 // Create context
@@ -122,6 +123,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // Update user profile
+  const updateUser = async (data: { name?: string }): Promise<void> => {
+    try {
+      setIsLoading(true);
+      console.log('=== UPDATE USER DEBUG ===');
+      console.log('Updating user with data:', data);
+      
+      const updatedUser = await apiClient.updateProfile(data);
+      console.log('User update successful:', updatedUser);
+      
+      // Fix user data structure mismatch: backend returns "_id" but frontend expects "id"
+      if (updatedUser && updatedUser._id && !updatedUser.id) {
+        (updatedUser as any).id = updatedUser._id;
+      }
+      
+      setUser(updatedUser);
+      console.log('User state updated successfully');
+    } catch (error) {
+      console.error('Failed to update user:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Context value
   const value: AuthContextType = {
     user,
@@ -131,6 +157,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     signup,
     logout,
     refreshUser,
+    updateUser,
   };
 
   return (

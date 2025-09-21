@@ -55,7 +55,7 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
       setIsLoading(true);
       setError(null);
       const newWorkspace = await apiClient.createWorkspace(data);
-      setWorkspaces(prev => [...prev, newWorkspace]);
+      setWorkspaces(prev => [newWorkspace, ...prev]);
       
       // CRITICAL FIX: Automatically set the new workspace as the current workspace
       setCurrentWorkspace(newWorkspace);

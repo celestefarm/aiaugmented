@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import {
   Dialog,
   DialogContent,
@@ -11,6 +12,7 @@ import SignupForm from './auth/SignupForm';
 
 const LandingPageHeader: React.FC = () => {
   const navigate = useNavigate();
+  const { isAuthenticated, user, logout } = useAuth();
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isSignupOpen, setIsSignupOpen] = useState(false);
 
@@ -41,6 +43,21 @@ const LandingPageHeader: React.FC = () => {
     console.log('🔍 DEBUG: Switching from signup to login');
     setIsSignupOpen(false);
     setIsLoginOpen(true);
+  };
+
+  const handleDashboard = () => {
+    console.log('🔍 DEBUG: Dashboard button clicked - Navigating to dashboard');
+    navigate('/dashboard');
+  };
+
+  const handleLogout = async () => {
+    console.log('🔍 DEBUG: Logout button clicked');
+    try {
+      await logout();
+      console.log('✅ DEBUG: Logout successful');
+    } catch (error) {
+      console.error('❌ DEBUG: Logout failed:', error);
+    }
   };
 
   return (
@@ -92,20 +109,46 @@ const LandingPageHeader: React.FC = () => {
               </a>
             </nav>
             
-            {/* Authentication Buttons */}
+            {/* Authentication/User Section */}
             <div className="flex items-center space-x-4">
-              <button
-                onClick={handleSignIn}
-                className="text-white hover:text-gray-300 transition-colors duration-200 font-medium px-4 py-2"
-              >
-                Sign In
-              </button>
-              <button
-                onClick={handleSignUp}
-                className="bg-white/10 hover:bg-white/20 text-white font-medium px-6 py-2 rounded-lg border border-white/20 hover:border-white/30 transition-all duration-200 backdrop-blur-sm"
-              >
-                Sign Up
-              </button>
+              {isAuthenticated ? (
+                // Authenticated user content
+                <>
+                  <div className="hidden sm:flex items-center space-x-3">
+                    <div className="text-white text-sm">
+                      Welcome, <span className="font-medium">{user?.name}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleDashboard}
+                    className="bg-[#6B6B3A] hover:bg-[#6B6B3A]/80 text-black font-medium px-6 py-2 rounded-lg transition-all duration-200"
+                  >
+                    Dashboard
+                  </button>
+                  <button
+                    onClick={handleLogout}
+                    className="text-white hover:text-gray-300 transition-colors duration-200 font-medium px-4 py-2"
+                  >
+                    Logout
+                  </button>
+                </>
+              ) : (
+                // Unauthenticated user content
+                <>
+                  <button
+                    onClick={handleSignIn}
+                    className="text-white hover:text-gray-300 transition-colors duration-200 font-medium px-4 py-2"
+                  >
+                    Sign In
+                  </button>
+                  <button
+                    onClick={handleSignUp}
+                    className="bg-white/10 hover:bg-white/20 text-white font-medium px-6 py-2 rounded-lg border border-white/20 hover:border-white/30 transition-all duration-200 backdrop-blur-sm"
+                  >
+                    Sign Up
+                  </button>
+                </>
+              )}
             </div>
           </div>
 

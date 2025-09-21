@@ -6,22 +6,23 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
-import { 
-  Plus, 
-  Calendar, 
-  Settings, 
-  Trash2, 
-  Edit, 
-  LogOut, 
+import {
+  Plus,
+  Calendar,
+  Settings,
+  Trash2,
+  Edit,
+  LogOut,
   User,
   Loader2,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  Home
 } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const {
     workspaces,
     isLoading,
@@ -88,6 +89,18 @@ const Dashboard: React.FC = () => {
     } catch (error) {
       console.error('Logout failed:', error);
     }
+  };
+
+  // Handle home navigation
+  const handleHome = (e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    console.log('🏠 HOME BUTTON CLICKED - navigating to landing page');
+    
+    // Navigate to the landing page (home)
+    navigate('/');
+    
+    console.log('✅ Navigated to landing page');
   };
 
   // Handle create workspace
@@ -211,30 +224,26 @@ const Dashboard: React.FC = () => {
 
   // Handle update account
   const handleUpdateAccount = async () => {
-    if (!accountName.trim() || !accountEmail.trim() || !accountPosition.trim() || !accountGoal.trim()) {
-      console.log('❌ [ACCOUNT-DEBUG] Validation failed - missing required fields');
+    if (!accountName.trim()) {
+      console.log('❌ [ACCOUNT-DEBUG] Validation failed - missing name');
       console.log('  - accountName:', accountName);
-      console.log('  - accountEmail:', accountEmail);
-      console.log('  - accountPosition:', accountPosition);
-      console.log('  - accountGoal:', accountGoal);
       return;
     }
 
     console.log('🔧 [ACCOUNT-DEBUG] Starting account update process...');
     console.log('  - Current name:', user?.name);
     console.log('  - New name:', accountName.trim());
-    console.log('  - Current email:', user?.email);
-    console.log('  - New email:', accountEmail.trim());
-    console.log('  - New position:', accountPosition.trim());
-    console.log('  - New goal:', accountGoal.trim());
 
     try {
       setIsUpdatingAccount(true);
       
-      // TODO: Implement actual user update API call
-      // For now, we'll simulate the update
-      console.log('🔧 [ACCOUNT-DEBUG] Simulating account update...');
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Use the real API call to update user profile
+      console.log('🔧 [ACCOUNT-DEBUG] Calling real updateUser API...');
+      await updateUser({
+        name: accountName.trim()
+      });
+      
+      console.log('✅ [ACCOUNT-DEBUG] API call successful');
       
       // Close dialog and reset state
       setShowAccountDialog(false);
@@ -243,9 +252,13 @@ const Dashboard: React.FC = () => {
       setAccountPosition('');
       setAccountGoal('');
       
-      console.log('✅ [ACCOUNT-DEBUG] Account update completed successfully (simulated)');
+      console.log('✅ [ACCOUNT-DEBUG] Account update completed successfully with real API call');
     } catch (error) {
       console.error('❌ [ACCOUNT-DEBUG] Failed to update account:', error);
+      console.error('❌ [ACCOUNT-DEBUG] Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : 'No stack trace'
+      });
     } finally {
       setIsUpdatingAccount(false);
     }
@@ -342,7 +355,17 @@ const Dashboard: React.FC = () => {
           {/* Right Section */}
           <div className="flex items-center space-x-4">
             <Button
-              onClick={() => setShowCreateDialog(true)}
+              onClick={handleHome}
+              className="bg-[#6B6B3A] hover:bg-[#6B6B3A]/80 text-black font-medium"
+            >
+              <Home className="w-4 h-4 mr-2" />
+              Home
+            </Button>
+            <Button
+              onClick={() => {
+                console.log('🔍 [FORM-DEBUG] New Workspace button clicked - opening dialog');
+                setShowCreateDialog(true);
+              }}
               className="bg-[#6B6B3A] hover:bg-[#6B6B3A]/80 text-black font-medium"
             >
               <Plus className="w-4 h-4 mr-2" />
@@ -406,37 +429,18 @@ const Dashboard: React.FC = () => {
           </div>
         ) : (
           <>
-            {/* Stats */}
+            {/* Account Section */}
             <div className="mb-8">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="glass-pane p-6 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-400">Total Workspaces</p>
-                      <p className="text-2xl font-bold text-white">{workspaces.length}</p>
-                    </div>
-                    <div className="w-12 h-12 rounded-full bg-[#6B6B3A]/20 flex items-center justify-center">
-                      <Settings className="w-6 h-6 text-[#6B6B3A]" />
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="glass-pane p-6 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-400">Recent Activity</p>
-                      <p className="text-2xl font-bold text-white">
-                        {workspaces.length > 0 ? 'Active' : 'None'}
-                      </p>
-                    </div>
-                    <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center">
-                      <Calendar className="w-6 h-6 text-blue-400" />
-                    </div>
-                  </div>
-                </div>
-                
+              <div className="max-w-md">
                 <div
-                  className="glass-pane p-6 rounded-lg cursor-pointer hover:scale-105 transition-all duration-200 group border border-gray-800/50 hover:border-[#6B6B3A]/30"
+                  className="bg-gradient-to-r from-blue-600/10 to-purple-600/10 backdrop-blur-sm border border-blue-500/20 p-6 rounded-xl cursor-pointer hover:scale-[1.02] transition-all duration-300 group shadow-lg hover:shadow-blue-500/10"
+                  style={{
+                    boxShadow: `
+                      0 0 20px rgba(59, 130, 246, 0.15),
+                      0 0 40px rgba(147, 51, 234, 0.1),
+                      0 4px 20px rgba(0, 0, 0, 0.1)
+                    `
+                  }}
                   onClick={() => {
                     setAccountName(user?.name || '');
                     setAccountEmail(user?.email || '');
@@ -444,14 +448,38 @@ const Dashboard: React.FC = () => {
                     setAccountGoal(''); // TODO: Get from user profile when available
                     setShowAccountDialog(true);
                   }}
+                  onMouseEnter={(e) => {
+                    const target = e.target as HTMLDivElement;
+                    target.style.boxShadow = `
+                      0 0 30px rgba(59, 130, 246, 0.25),
+                      0 0 60px rgba(147, 51, 234, 0.15),
+                      0 8px 32px rgba(0, 0, 0, 0.15)
+                    `;
+                  }}
+                  onMouseLeave={(e) => {
+                    const target = e.target as HTMLDivElement;
+                    target.style.boxShadow = `
+                      0 0 20px rgba(59, 130, 246, 0.15),
+                      0 0 40px rgba(147, 51, 234, 0.1),
+                      0 4px 20px rgba(0, 0, 0, 0.1)
+                    `;
+                  }}
                 >
                   <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-400">Account</p>
-                      <p className="text-lg font-semibold text-white group-hover:text-[#6B6B3A] transition-colors">Premium</p>
+                    <div className="flex items-center space-x-4">
+                      <div className="w-14 h-14 rounded-full bg-gradient-to-r from-blue-500/20 to-purple-500/20 flex items-center justify-center border border-blue-400/30">
+                        <User className="w-7 h-7 text-blue-300" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-blue-300/80 font-medium">Account Settings</p>
+                        <p className="text-xl font-bold text-white group-hover:text-blue-200 transition-colors">Premium Plan</p>
+                        <p className="text-xs text-gray-400 mt-1">Click to manage your profile</p>
+                      </div>
                     </div>
-                    <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
-                      <User className="w-6 h-6 text-green-400" />
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <svg className="w-5 h-5 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
                     </div>
                   </div>
                 </div>
@@ -582,7 +610,10 @@ const Dashboard: React.FC = () => {
             zIndex: 1000,
             padding: '20px'
           }}
-          onClick={() => setShowCreateDialog(false)}
+          onClick={() => {
+            console.log('🔍 [FORM-DEBUG] Dialog overlay clicked - closing dialog');
+            setShowCreateDialog(false);
+          }}
         >
           <div
             style={{
@@ -602,7 +633,10 @@ const Dashboard: React.FC = () => {
               position: 'relative',
               overflow: 'hidden'
             }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              console.log('🔍 [FORM-DEBUG] Dialog content clicked - preventing close');
+              e.stopPropagation();
+            }}
           >
             {/* Close button */}
             <button
@@ -720,6 +754,7 @@ const Dashboard: React.FC = () => {
                       value={newWorkspaceTitle}
                       onChange={(e) => setNewWorkspaceTitle(e.target.value)}
                       placeholder="Enter workspace title..."
+                      autoFocus
                       style={{
                         background: 'rgba(55, 55, 55, 0.6)',
                         border: '1px solid rgba(107, 107, 58, 0.25)',
@@ -731,9 +766,13 @@ const Dashboard: React.FC = () => {
                         padding: '12px 16px',
                         outline: 'none',
                         transition: 'all 0.2s ease',
-                        boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.15)'
+                        boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.15)',
+                        pointerEvents: 'auto',
+                        userSelect: 'text',
+                        zIndex: 1001
                       }}
                       onFocus={(e) => {
+                        console.log('🔍 [FORM-DEBUG] Title field focused');
                         const target = e.target as HTMLInputElement;
                         target.style.borderColor = 'rgba(107, 107, 58, 0.4)';
                         target.style.background = 'rgba(60, 60, 60, 0.7)';
@@ -743,10 +782,18 @@ const Dashboard: React.FC = () => {
                         `;
                       }}
                       onBlur={(e) => {
+                        console.log('🔍 [FORM-DEBUG] Title field blurred');
                         const target = e.target as HTMLInputElement;
                         target.style.borderColor = 'rgba(107, 107, 58, 0.25)';
                         target.style.background = 'rgba(55, 55, 55, 0.6)';
                         target.style.boxShadow = 'inset 0 1px 3px rgba(0, 0, 0, 0.15)';
+                      }}
+                      onClick={(e) => {
+                        console.log('🔍 [FORM-DEBUG] Title field clicked');
+                        e.stopPropagation();
+                      }}
+                      onInput={(e) => {
+                        console.log('🔍 [FORM-DEBUG] Title field input:', (e.target as HTMLInputElement).value);
                       }}
                     />
                   </div>
@@ -786,9 +833,13 @@ const Dashboard: React.FC = () => {
                         boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.15)',
                         resize: 'vertical',
                         minHeight: '100px',
-                        fontFamily: 'inherit'
+                        fontFamily: 'inherit',
+                        pointerEvents: 'auto',
+                        userSelect: 'text',
+                        zIndex: 1001
                       }}
                       onFocus={(e) => {
+                        console.log('🔍 [FORM-DEBUG] Situation field focused');
                         const target = e.target as HTMLTextAreaElement;
                         target.style.borderColor = 'rgba(107, 107, 58, 0.4)';
                         target.style.background = 'rgba(60, 60, 60, 0.7)';
@@ -798,10 +849,18 @@ const Dashboard: React.FC = () => {
                         `;
                       }}
                       onBlur={(e) => {
+                        console.log('🔍 [FORM-DEBUG] Situation field blurred');
                         const target = e.target as HTMLTextAreaElement;
                         target.style.borderColor = 'rgba(107, 107, 58, 0.25)';
                         target.style.background = 'rgba(55, 55, 55, 0.6)';
                         target.style.boxShadow = 'inset 0 1px 3px rgba(0, 0, 0, 0.15)';
+                      }}
+                      onClick={(e) => {
+                        console.log('🔍 [FORM-DEBUG] Situation field clicked');
+                        e.stopPropagation();
+                      }}
+                      onInput={(e) => {
+                        console.log('🔍 [FORM-DEBUG] Situation field input:', (e.target as HTMLTextAreaElement).value);
                       }}
                     />
                   </div>
@@ -844,9 +903,13 @@ const Dashboard: React.FC = () => {
                         boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.15)',
                         resize: 'vertical',
                         minHeight: '140px',
-                        fontFamily: 'inherit'
+                        fontFamily: 'inherit',
+                        pointerEvents: 'auto',
+                        userSelect: 'text',
+                        zIndex: 1001
                       }}
                       onFocus={(e) => {
+                        console.log('🔍 [FORM-DEBUG] Goal field focused');
                         const target = e.target as HTMLTextAreaElement;
                         target.style.borderColor = 'rgba(107, 107, 58, 0.4)';
                         target.style.background = 'rgba(60, 60, 60, 0.7)';
@@ -856,10 +919,18 @@ const Dashboard: React.FC = () => {
                         `;
                       }}
                       onBlur={(e) => {
+                        console.log('🔍 [FORM-DEBUG] Goal field blurred');
                         const target = e.target as HTMLTextAreaElement;
                         target.style.borderColor = 'rgba(107, 107, 58, 0.25)';
                         target.style.background = 'rgba(55, 55, 55, 0.6)';
                         target.style.boxShadow = 'inset 0 1px 3px rgba(0, 0, 0, 0.15)';
+                      }}
+                      onClick={(e) => {
+                        console.log('🔍 [FORM-DEBUG] Goal field clicked');
+                        e.stopPropagation();
+                      }}
+                      onInput={(e) => {
+                        console.log('🔍 [FORM-DEBUG] Goal field input:', (e.target as HTMLTextAreaElement).value);
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && e.ctrlKey && !isCreating) {
@@ -1891,7 +1962,7 @@ const Dashboard: React.FC = () => {
               </button>
               <button
                 onClick={handleUpdateAccount}
-                disabled={!accountName.trim() || !accountEmail.trim() || isUpdatingAccount}
+                disabled={!accountName.trim() || isUpdatingAccount}
                 style={{
                   background: 'linear-gradient(145deg, rgba(107, 107, 58, 0.6) 0%, rgba(107, 107, 58, 0.4) 100%)',
                   border: '1px solid rgba(107, 107, 58, 0.3)',
