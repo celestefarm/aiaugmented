@@ -13,7 +13,7 @@ DEFAULT_AGENTS = [
         "human_role": "Provide strategic context, validate insights, and apply judgment to personalized recommendations",
         "is_custom": False,
         "is_active": True,
-        "model_name": "openai/gpt-4-32k",  # Use GPT-4-32K for better token capacity
+        "model_name": "gpt-4",  # Use GPT-4 (corrected model name)
         "full_description": {
             "role": "Strategic Co-Pilot & Cognitive Twin with AGENT BLUEPRINT Engine",
             "mission": "Transform strategic thinking through personalized mentorship, multi-phase strategic analysis, Lightning Brief generation, and red team challenge protocols",
@@ -130,7 +130,7 @@ DEFAULT_AGENTS = [
         "human_role": "Validate regulatory interpretation, assess risk tolerance",
         "is_custom": False,
         "is_active": True,
-        "model_name": "openai/gpt-4-32k",  # Add model configuration
+        "model_name": "gpt-4",  # Add model configuration
         "full_description": {
             "role": "Risk Assessment Specialist",
             "mission": "Ensure strategic decisions account for regulatory and operational risks",
@@ -145,7 +145,7 @@ DEFAULT_AGENTS = [
         "human_role": "Provide execution context, validate implementation approaches",
         "is_custom": False,
         "is_active": True,
-        "model_name": "openai/gpt-4-32k",  # Add model configuration
+        "model_name": "gpt-4",  # Add model configuration
         "full_description": {
             "role": "Execution Excellence Specialist",
             "mission": "Transform strategic plans into actionable results through disciplined execution",
@@ -160,7 +160,7 @@ DEFAULT_AGENTS = [
         "human_role": "Provide market context, validate competitive assumptions",
         "is_custom": False,
         "is_active": True,
-        "model_name": "openai/gpt-4-32k",  # Add model configuration
+        "model_name": "gpt-4",  # Add model configuration
         "full_description": {
             "role": "Market Intelligence & Competitive Strategy Specialist",
             "mission": "Deliver comprehensive market insights and competitive intelligence for strategic advantage",
@@ -175,7 +175,7 @@ DEFAULT_AGENTS = [
         "human_role": "Share experience, validate leadership approaches",
         "is_custom": False,
         "is_active": True,
-        "model_name": "openai/gpt-4-32k",  # Add model configuration
+        "model_name": "gpt-4",  # Add model configuration
         "full_description": {
             "role": "Strategic Mentor & Leadership Advisor",
             "mission": "Guide strategic thinking and leadership development through experienced counsel",
@@ -190,7 +190,7 @@ DEFAULT_AGENTS = [
         "human_role": "Validate stakeholder perspectives, provide relationship context",
         "is_custom": False,
         "is_active": True,
-        "model_name": "openai/gpt-4-32k",  # Add model configuration
+        "model_name": "gpt-4",  # Add model configuration
         "full_description": {
             "role": "Stakeholder Relationship & Alignment Specialist",
             "mission": "Ensure strategic decisions consider and align diverse stakeholder interests",
@@ -205,7 +205,7 @@ DEFAULT_AGENTS = [
         "human_role": "Validate key messages, provide communication preferences",
         "is_custom": False,
         "is_active": True,
-        "model_name": "openai/gpt-4-32k",  # Add model configuration
+        "model_name": "gpt-4",  # Add model configuration
         "full_description": {
             "role": "Strategic Communication & Brief Specialist",
             "mission": "Transform complex strategic analysis into clear, compelling, and actionable communications",
@@ -220,7 +220,7 @@ DEFAULT_AGENTS = [
         "human_role": "Validate future assumptions, provide industry foresight",
         "is_custom": False,
         "is_active": True,
-        "model_name": "openai/gpt-4-32k",  # Add model configuration
+        "model_name": "gpt-4",  # Add model configuration
         "full_description": {
             "role": "Strategic Foresight & Future Planning Specialist",
             "mission": "Anticipate future trends and scenarios to inform long-term strategic planning",

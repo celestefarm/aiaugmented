@@ -180,8 +180,13 @@ async def get_messages(
             detail="Workspace not found"
         )
     
-    # Get messages for the workspace, sorted by creation time
-    cursor = database.messages.find({"workspace_id": ObjectId(workspace_id)}).sort("created_at", 1)
+    # Get messages for the workspace, sorted by creation time - handle both string and ObjectId formats
+    cursor = database.messages.find({
+        "$or": [
+            {"workspace_id": ObjectId(workspace_id)},  # ObjectId format
+            {"workspace_id": workspace_id}  # String format
+        ]
+    }).sort("created_at", 1)
     message_docs = await cursor.to_list(length=None)
     
     # Convert to response models
@@ -244,7 +249,7 @@ async def send_message(
     # Create user message
     now = datetime.utcnow()
     user_message = MessageCreate(
-        workspace_id=workspace_id,
+        workspace_id=workspace_id,  # Keep as string - PyObjectId will handle conversion
         author=current_user.name,
         type="human",
         content=message_data.content,
@@ -279,46 +284,110 @@ async def send_message(
     
     # Generate AI responses from active agents
     if active_agents:
-        # Get agent details for active agents
+        # CRITICAL DEBUG: Check what's actually in the agents collection
+        logger.info(f"=== AGENT DATABASE DEBUG ===")
+        logger.info(f"Active agents requested: {active_agents}")
+        
+        # First, let's see ALL agents in the database
+        all_agents_cursor = database.agents.find({})
+        all_agent_docs = await all_agents_cursor.to_list(length=None)
+        logger.info(f"Total agents in database: {len(all_agent_docs)}")
+        
+        for agent in all_agent_docs:
+            logger.info(f"  - Agent ID: {agent.get('agent_id', 'NO_ID')}, Name: {agent.get('name', 'NO_NAME')}")
+        
+        # Now try the specific query
         agent_cursor = database.agents.find({"agent_id": {"$in": active_agents}})
         agent_docs = await agent_cursor.to_list(length=None)
+        
+        logger.info(f"=== AGENT RESPONSE GENERATION DEBUG ===")
+        logger.info(f"Active agents: {active_agents}")
+        logger.info(f"Found {len(agent_docs)} agent documents matching query")
+        
+        # If no agents found, let's try alternative queries
+        if len(agent_docs) == 0:
+            logger.error(f"❌ NO AGENTS FOUND! Trying alternative queries...")
+            
+            # Try finding strategist specifically
+            strategist_doc = await database.agents.find_one({"agent_id": "strategist"})
+            logger.info(f"Direct strategist query result: {strategist_doc is not None}")
+            if strategist_doc:
+                logger.info(f"Strategist found: {strategist_doc.get('name', 'NO_NAME')}")
+                agent_docs = [strategist_doc]  # Use the strategist we found
+            else:
+                logger.error(f"❌ Even direct strategist query failed!")
         
         for agent_doc in agent_docs:
             try:
                 # Get the full agent object for AI integration
                 agent = await get_agent_by_id(agent_doc["agent_id"])
-                if not agent or not agent.model_name:
-                    # Fallback to simple response if agent not found or no model configured
+                
+                # ENHANCED DIAGNOSTIC LOGGING
+                logger.info(f"=== PROCESSING AGENT: {agent_doc['name']} ===")
+                logger.info(f"Agent ID: {agent_doc['agent_id']}")
+                logger.info(f"Agent found in seed_agents: {agent is not None}")
+                logger.info(f"Agent doc model_name: {agent_doc.get('model_name', 'NOT SET')}")
+                logger.info(f"Agent object model_name: {agent.model_name if agent else 'N/A'}")
+                
+                # CRITICAL FIX: Use model_name from agent_doc if agent object doesn't have it
+                model_name = None
+                if agent and agent.model_name:
+                    model_name = agent.model_name
+                elif agent_doc.get('model_name'):
+                    model_name = agent_doc['model_name']
+                    logger.info(f"Using model_name from agent_doc: {model_name}")
+                
+                if not model_name:
+                    # Fallback to simple response if no model configured
+                    logger.warning(f"Agent {agent_doc['name']} has no model configured")
                     ai_response_content = f"I'm {agent_doc['name']}, ready to help with {agent_doc.get('ai_role', 'various tasks')}. However, my AI model is not currently configured."
                 else:
+                    logger.info(f"=== GENERATING AI RESPONSE ===")
+                    logger.info(f"Using model: {model_name}")
+                    
                     # Generate intelligent AI response using the proper framework
-                    system_prompt = create_system_prompt(agent)
+                    system_prompt = create_system_prompt(agent if agent else type('Agent', (), {
+                        'name': agent_doc['name'],
+                        'ai_role': agent_doc.get('ai_role', ''),
+                        'human_role': agent_doc.get('human_role', ''),
+                        'full_description': agent_doc.get('full_description', {})
+                    })())
                     user_prompt = message_data.content
                     
                     # Validate token limits before making API call
-                    model_name = agent.model_name.split("/")[-1] if "/" in agent.model_name else agent.model_name
-                    model_config = ModelConfig.get_config(model_name)
+                    processed_model_name = model_name.split("/")[-1] if "/" in model_name else model_name
+                    model_config = ModelConfig.get_config(processed_model_name)
+                    
+                    logger.info(f"Processed model name: {processed_model_name}")
+                    logger.info(f"Model config: {model_config}")
                     
                     system_tokens = token_estimator.estimate_tokens(system_prompt)
                     user_tokens = token_estimator.estimate_tokens(user_prompt)
                     max_response_tokens = 1000
                     total_required = system_tokens + user_tokens + max_response_tokens
                     
-                    logger.info(f"Agent {agent_doc['name']} token check: "
-                               f"system={system_tokens}, user={user_tokens}, "
-                               f"total_required={total_required}, limit={model_config.context_limit}")
+                    logger.info(f"Token analysis: system={system_tokens}, user={user_tokens}, "
+                                f"total_required={total_required}, limit={model_config.context_limit}")
                     
                     # If the request is too large, provide a fallback response
                     if total_required > model_config.context_limit:
-                        logger.warning(f"Agent {agent_doc['name']} request too large: {total_required} > {model_config.context_limit}")
+                        logger.warning(f"Request too large: {total_required} > {model_config.context_limit}")
                         ai_response_content = f"I'm {agent_doc['name']}, your {agent_doc.get('ai_role', 'AI assistant')}. Your message is quite detailed, which I appreciate! However, due to processing limits, I'll need you to break it down into smaller, more focused questions so I can provide you with the best possible assistance. Could you please rephrase your query in a more concise way?"
                     else:
                         # Call the appropriate AI model
-                        if agent.model_name.startswith("openai/") or agent.model_name.startswith("gpt-"):
-                            ai_response_content = await call_openai_api(agent.model_name, user_prompt, system_prompt)
+                        logger.info(f"=== CALLING AI API ===")
+                        logger.info(f"Model: {model_name}")
+                        logger.info(f"System prompt length: {len(system_prompt)}")
+                        logger.info(f"User prompt: {user_prompt[:100]}...")
+                        
+                        # CRITICAL FIX: Handle both "gpt-4" and "openai/gpt-4" formats
+                        if model_name in ["gpt-4", "gpt-3.5-turbo"] or model_name.startswith("openai/") or model_name.startswith("gpt-"):
+                            ai_response_content = await call_openai_api(model_name, user_prompt, system_prompt)
+                            logger.info(f"✅ AI response generated successfully: {ai_response_content[:100]}...")
                         else:
                             # Fallback for unsupported models
-                            ai_response_content = f"I'm {agent_doc['name']}, specialized in {agent_doc.get('ai_role', 'assistance')}. I'd be happy to help, but my current model ({agent.model_name}) is not yet supported in this chat interface."
+                            logger.warning(f"Unsupported model: {model_name}")
+                            ai_response_content = f"I'm {agent_doc['name']}, specialized in {agent_doc.get('ai_role', 'assistance')}. I'd be happy to help, but my current model ({model_name}) is not yet supported in this chat interface."
                 
             except Exception as e:
                 # Log the error for debugging
@@ -332,7 +401,7 @@ async def send_message(
             
             # Create AI message
             ai_message = MessageCreate(
-                workspace_id=workspace_id,
+                workspace_id=workspace_id,  # Keep as string - PyObjectId will handle conversion
                 author=agent_doc["name"],
                 type="ai",
                 content=ai_response_content,
@@ -434,24 +503,46 @@ async def add_message_to_map(
         else:
             print(f"Target message with ID {message_id} NOT FOUND in database")
         
-        # Now let's see if the message exists in the workspace query
-        all_messages_in_workspace = await database.messages.find({
-            "workspace_id": ObjectId(workspace_id)
+        # Now let's see if the message exists in the workspace query - check both formats
+        print(f"Testing different query formats:")
+        
+        # Test string query
+        string_query_results = await database.messages.find({"workspace_id": workspace_id}).to_list(length=10)
+        print(f"String query results: {len(string_query_results)} messages")
+        
+        # Test ObjectId query
+        objectid_query_results = await database.messages.find({"workspace_id": ObjectId(workspace_id)}).to_list(length=10)
+        print(f"ObjectId query results: {len(objectid_query_results)} messages")
+        
+        # Test $or query
+        or_query_results = await database.messages.find({
+            "$or": [
+                {"workspace_id": ObjectId(workspace_id)},  # ObjectId format
+                {"workspace_id": workspace_id}  # String format
+            ]
         }).to_list(length=10)
+        print(f"$or query results: {len(or_query_results)} messages")
+        
+        # Use the most successful query
+        all_messages_in_workspace = string_query_results if len(string_query_results) > 0 else or_query_results
         
         print(f"Found {len(all_messages_in_workspace)} messages in workspace:")
         for msg in all_messages_in_workspace:
             print(f"  - ID: {msg['_id']}, Type: {msg.get('type')}, Author: {msg.get('author')}, Added to map: {msg.get('added_to_map', False)}")
         
-        # Now try the atomic update - handle both string and ObjectId workspace_id formats
+        # Now try the atomic update - use string format since that works
+        print(f"=== ATTEMPTING find_one_and_update ===")
+        print(f"Query: _id={ObjectId(message_id)}, workspace_id={workspace_id}, added_to_map != True")
+        
         message_doc = await database.messages.find_one_and_update(
             {
                 "_id": ObjectId(message_id),
+                "workspace_id": workspace_id,  # Use string format since it works
                 "$or": [
-                    {"workspace_id": ObjectId(workspace_id)},  # ObjectId format
-                    {"workspace_id": workspace_id}  # String format
-                ],
-                "added_to_map": {"$ne": True}  # Only if not already added to map
+                    {"added_to_map": {"$exists": False}},  # Field doesn't exist
+                    {"added_to_map": False},  # Field is explicitly False
+                    {"added_to_map": {"$ne": True}}  # Field is not True
+                ]
             },
             {
                 "$set": {"added_to_map": True}
@@ -459,16 +550,17 @@ async def add_message_to_map(
             return_document=True  # Return the updated document
         )
         
+        print(f"find_one_and_update result: {message_doc is not None}")
+        if message_doc:
+            print(f"Updated message: {message_doc.get('_id')}, added_to_map: {message_doc.get('added_to_map')}")
+        
         if not message_doc:
             print("find_one_and_update returned None")
             
-            # Check if message exists but is already added to map - handle both formats
+            # Check if message exists but is already added to map - use string format
             existing_message = await database.messages.find_one({
                 "_id": ObjectId(message_id),
-                "$or": [
-                    {"workspace_id": ObjectId(workspace_id)},  # ObjectId format
-                    {"workspace_id": workspace_id}  # String format
-                ]
+                "workspace_id": workspace_id  # Use string format since it works
             })
             
             if existing_message:
