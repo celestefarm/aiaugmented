@@ -86,27 +86,30 @@ const LandingPageHeader: React.FC = () => {
             </div>
             
             {/* Company Name */}
-            <h1 className="text-xl font-bold text-white">
+            <button
+              onClick={() => navigate('/')}
+              className="text-xl font-bold text-white hover:text-gray-300 transition-colors duration-200 cursor-pointer"
+            >
               AI-Augmented
-            </h1>
+            </button>
           </div>
 
           {/* Right Section - Navigation Links and Authentication Buttons */}
           <div className="flex items-center space-x-6">
             {/* Navigation Links */}
             <nav className="hidden md:flex items-center space-x-6">
-              <a
-                href="#about"
+              <button
+                onClick={() => navigate('/about')}
                 className="text-white hover:text-gray-300 transition-colors duration-200 font-medium"
               >
                 About
-              </a>
-              <a
-                href="#ai-agent"
+              </button>
+              <button
+                onClick={() => navigate('/ai-agent')}
                 className="text-white hover:text-gray-300 transition-colors duration-200 font-medium"
               >
                 AI Agent
-              </a>
+              </button>
             </nav>
             
             {/* Authentication/User Section */}

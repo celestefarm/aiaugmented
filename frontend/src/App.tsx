@@ -8,6 +8,8 @@ import { DocumentProvider } from './contexts/DocumentContext';
 import { InteractionProvider } from './contexts/InteractionContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import LandingPage from './pages/LandingPage';
+import AboutPage from './pages/AboutPage';
+import AIAgentPage from './pages/AIAgentPage';
 import Index from './pages/Index';
 import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
@@ -24,6 +26,8 @@ function App() {
                   <Routes>
                     <Route path="/auth" element={<Auth />} />
                     <Route path="/" element={<LandingPage />} />
+                    <Route path="/about" element={<AboutPage />} />
+                    <Route path="/ai-agent" element={<AIAgentPage />} />
                     <Route path="/workspace" element={
                       <ProtectedRoute>
                         <Index />
