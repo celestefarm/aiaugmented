@@ -5,7 +5,7 @@ from models.user import UserInDB
 from utils.dependencies import get_current_user
 from utils.summarization import conversation_summarizer
 from routers.interactions import call_openai_api
-from database import get_database
+from database_memory import get_database
 from bson import ObjectId
 import logging
 

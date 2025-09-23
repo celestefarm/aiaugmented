@@ -11,7 +11,7 @@ from models.workspace import WorkspaceInDB
 from models.user import UserInDB
 from utils.dependencies import get_current_active_user
 from utils.seed_agents import get_all_agents, get_agent_by_id, create_custom_agent
-from database import get_database
+from database_memory import get_database
 from bson import ObjectId
 import uuid
 

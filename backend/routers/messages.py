@@ -13,7 +13,7 @@ from models.user import UserResponse
 from utils.dependencies import get_current_active_user
 from utils.seed_agents import get_agent_by_id
 from utils.text_chunking import TokenEstimator, ModelConfig
-from database import get_database
+from database_memory import get_database
 from datetime import datetime
 from bson import ObjectId
 from typing import List, Tuple

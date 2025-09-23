@@ -6,7 +6,7 @@ from models.node import NodeInDB
 from models.edge import EdgeInDB
 from models.workspace import WorkspaceInDB
 from utils.dependencies import get_current_active_user
-from database import get_database
+from database_memory import get_database
 from bson import ObjectId
 from typing import Dict, Any, List
 import json

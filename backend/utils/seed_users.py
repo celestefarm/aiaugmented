@@ -39,11 +39,11 @@ async def seed_users():
     users_collection = db.users
     
     try:
-        # Check if users already exist
+        # Clear existing users and re-seed to ensure correct passwords
         existing_count = len(await users_collection.find({}))
         if existing_count > 0:
-            print(f"ℹ️  Users collection already has {existing_count} documents. Skipping seeding.")
-            return True
+            print(f"ℹ️  Found {existing_count} existing users. Clearing and re-seeding...")
+            await users_collection.delete_many({})
         
         # Create user documents
         user_docs = []

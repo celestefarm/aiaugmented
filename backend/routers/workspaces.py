@@ -9,7 +9,7 @@ from models.workspace import (
 )
 from models.user import UserResponse
 from utils.dependencies import get_current_active_user
-from database import get_database
+from database_memory import get_database
 from datetime import datetime
 from bson import ObjectId
 from typing import List
@@ -32,8 +32,10 @@ async def list_workspaces(current_user: UserResponse = Depends(get_current_activ
     database = get_database()
     
     # Find all workspaces owned by the current user, sorted by creation date (newest first)
-    cursor = database.workspaces.find({"owner_id": current_user.id}).sort("created_at", -1)
-    workspace_docs = await cursor.to_list(length=None)
+    workspace_docs = await database.workspaces.find({"owner_id": current_user.id})
+    
+    # Sort by created_at in descending order (newest first)
+    workspace_docs.sort(key=lambda x: x.get("created_at", datetime.min), reverse=True)
     
     # Convert to response models
     workspaces = []
