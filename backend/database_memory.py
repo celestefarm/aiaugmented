@@ -7,6 +7,45 @@ from datetime import datetime
 from bson import ObjectId
 import asyncio
 
+class InMemoryCursor:
+    """Simulates a MongoDB cursor for in-memory storage"""
+    
+    def __init__(self, documents: List[Dict]):
+        self.documents = documents
+        self._sort_field = None
+        self._sort_direction = 1
+    
+    def sort(self, field: str, direction: int = 1):
+        """Sort the cursor results"""
+        self._sort_field = field
+        self._sort_direction = direction
+        return self
+    
+    async def to_list(self, length: Optional[int] = None) -> List[Dict]:
+        """Convert cursor to list"""
+        results = self.documents.copy()
+        
+        # Apply sorting if specified
+        if self._sort_field:
+            def sort_key(doc):
+                value = doc.get(self._sort_field)
+                # Handle datetime objects for sorting
+                if isinstance(value, datetime):
+                    return value
+                # Handle None values
+                if value is None:
+                    return datetime.min if self._sort_direction == 1 else datetime.max
+                return value
+            
+            results.sort(key=sort_key, reverse=(self._sort_direction == -1))
+        
+        # Apply length limit if specified
+        if length is not None and length > 0:
+            results = results[:length]
+        
+        return results
+
+
 class InMemoryCollection:
     """Simulates a MongoDB collection with in-memory storage"""
     
@@ -22,16 +61,17 @@ class InMemoryCollection:
                 return doc.copy()
         return None
     
-    async def find(self, filter_dict: Dict = None) -> List[Dict]:
-        """Find all documents matching the filter"""
+    def find(self, filter_dict: Dict = None):
+        """Find all documents matching the filter - returns a cursor"""
         if filter_dict is None:
-            return list(self.documents.values())
+            results = list(self.documents.values())
+        else:
+            results = []
+            for doc_id, doc in self.documents.items():
+                if self._matches_filter(doc, filter_dict):
+                    results.append(doc.copy())
         
-        results = []
-        for doc_id, doc in self.documents.items():
-            if self._matches_filter(doc, filter_dict):
-                results.append(doc.copy())
-        return results
+        return InMemoryCursor(results)
     
     async def insert_one(self, document: Dict) -> Any:
         """Insert a single document"""
@@ -109,6 +149,40 @@ class InMemoryCollection:
                 self.deleted_count = deleted_count
         
         return DeleteResult(0)
+    
+    async def delete_many(self, filter_dict: Dict) -> Any:
+        """Delete multiple documents"""
+        deleted_count = 0
+        docs_to_delete = []
+        
+        for doc_id, doc in self.documents.items():
+            if self._matches_filter(doc, filter_dict):
+                docs_to_delete.append(doc_id)
+        
+        for doc_id in docs_to_delete:
+            del self.documents[doc_id]
+            deleted_count += 1
+        
+        # Return a mock result object
+        class DeleteResult:
+            def __init__(self, deleted_count):
+                self.deleted_count = deleted_count
+        
+        return DeleteResult(deleted_count)
+    
+    async def find_one_and_update(self, filter_dict: Dict, update_dict: Dict, return_document: bool = False) -> Optional[Dict]:
+        """Find and update a single document"""
+        for doc_id, doc in self.documents.items():
+            if self._matches_filter(doc, filter_dict):
+                if "$set" in update_dict:
+                    doc.update(update_dict["$set"])
+                
+                if return_document:
+                    return doc.copy()
+                else:
+                    return doc.copy()  # Return the document regardless for compatibility
+        
+        return None
     
     async def count_documents(self, filter_dict: Dict = None) -> int:
         """Count documents matching the filter"""

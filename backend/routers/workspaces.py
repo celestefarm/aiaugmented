@@ -32,7 +32,7 @@ async def list_workspaces(current_user: UserResponse = Depends(get_current_activ
     database = get_database()
     
     # Find all workspaces owned by the current user, sorted by creation date (newest first)
-    workspace_docs = await database.workspaces.find({"owner_id": current_user.id})
+    workspace_docs = await database.workspaces.find({"owner_id": current_user.id}).to_list(length=None)
     
     # Sort by created_at in descending order (newest first)
     workspace_docs.sort(key=lambda x: x.get("created_at", datetime.min), reverse=True)

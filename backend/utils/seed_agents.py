@@ -277,10 +277,10 @@ async def get_all_agents() -> List[AgentInDB]:
         return []
     
     agents_collection = db.agents
-    agents_cursor = agents_collection.find({})
+    agent_docs = await agents_collection.find({}).to_list(length=None)
     agents = []
     
-    async for agent_doc in agents_cursor:
+    for agent_doc in agent_docs:
         # Convert ObjectId to string for Pydantic compatibility
         if agent_doc and "_id" in agent_doc:
             agent_doc["_id"] = str(agent_doc["_id"])

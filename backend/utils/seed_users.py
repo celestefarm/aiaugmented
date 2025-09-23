@@ -40,7 +40,8 @@ async def seed_users():
     
     try:
         # Clear existing users and re-seed to ensure correct passwords
-        existing_count = len(await users_collection.find({}))
+        existing_users = await users_collection.find({}).to_list(length=None)
+        existing_count = len(existing_users)
         if existing_count > 0:
             print(f"ℹ️  Found {existing_count} existing users. Clearing and re-seeding...")
             await users_collection.delete_many({})
@@ -91,7 +92,7 @@ async def get_all_users() -> List[UserInDB]:
         return []
     
     users_collection = db.users
-    users_docs = await users_collection.find({})
+    users_docs = await users_collection.find({}).to_list(length=None)
     users = []
     
     for user_doc in users_docs:
