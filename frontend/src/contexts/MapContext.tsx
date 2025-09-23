@@ -60,10 +60,14 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
       return;
     }
 
-    if (!isAuthenticated) {
+    // CRITICAL FIX: Check if we have a valid token instead of relying on auth context state
+    const hasValidToken = apiClient.isAuthenticated();
+    if (!hasValidToken) {
       console.log('=== MAP CONTEXT DEBUG ===');
-      console.log('User not authenticated, cannot load map data');
-      setError('Authentication required to load map data');
+      console.log('No valid authentication token, cannot load map data');
+      console.log('Auth context authenticated:', isAuthenticated);
+      console.log('API client authenticated:', hasValidToken);
+      setError('Not authenticated');
       clearMapData();
       return;
     }

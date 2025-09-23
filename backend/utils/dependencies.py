@@ -3,7 +3,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 from models.user import UserInDB, UserResponse
 from utils.auth import verify_token
-from database import get_database
+from database_memory import get_database
 from bson import ObjectId
 
 # HTTP Bearer token scheme

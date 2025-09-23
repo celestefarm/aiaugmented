@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, Upload, Check, MessageSquare, Bot, User, Loader2 } from 'lucide-react';
+import { Mic, Upload, Check, MessageSquare, Bot, User, Loader2, Zap, Shield, Target, Eye } from 'lucide-react';
 import { useAgentChat, ChatMessage } from '@/contexts/AgentChatContext';
+import LightningBriefDisplay from './LightningBriefDisplay';
+import RedTeamInterface from './RedTeamInterface';
+import EvidenceQualityDashboard from './EvidenceQualityDashboard';
 
 interface SparringSessionProps {
   onAddToMap?: (messageId: string) => void;
@@ -10,6 +13,7 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
   const [chatMessage, setChatMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [addingToMap, setAddingToMap] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<'chat' | 'lightning' | 'redteam' | 'evidence'>('chat');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const {
@@ -20,7 +24,20 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
     chatError,
     sendMessage,
     addMessageToMap,
-    clearMessages
+    clearMessages,
+    // Strategic functionality
+    isStrategicMode,
+    currentStrategicSession,
+    currentPhase,
+    lightningBrief,
+    currentRedTeamChallenge,
+    strategicSessionStatus,
+    startStrategicSession,
+    sendStrategicMessage,
+    generateRedTeamChallenge,
+    respondToRedTeamChallenge,
+    toggleStrategicMode,
+    resetStrategicSession
   } = useAgentChat();
 
   // Auto-scroll to bottom when new messages arrive
@@ -33,12 +50,40 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
     
     setIsSending(true);
     try {
-      await sendMessage(chatMessage);
+      if (isStrategicMode && currentStrategicSession) {
+        // Use strategic interaction for strategist agent
+        await sendStrategicMessage(chatMessage, false);
+      } else if (isStrategicMode && !currentStrategicSession) {
+        // Start strategic session
+        await startStrategicSession('strategist');
+        await sendStrategicMessage(chatMessage, false);
+      } else {
+        // Use regular chat
+        await sendMessage(chatMessage);
+      }
       setChatMessage('');
     } catch (error) {
       console.error('Failed to send message:', error);
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleStartStrategicSession = async () => {
+    try {
+      await startStrategicSession('strategist');
+      setActiveTab('chat');
+    } catch (error) {
+      console.error('Failed to start strategic session:', error);
+    }
+  };
+
+  const handleRedTeamChallenge = async (challengeType?: string, targetContent?: string) => {
+    try {
+      await generateRedTeamChallenge(challengeType, targetContent, 'moderate');
+      setActiveTab('redteam');
+    } catch (error) {
+      console.error('Failed to generate red team challenge:', error);
     }
   };
 
@@ -160,17 +205,99 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center space-x-2">
-          <MessageSquare className="w-4 h-4 text-[#6B6B3A]" />
-          <h2 className="text-base font-semibold text-[#E5E7EB]">Strategist Chat</h2>
+          {isStrategicMode ? (
+            <Zap className="w-4 h-4 text-blue-400" />
+          ) : (
+            <MessageSquare className="w-4 h-4 text-[#6B6B3A]" />
+          )}
+          <h2 className="text-base font-semibold text-[#E5E7EB]">
+            {isStrategicMode ? 'Strategic Analysis' : 'Strategist Chat'}
+          </h2>
+          {currentPhase && (
+            <span className="text-xs px-2 py-1 bg-blue-500/20 text-blue-300 rounded border border-blue-500/30">
+              {currentPhase.replace('_', ' ').toUpperCase()}
+            </span>
+          )}
         </div>
-        <button
-          onClick={() => clearMessages()}
-          className="text-xs px-2 py-1 bg-[#6B6B3A]/20 text-[#E5E7EB] rounded hover:bg-[#6B6B3A]/30 transition-colors border border-[#6B6B3A]/30"
-          aria-label="Clear chat messages"
-        >
-          Clear
-        </button>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={toggleStrategicMode}
+            className={`text-xs px-2 py-1 rounded transition-colors border ${
+              isStrategicMode
+                ? 'bg-blue-500/20 text-blue-300 border-blue-500/30 hover:bg-blue-500/30'
+                : 'bg-[#6B6B3A]/20 text-[#E5E7EB] border-[#6B6B3A]/30 hover:bg-[#6B6B3A]/30'
+            }`}
+            aria-label="Toggle strategic mode"
+          >
+            {isStrategicMode ? '⚡ Strategic' : '💬 Chat'}
+          </button>
+          {isStrategicMode && (
+            <button
+              onClick={resetStrategicSession}
+              className="text-xs px-2 py-1 bg-red-500/20 text-red-300 rounded hover:bg-red-500/30 transition-colors border border-red-500/30"
+              aria-label="Reset strategic session"
+            >
+              Reset
+            </button>
+          )}
+          <button
+            onClick={() => clearMessages()}
+            className="text-xs px-2 py-1 bg-[#6B6B3A]/20 text-[#E5E7EB] rounded hover:bg-[#6B6B3A]/30 transition-colors border border-[#6B6B3A]/30"
+            aria-label="Clear chat messages"
+          >
+            Clear
+          </button>
+        </div>
       </div>
+
+      {/* Strategic Mode Tabs */}
+      {isStrategicMode && (
+        <div className="flex space-x-1 mb-3 border-b border-gray-700">
+          <button
+            onClick={() => setActiveTab('chat')}
+            className={`px-3 py-2 text-xs font-medium transition-colors ${
+              activeTab === 'chat'
+                ? 'text-blue-300 border-b-2 border-blue-400'
+                : 'text-gray-400 hover:text-gray-300'
+            }`}
+          >
+            💬 Chat
+          </button>
+          <button
+            onClick={() => setActiveTab('lightning')}
+            className={`px-3 py-2 text-xs font-medium transition-colors ${
+              activeTab === 'lightning'
+                ? 'text-blue-300 border-b-2 border-blue-400'
+                : 'text-gray-400 hover:text-gray-300'
+            }`}
+            disabled={!lightningBrief}
+          >
+            ⚡ Lightning Brief
+            {lightningBrief && <span className="ml-1 w-2 h-2 bg-blue-400 rounded-full inline-block"></span>}
+          </button>
+          <button
+            onClick={() => setActiveTab('redteam')}
+            className={`px-3 py-2 text-xs font-medium transition-colors ${
+              activeTab === 'redteam'
+                ? 'text-blue-300 border-b-2 border-blue-400'
+                : 'text-gray-400 hover:text-gray-300'
+            }`}
+          >
+            🛡️ Red Team
+            {currentRedTeamChallenge && <span className="ml-1 w-2 h-2 bg-red-400 rounded-full inline-block"></span>}
+          </button>
+          <button
+            onClick={() => setActiveTab('evidence')}
+            className={`px-3 py-2 text-xs font-medium transition-colors ${
+              activeTab === 'evidence'
+                ? 'text-blue-300 border-b-2 border-blue-400'
+                : 'text-gray-400 hover:text-gray-300'
+            }`}
+          >
+            📊 Evidence
+          </button>
+        </div>
+      )}
 
       {/* Active Agents Indicator */}
       {activeAgents.length > 0 && (

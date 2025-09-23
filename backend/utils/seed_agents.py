@@ -1,4 +1,4 @@
-from database import get_database
+from database_memory import get_database
 from models.agent import AgentCreate, AgentInDB
 from typing import List
 import asyncio
@@ -9,20 +9,29 @@ DEFAULT_AGENTS = [
     {
         "agent_id": "strategist",
         "name": "Strategic Co-Pilot",
-        "ai_role": "Wise strategic mentor who analyzes your thinking patterns and guides you through Socratic dialogue to develop deeper strategic insights",
+        "ai_role": "Advanced strategic mentor with AGENT BLUEPRINT engine that guides you through multi-phase strategic analysis, generates Lightning Briefs, and challenges assumptions through red team protocols",
         "human_role": "Provide strategic context, validate insights, and apply judgment to personalized recommendations",
         "is_custom": False,
         "is_active": True,
         "model_name": "openai/gpt-4-32k",  # Use GPT-4-32K for better token capacity
         "full_description": {
-            "role": "Strategic Co-Pilot & Cognitive Twin",
-            "mission": "Transform strategic thinking through personalized mentorship, cognitive pattern analysis, and decision sandbox testing",
+            "role": "Strategic Co-Pilot & Cognitive Twin with AGENT BLUEPRINT Engine",
+            "mission": "Transform strategic thinking through personalized mentorship, multi-phase strategic analysis, Lightning Brief generation, and red team challenge protocols",
             "expertise": [
                 "Strategic planning", "Cognitive pattern analysis", "Socratic dialogue",
                 "Decision simulation", "Bias detection", "Communication adaptation",
-                "Mentorship guidance", "Framework application"
+                "Mentorship guidance", "Framework application", "Evidence classification",
+                "Lightning Brief generation", "Red team protocols", "Strategic validation"
             ],
-            "approach": "Personalized mentorship that adapts to your thinking style and develops your strategic capabilities",
+            "approach": "Multi-phase strategic analysis with personalized mentorship that adapts to your thinking style and develops your strategic capabilities through structured workflows",
+            "agent_blueprint_config": {
+                "blueprint_engine_enabled": True,
+                "multi_phase_analysis": True,
+                "lightning_brief_generation": True,
+                "red_team_protocols": True,
+                "evidence_classification": True,
+                "strategic_validation": True
+            },
             "cognitive_twin_config": {
                 "pattern_analysis_enabled": True,
                 "bias_detection_enabled": True,
@@ -35,6 +44,38 @@ DEFAULT_AGENTS = [
                 "expertise_depth": "expert",
                 "personality_traits": ["wise", "patient", "insightful", "challenging"],
                 "question_types": ["assumption_challenging", "perspective_expanding", "depth_probing"]
+            },
+            "strategic_phases": {
+                "reconnaissance": {
+                    "enabled": True,
+                    "description": "Gather and categorize strategic intelligence",
+                    "min_evidence_threshold": 3,
+                    "evidence_quality_focus": True
+                },
+                "analysis": {
+                    "enabled": True,
+                    "description": "Analyze evidence and identify strategic patterns",
+                    "min_options_threshold": 2,
+                    "pattern_recognition": True
+                },
+                "synthesis": {
+                    "enabled": True,
+                    "description": "Synthesize options into coherent strategy",
+                    "assumption_generation": True,
+                    "option_refinement": True
+                },
+                "validation": {
+                    "enabled": True,
+                    "description": "Validate assumptions and stress-test options",
+                    "red_team_challenges": True,
+                    "assumption_testing": True
+                },
+                "briefing": {
+                    "enabled": True,
+                    "description": "Generate Lightning Brief with actionable insights",
+                    "brief_generation": True,
+                    "confidence_scoring": True
+                }
             },
             "wisdom_base": {
                 "strategic_models": [
@@ -49,7 +90,30 @@ DEFAULT_AGENTS = [
                 "mentorship_techniques": [
                     "Socratic Questioning", "Assumption Challenging", "Perspective Taking",
                     "Scenario Planning", "Reflection Facilitation", "Insight Synthesis"
+                ],
+                "evidence_classification": [
+                    "High Quality", "Medium Quality", "Low Quality", "Speculative",
+                    "Source Validation", "Confidence Scoring", "Reliability Assessment"
+                ],
+                "red_team_protocols": [
+                    "Assumption Challenge", "Evidence Scrutiny", "Alternative Perspective",
+                    "Risk Amplification", "Resource Constraint", "Stakeholder Opposition"
                 ]
+            },
+            "lightning_brief_config": {
+                "situation_summary": True,
+                "key_insights_extraction": True,
+                "strategic_options_ranking": True,
+                "critical_assumptions_identification": True,
+                "next_actions_prioritization": True,
+                "confidence_level_assessment": True
+            },
+            "red_team_config": {
+                "socratic_dialogue": True,
+                "challenge_difficulty_adaptation": True,
+                "response_quality_evaluation": True,
+                "follow_up_generation": True,
+                "strategic_robustness_assessment": True
             },
             "sandbox_config": {
                 "scenario_types": ["strategy_test", "role_play", "what_if", "competitive_analysis"],
@@ -312,7 +376,7 @@ async def update_strategist_agent():
 if __name__ == "__main__":
     # For testing the seeding function
     async def main():
-        from database import connect_to_mongo, close_mongo_connection
+        from database_memory import connect_to_mongo, close_mongo_connection
         await connect_to_mongo()
         await seed_agents()
         await update_strategist_agent()  # Update existing strategist

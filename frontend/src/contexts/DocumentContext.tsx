@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { GenerateBriefResponse, apiClient } from '../lib/api';
 import { BriefData, AnalyticsData, VisualizationData, ProcessedInsight, KeyMetric, ExecutiveInsight, Recommendation } from '../components/LastMileBrief/index';
 import { Node, Edge } from '../lib/api';
+import { strategicAnalysisService, EnhancedStrategicAnalysis } from '../services/strategicAnalysisService';
 
 interface DocumentState {
   briefContent: string | null;
@@ -16,6 +17,9 @@ interface DocumentState {
   visualizations: VisualizationData[];
   insights: ProcessedInsight[];
   isLoadingEnhanced: boolean;
+  // Strategic analysis integration
+  strategicAnalysis: EnhancedStrategicAnalysis | null;
+  strategicSessionId: string | null;
 }
 
 interface DocumentContextType {
@@ -56,6 +60,8 @@ export const DocumentProvider: React.FC<DocumentProviderProps> = ({ children }) 
     visualizations: [],
     insights: [],
     isLoadingEnhanced: false,
+    strategicAnalysis: null,
+    strategicSessionId: null,
   });
 
   const generateBriefForWorkspace = async (workspaceId: string): Promise<void> => {
@@ -87,7 +93,7 @@ export const DocumentProvider: React.FC<DocumentProviderProps> = ({ children }) 
   };
 
   const generateEnhancedBrief = async (workspaceId: string, options: EnhancedBriefOptions = {}): Promise<void> => {
-    console.log('=== ENHANCED BRIEF GENERATION DEBUG ===');
+    console.log('=== ENHANCED BRIEF GENERATION WITH STRATEGIC ANALYSIS ===');
     console.log('Workspace ID:', workspaceId);
     console.log('Options:', options);
     
@@ -109,23 +115,7 @@ export const DocumentProvider: React.FC<DocumentProviderProps> = ({ children }) 
     }));
 
     try {
-      console.log('Step 1: Generating basic brief...');
-      // First generate the basic brief
-      const basicBrief = await apiClient.generateBrief(workspaceId);
-      console.log('Basic brief response:', basicBrief);
-      
-      // CRITICAL: Check if basicBrief is valid
-      if (!basicBrief) {
-        console.error('CRITICAL: basicBrief is null/undefined');
-        throw new Error('Failed to generate basic brief - API returned null/undefined');
-      }
-      
-      if (typeof basicBrief !== 'object') {
-        console.error('CRITICAL: basicBrief is not an object:', typeof basicBrief, basicBrief);
-        throw new Error('Failed to generate basic brief - API returned invalid data type');
-      }
-      
-      console.log('Step 2: Fetching nodes and edges...');
+      console.log('Step 1: Fetching nodes and edges...');
       // Fetch nodes and edges for enhanced processing
       const [nodesResponse, edgesResponse] = await Promise.all([
         apiClient.getNodes(workspaceId),
@@ -136,65 +126,111 @@ export const DocumentProvider: React.FC<DocumentProviderProps> = ({ children }) 
       console.log('Edges response:', edgesResponse);
       
       // CRITICAL: Check if responses are valid
-      if (!nodesResponse) {
-        console.error('CRITICAL: nodesResponse is null/undefined');
-        throw new Error('Failed to fetch nodes - API returned null/undefined');
+      if (!nodesResponse || !nodesResponse.nodes) {
+        console.error('CRITICAL: Invalid nodes response');
+        throw new Error('Failed to fetch nodes - API returned invalid data');
       }
       
-      if (!edgesResponse) {
-        console.error('CRITICAL: edgesResponse is null/undefined');
-        throw new Error('Failed to fetch edges - API returned null/undefined');
-      }
-      
-      if (!nodesResponse.nodes) {
-        console.error('CRITICAL: nodesResponse.nodes is null/undefined');
-        throw new Error('Failed to fetch nodes - nodes property is missing');
-      }
-      
-      if (!edgesResponse.edges) {
-        console.error('CRITICAL: edgesResponse.edges is null/undefined');
-        throw new Error('Failed to fetch edges - edges property is missing');
+      if (!edgesResponse || !edgesResponse.edges) {
+        console.error('CRITICAL: Invalid edges response');
+        throw new Error('Failed to fetch edges - API returned invalid data');
       }
 
-      console.log('Step 3: Generating analytics...');
-      // Generate analytics data
-      const analytics = generateAnalyticsFromData(nodesResponse.nodes, edgesResponse.edges);
-      console.log('Analytics generated:', analytics);
+      console.log('Step 2: Generating strategic analysis with backend integration...');
+      // Use the strategic analysis service to get enhanced analysis
+      let strategicAnalysis: EnhancedStrategicAnalysis;
       
-      console.log('Step 4: Generating visualizations...');
-      // Generate visualizations
-      const visualizations = generateVisualizationsFromData(nodesResponse.nodes, edgesResponse.edges);
-      console.log('Visualizations generated:', visualizations);
-      
-      console.log('Step 5: Generating insights...');
-      // Generate insights
-      const insights = generateInsightsFromData(nodesResponse.nodes, edgesResponse.edges, analytics);
-      console.log('Insights generated:', insights);
+      try {
+        strategicAnalysis = await strategicAnalysisService.generateEnhancedAnalysis(
+          nodesResponse.nodes,
+          edgesResponse.edges,
+          workspaceId
+        );
+        console.log('Strategic analysis generated:', strategicAnalysis);
+      } catch (strategicError) {
+        console.warn('Strategic analysis service failed, using fallback:', strategicError);
+        // Fallback to basic analysis if strategic service fails
+        const analytics = generateAnalyticsFromData(nodesResponse.nodes, edgesResponse.edges);
+        const visualizations = generateVisualizationsFromData(nodesResponse.nodes, edgesResponse.edges);
+        const insights = generateInsightsFromData(nodesResponse.nodes, edgesResponse.edges, analytics);
+        
+        strategicAnalysis = {
+          strategicOutlook: {
+            summary: 'Strategic analysis using fallback method',
+            keyImplications: [],
+            riskFactors: [],
+            opportunities: [],
+            timeHorizon: 'medium-term',
+            confidence: 0.6
+          },
+          recommendations: [],
+          riskAssessment: {
+            risks: [],
+            overallRiskLevel: 'medium'
+          },
+          analytics,
+          visualizations,
+          insights,
+          sessionId: `fallback_${workspaceId}_${Date.now()}`,
+          currentPhase: 'reconnaissance'
+        };
+      }
 
-      console.log('Step 6: Creating enhanced brief data...');
-      // Create enhanced brief data
+      console.log('Step 3: Generating basic brief for content...');
+      // Generate basic brief for content (fallback gracefully if it fails)
+      let basicBrief: GenerateBriefResponse;
+      try {
+        basicBrief = await apiClient.generateBrief(workspaceId);
+      } catch (briefError) {
+        console.warn('Basic brief generation failed, using strategic analysis content:', briefError);
+        basicBrief = {
+          content: strategicAnalysis.strategicOutlook.summary,
+          generated_at: new Date().toISOString(),
+          node_count: nodesResponse.nodes.length,
+          edge_count: edgesResponse.edges.length
+        };
+      }
+
+      console.log('Step 4: Creating enhanced brief data...');
+      // Create enhanced brief data using strategic analysis
       const enhancedBriefData: BriefData = {
         id: `brief-${workspaceId}-${Date.now()}`,
         workspaceId: workspaceId,
-        title: `Strategic Brief: Enhanced Analysis`,
+        title: `Strategic Brief: AI-Enhanced Analysis`,
         generatedAt: new Date(),
-        version: '1.0',
+        version: '2.0',
         metadata: {
           generatedAt: new Date(basicBrief.generated_at),
           nodeCount: basicBrief.node_count,
           edgeCount: basicBrief.edge_count,
-          confidenceScore: analytics.confidenceMetrics.average,
+          confidenceScore: strategicAnalysis.analytics.confidenceMetrics.average,
           lastModified: new Date()
         },
         executiveSummary: {
-          keyMetrics: generateKeyMetrics(analytics),
-          insights: generateExecutiveInsights(insights),
-          recommendations: generateRecommendations(analytics, insights)
+          keyMetrics: generateKeyMetrics(strategicAnalysis.analytics),
+          insights: generateExecutiveInsights(strategicAnalysis.insights),
+          recommendations: strategicAnalysis.recommendations.map(rec => ({
+            id: rec.id,
+            title: rec.recommendation,
+            description: rec.insight,
+            priority: rec.priority === 'critical' ? 'high' : rec.priority,
+            impact: rec.impact === 'transformational' ? 'high' : rec.impact === 'significant' ? 'medium' : 'low',
+            effort: rec.effort === 'extensive' ? 'high' : rec.effort,
+            category: rec.category
+          }))
         },
-        analytics,
-        visualizations,
-        insights,
-        recommendations: [],
+        analytics: strategicAnalysis.analytics,
+        visualizations: strategicAnalysis.visualizations,
+        insights: strategicAnalysis.insights,
+        recommendations: strategicAnalysis.recommendations.map(rec => ({
+          id: rec.id,
+          title: rec.recommendation,
+          description: rec.insight,
+          priority: rec.priority === 'critical' ? 'high' : rec.priority,
+          impact: rec.impact === 'transformational' ? 'high' : rec.impact === 'significant' ? 'medium' : 'low',
+          effort: rec.effort === 'extensive' ? 'high' : rec.effort,
+          category: rec.category
+        })),
         rawData: {
           nodes: nodesResponse.nodes,
           edges: edgesResponse.edges
@@ -203,7 +239,7 @@ export const DocumentProvider: React.FC<DocumentProviderProps> = ({ children }) 
       
       console.log('Enhanced brief data created:', enhancedBriefData);
 
-      console.log('Step 7: Updating document state...');
+      console.log('Step 5: Updating document state...');
       setDocumentState(prev => ({
         ...prev,
         briefContent: basicBrief.content,
@@ -211,15 +247,17 @@ export const DocumentProvider: React.FC<DocumentProviderProps> = ({ children }) 
         nodeCount: basicBrief.node_count,
         edgeCount: basicBrief.edge_count,
         enhancedBriefData,
-        analytics,
-        visualizations,
-        insights,
+        analytics: strategicAnalysis.analytics,
+        visualizations: strategicAnalysis.visualizations,
+        insights: strategicAnalysis.insights,
+        strategicAnalysis,
+        strategicSessionId: strategicAnalysis.sessionId,
         isGenerating: false,
         isLoadingEnhanced: false,
         error: null,
       }));
       
-      console.log('Enhanced brief generation completed successfully');
+      console.log('Enhanced brief generation with strategic analysis completed successfully');
     } catch (error) {
       console.error('=== ENHANCED BRIEF GENERATION ERROR ===');
       console.error('Error occurred during enhanced brief generation');
@@ -291,6 +329,8 @@ export const DocumentProvider: React.FC<DocumentProviderProps> = ({ children }) 
       analytics: null,
       visualizations: [],
       insights: [],
+      strategicAnalysis: null,
+      strategicSessionId: null,
     }));
   };
 

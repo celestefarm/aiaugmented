@@ -3,7 +3,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from models.user import UserSignupRequest, UserLoginRequest, UserResponse, TokenResponse, UserInDB, UserCreate
 from utils.auth import hash_password, verify_password, create_access_token, get_token_expiry
 from utils.dependencies import get_current_active_user, security
-from database import get_database
+from database_memory import get_database
 from datetime import datetime
 from bson import ObjectId
 from typing import Dict

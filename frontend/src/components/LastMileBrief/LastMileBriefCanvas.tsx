@@ -3,7 +3,7 @@ import { useDocument } from '../../contexts/DocumentContext';
 import { useWorkspace } from '../../contexts/WorkspaceContext';
 import { Node, Edge } from '../../lib/api';
 import BriefHeader from './BriefHeader';
-import ExecutiveSummary from './ExecutiveSummary';
+import ExecutiveReport from './ExecutiveReport';
 import VisualizationGrid from './VisualizationGrid';
 import './LastMileBriefCanvas.css';
 
@@ -353,14 +353,66 @@ const LastMileBriefCanvas: React.FC<LastMileBriefCanvasProps> = ({
     );
   }
 
-  // Show error state
+  // Show error state only for critical errors, but still try to render ExecutiveReport with empty data
   if (briefState.error || documentState.error) {
     const errorMessage = briefState.error || documentState.error;
-    console.log('=== DISPLAYING ERROR STATE ===');
+    console.log('=== HANDLING ERROR STATE ===');
     console.log('Error message:', errorMessage);
     console.log('Brief state error:', briefState.error);
     console.log('Document state error:', documentState.error);
     
+    // If it's a workspace access error, still try to render the ExecutiveReport with empty data
+    if (errorMessage && (errorMessage.includes('Access denied') || errorMessage.includes('permission'))) {
+      console.log('Access denied error detected, rendering ExecutiveReport with empty data');
+      
+      return (
+        <div className="last-mile-brief-canvas">
+          <BriefHeader
+            title="Strategic Analysis"
+            metadata={{
+              generatedAt: new Date(),
+              nodeCount: 0,
+              edgeCount: 0,
+              confidenceScore: 0,
+              lastModified: new Date()
+            }}
+            actions={[
+              { id: 'refresh', label: 'Refresh', onClick: handleRefresh },
+              { id: 'export', label: 'Export', onClick: handleExport },
+              { id: 'share', label: 'Share', onClick: handleShare }
+            ]}
+            viewMode={briefState.viewMode}
+            onViewModeChange={handleViewModeChange}
+          />
+
+          <div className="brief-content">
+            {/* Show error banner */}
+            <div className="error-banner" style={{
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: '0.5rem',
+              padding: '1rem',
+              marginBottom: '2rem',
+              color: '#FCA5A5'
+            }}>
+              <p><strong>Data Access Issue:</strong> {errorMessage}</p>
+              <button onClick={handleRefresh} className="btn-primary" style={{ marginTop: '0.5rem' }}>
+                Try Again
+              </button>
+            </div>
+
+            <ExecutiveReport
+              nodes={[]}
+              edges={[]}
+              analytics={null}
+              insights={[]}
+            />
+          </div>
+        </div>
+      );
+    }
+    
+    // For other critical errors, show the full error state
     return (
       <div className="last-mile-brief-canvas error">
         <div className="error-container">
@@ -417,10 +469,11 @@ const LastMileBriefCanvas: React.FC<LastMileBriefCanvasProps> = ({
       />
 
       <div className="brief-content">
-        <ExecutiveSummary
-          keyMetrics={briefState.briefData.executiveSummary.keyMetrics}
-          insights={briefState.briefData.executiveSummary.insights}
-          recommendations={briefState.briefData.executiveSummary.recommendations}
+        <ExecutiveReport
+          nodes={briefState.briefData.rawData.nodes}
+          edges={briefState.briefData.rawData.edges}
+          analytics={briefState.briefData.analytics}
+          insights={briefState.briefData.insights}
         />
 
         <VisualizationGrid

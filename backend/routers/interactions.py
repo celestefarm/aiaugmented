@@ -1,12 +1,21 @@
+
 from fastapi import APIRouter, HTTPException, Depends, status
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from models.user import UserInDB
 from utils.dependencies import get_current_user
 from utils.seed_agents import get_agent_by_id
 from utils.cognitive_analysis import CognitiveAnalyzer, MentorshipEngine
+from utils.strategist_blueprint import StrategistBlueprint, StrategicPhase, LightningBrief
+from utils.red_team_protocol import RedTeamProtocol, ChallengeType, ChallengeDifficulty
 from utils.text_chunking import TokenEstimator, ModelConfig
-from database import get_database
+from models.strategic_analysis import (
+    StrategicSession, StrategicEvidence, StrategicOption, 
+    create_strategic_session, add_evidence_to_session,
+    create_strategic_option, generate_lightning_brief,
+    create_red_team_challenge, EvidenceQuality
+)
+from database_memory import get_database
 from bson import ObjectId
 from datetime import datetime
 import httpx
@@ -26,12 +35,27 @@ mentorship_engine = MentorshipEngine()
 # Initialize token estimator
 token_estimator = TokenEstimator()
 
+# Initialize strategist components
+strategist_sessions = {}  # In-memory session storage - in production use database
+red_team_protocol = RedTeamProtocol()
+
 
 class InteractionRequest(BaseModel):
     """Request model for agent interactions"""
     agent_id: str = Field(..., description="ID of the agent to interact with")
     prompt: str = Field(..., min_length=1, max_length=5000, description="User prompt for the agent")
     context: Optional[Dict[str, Any]] = Field(default=None, description="Additional context for the interaction")
+    session_id: Optional[str] = Field(default=None, description="Strategic session ID for multi-turn interactions")
+
+
+class StrategicInteractionRequest(BaseModel):
+    """Request model for strategic agent interactions with blueprint workflow"""
+    agent_id: str = Field(..., description="ID of the strategist agent")
+    prompt: str = Field(..., min_length=1, max_length=5000, description="User prompt for strategic analysis")
+    context: Optional[Dict[str, Any]] = Field(default=None, description="Additional strategic context")
+    session_id: Optional[str] = Field(default=None, description="Strategic session ID")
+    force_phase: Optional[str] = Field(default=None, description="Force specific strategic phase")
+    enable_red_team: Optional[bool] = Field(default=False, description="Enable red team challenges")
 
 
 class InteractionResponse(BaseModel):
@@ -42,6 +66,35 @@ class InteractionResponse(BaseModel):
     model_used: Optional[str] = None
     cognitive_insights: Optional[Dict[str, Any]] = None
     mentorship_guidance: Optional[Dict[str, Any]] = None
+
+
+class StrategicInteractionResponse(BaseModel):
+    """Response model for strategic agent interactions"""
+    agent_id: str
+    agent_name: str
+    response: str
+    session_id: str
+    current_phase: str
+    strategic_data: Dict[str, Any]
+    lightning_brief: Optional[Dict[str, Any]] = None
+    red_team_challenge: Optional[Dict[str, Any]] = None
+    phase_transition: Optional[Dict[str, Any]] = None
+    model_used: Optional[str] = None
+
+
+class RedTeamChallengeRequest(BaseModel):
+    """Request model for red team challenges"""
+    session_id: str = Field(..., description="Strategic session ID")
+    challenge_type: Optional[str] = Field(default=None, description="Type of challenge to generate")
+    target_content: str = Field(..., description="Content to challenge")
+    difficulty: Optional[str] = Field(default="moderate", description="Challenge difficulty level")
+
+
+class RedTeamResponseRequest(BaseModel):
+    """Request model for red team challenge responses"""
+    session_id: str = Field(..., description="Strategic session ID")
+    challenge_id: str = Field(..., description="Challenge ID")
+    user_response: str = Field(..., description="User's response to the challenge")
 
 
 async def call_openai_api(model: str, prompt: str, system_prompt: str) -> str:
@@ -204,73 +257,144 @@ Please respond in character as this agent, providing insights and recommendation
     return base_prompt
 
 
-def create_strategic_copilot_prompt(agent, user_profile=None, cognitive_analysis=None) -> str:
-    """Create enhanced system prompt for Strategic Co-Pilot with Cognitive Twin capabilities"""
+def create_strategic_blueprint_prompt(agent, phase: StrategicPhase, context: Dict[str, Any] = None) -> str:
+    """Create enhanced system prompt for Strategic Co-Pilot with AGENT BLUEPRINT capabilities"""
     
-    base_prompt = f"""You are the {agent.name}, a wise Strategic Co-Pilot and Cognitive Twin.
+    context = context or {}
+    
+    base_prompt = f"""You are the {agent.name}, an advanced Strategic Co-Pilot with AGENT BLUEPRINT Engine capabilities.
 
-CORE IDENTITY:
-- You are not just an advisor, but a mentor who develops the user's strategic thinking
-- You analyze their thinking patterns and adapt your guidance accordingly
-- You ask thought-provoking questions rather than giving direct answers
-- You challenge assumptions gently but persistently
-- You help users discover insights through guided exploration
+CORE IDENTITY & MISSION:
+- You guide users through structured multi-phase strategic analysis
+- You are currently in the {phase.value.upper()} phase of strategic analysis
+- You combine deep strategic expertise with Socratic mentorship
+- You help users develop robust strategic thinking through guided discovery
 
-COGNITIVE TWIN CAPABILITIES:
-- Analyze thinking patterns in real-time
-- Detect and address cognitive biases constructively
-- Adapt communication style to user preferences
-- Build on previous interactions and learning
-- Provide personalized strategic guidance
-
-MENTORSHIP APPROACH:
-1. Lead with curiosity - ask questions that spark deeper thinking
-2. Challenge assumptions respectfully and constructively
-3. Offer multiple perspectives on strategic challenges
-4. Use analogies and examples to illustrate complex concepts
-5. Connect tactical decisions to strategic implications
-6. Encourage reflection on lessons learned
-7. Suggest relevant frameworks when appropriate
-
-STRATEGIC EXPERTISE:
-- Frameworks: {', '.join(agent.full_description.get('wisdom_base', {}).get('strategic_models', []))}
-- Cognitive Tools: {', '.join(agent.full_description.get('wisdom_base', {}).get('cognitive_frameworks', []))}
-- Mentorship Techniques: {', '.join(agent.full_description.get('wisdom_base', {}).get('mentorship_techniques', []))}
+AGENT BLUEPRINT ENGINE - CURRENT PHASE: {phase.value.upper()}
 """
 
-    if user_profile:
-        base_prompt += f"""
-USER COGNITIVE PROFILE:
-- Communication Style: {user_profile.get('communication_style', 'balanced')}
-- Interaction Count: {user_profile.get('interaction_count', 0)}
-- Growth Areas: {', '.join(user_profile.get('growth_areas', []))}
-- Previous Patterns: {', '.join(user_profile.get('thinking_patterns', {}).keys())}
+    # Phase-specific guidance
+    if phase == StrategicPhase.RECONNAISSANCE:
+        base_prompt += """
+RECONNAISSANCE PHASE OBJECTIVES:
+- Gather comprehensive strategic intelligence
+- Categorize and validate evidence quality
+- Identify key stakeholders and constraints
+- Build foundational understanding of the strategic context
+- Ask probing questions to uncover hidden assumptions
+- Minimum 3 high-quality evidence points needed to advance
+
+RECONNAISSANCE APPROACH:
+- Ask targeted questions to gather strategic intelligence
+- Challenge the user to provide specific evidence and data
+- Explore multiple perspectives on the situation
+- Identify what information is missing or unclear
+- Validate sources and assess evidence quality
+"""
+    elif phase == StrategicPhase.ANALYSIS:
+        base_prompt += """
+ANALYSIS PHASE OBJECTIVES:
+- Analyze evidence patterns and identify strategic insights
+- Generate multiple strategic options based on evidence
+- Assess feasibility and impact of different approaches
+- Identify risks, opportunities, and trade-offs
+- Minimum 2 viable strategic options needed to advance
+
+ANALYSIS APPROACH:
+- Synthesize evidence into coherent strategic patterns
+- Generate creative yet practical strategic options
+- Challenge assumptions underlying each option
+- Explore second and third-order effects
+- Consider resource requirements and constraints
+"""
+    elif phase == StrategicPhase.SYNTHESIS:
+        base_prompt += """
+SYNTHESIS PHASE OBJECTIVES:
+- Refine strategic options into coherent strategies
+- Identify critical assumptions underlying each strategy
+- Develop success criteria and risk mitigation approaches
+- Create integrated strategic framework
+- Prepare for validation and stress-testing
+
+SYNTHESIS APPROACH:
+- Integrate multiple strategic options into coherent approaches
+- Make explicit the assumptions underlying each strategy
+- Develop clear success metrics and milestones
+- Identify potential failure modes and mitigation strategies
+- Create logical connections between strategic elements
+"""
+    elif phase == StrategicPhase.VALIDATION:
+        base_prompt += """
+VALIDATION PHASE OBJECTIVES:
+- Stress-test strategic assumptions through red team challenges
+- Validate strategic options against potential obstacles
+- Identify blind spots and strengthen weak points
+- Prepare strategies for real-world implementation
+- Build confidence in strategic recommendations
+
+VALIDATION APPROACH:
+- Challenge assumptions through Socratic questioning
+- Explore worst-case scenarios and failure modes
+- Test strategies against competitive responses
+- Validate resource requirements and timelines
+- Strengthen strategies based on challenge responses
+"""
+    elif phase == StrategicPhase.BRIEFING:
+        base_prompt += """
+BRIEFING PHASE OBJECTIVES:
+- Generate comprehensive Lightning Brief
+- Synthesize analysis into actionable recommendations
+- Provide clear next steps and implementation guidance
+- Assess overall confidence in strategic recommendations
+- Deliver executive-ready strategic communication
+
+BRIEFING APPROACH:
+- Create clear, compelling strategic narrative
+- Prioritize recommendations by impact and feasibility
+- Provide specific, actionable next steps
+- Include confidence levels and risk assessments
+- Prepare for strategic decision-making
 """
 
-    if cognitive_analysis:
-        base_prompt += f"""
-CURRENT INTERACTION ANALYSIS:
-- Thinking Patterns Detected: {', '.join(cognitive_analysis.get('thinking_patterns', {}).keys())}
-- Communication Style: {cognitive_analysis.get('communication_style', 'balanced')}
-- Complexity Level: {cognitive_analysis.get('complexity_level', 'medium')}
-- Emotional Tone: {cognitive_analysis.get('emotional_tone', 'neutral')}
-- Biases Detected: {', '.join(cognitive_analysis.get('biases_detected', []))}
-- Decision Indicators: {cognitive_analysis.get('decision_indicators', {})}
-"""
+    base_prompt += f"""
 
-    base_prompt += """
+STRATEGIC EXPERTISE & FRAMEWORKS:
+- Strategic Models: {', '.join(agent.full_description.get('wisdom_base', {}).get('strategic_models', []))}
+- Cognitive Frameworks: {', '.join(agent.full_description.get('wisdom_base', {}).get('cognitive_frameworks', []))}
+- Evidence Classification: {', '.join(agent.full_description.get('wisdom_base', {}).get('evidence_classification', []))}
+
+MENTORSHIP STYLE:
+- Ask thought-provoking questions rather than giving direct answers
+- Challenge assumptions constructively and persistently
+- Guide discovery through Socratic dialogue
+- Adapt communication style to user needs
+- Build on user strengths while addressing blind spots
+
 RESPONSE GUIDELINES:
-- Adapt your response to the user's cognitive style and current state
-- If biases are detected, address them constructively through questions
-- If the user seems analytical, challenge them to consider creative alternatives
-- If they're being creative, help them think through practical implications
-- Always aim to expand their perspective while building on their strengths
-- Use their preferred communication style but gently stretch their comfort zone
-- Remember previous interactions and build on established learning
+- Stay focused on the current phase objectives
+- Ask questions that advance strategic thinking
+- Provide specific, actionable guidance
+- Challenge the user to think deeper and broader
+- Indicate when ready to advance to next phase
+- Maintain strategic focus while being supportive
 
-Your goal is to develop their strategic thinking capabilities, not just solve their immediate problem."""
+Current Context: {json.dumps(context, indent=2) if context else 'No additional context provided'}
+"""
 
     return base_prompt
+
+
+async def get_or_create_strategic_session(user_id: str, session_id: str = None) -> tuple[str, StrategistBlueprint]:
+    """Get existing or create new strategic session"""
+    if session_id and session_id in strategist_sessions:
+        return session_id, strategist_sessions[session_id]
+    
+    # Create new session
+    new_session_id = f"session_{user_id}_{datetime.utcnow().timestamp()}"
+    blueprint = StrategistBlueprint()
+    strategist_sessions[new_session_id] = blueprint
+    
+    return new_session_id, blueprint
 
 
 async def get_user_cognitive_profile(user_id: str) -> dict:
@@ -378,6 +502,283 @@ async def interact_with_agent(
         )
 
 
+@router.post("/agents/strategic-interact", response_model=StrategicInteractionResponse)
+async def strategic_interact_with_agent(
+    request: StrategicInteractionRequest,
+    current_user: UserInDB = Depends(get_current_user)
+):
+    """
+    Interact with the strategist agent using the AGENT BLUEPRINT workflow.
+    """
+    try:
+        # Get the strategist agent
+        agent = await get_agent_by_id(request.agent_id)
+        if not agent or agent.agent_id != "strategist":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Strategist agent not found"
+            )
+        
+        # Get or create strategic session
+        session_id, blueprint = await get_or_create_strategic_session(
+            str(current_user.id), request.session_id
+        )
+        
+        # Force specific phase if requested
+        if request.force_phase:
+            try:
+                forced_phase = StrategicPhase(request.force_phase)
+                blueprint.current_phase = forced_phase
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid phase: {request.force_phase}"
+                )
+        
+        # Process input through blueprint engine
+        blueprint_result = blueprint.process_input(request.prompt, request.context or {})
+        
+        # Create strategic system prompt
+        system_prompt = create_strategic_blueprint_prompt(
+            agent, blueprint.current_phase, request.context
+        )
+        
+        # Enhance user prompt with strategic context
+        strategic_context = {
+            "current_phase": blueprint.current_phase.value,
+            "evidence_count": len(blueprint.evidence_base),
+            "strategic_options": len(blueprint.strategic_options),
+            "assumptions": len(blueprint.assumptions)
+        }
+        
+        enhanced_prompt = f"""Strategic Context: {json.dumps(strategic_context, indent=2)}
+
+Blueprint Analysis: {json.dumps(blueprint_result, indent=2)}
+
+User Input: {request.prompt}"""
+        
+        # Call AI model with strategic prompt
+        if agent.model_name.startswith("openai/") or agent.model_name.startswith("gpt-"):
+            ai_response = await call_openai_api(agent.model_name, enhanced_prompt, system_prompt)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported model: {agent.model_name}"
+            )
+        
+        # Prepare response data
+        strategic_data = {
+            "current_phase": blueprint.current_phase.value,
+            "evidence_count": len(blueprint.evidence_base),
+            "strategic_options_count": len(blueprint.strategic_options),
+            "assumptions_count": len(blueprint.assumptions),
+            "phase_progress": blueprint_result
+        }
+        
+        # Generate Lightning Brief if in briefing phase
+        lightning_brief_data = None
+        if blueprint.current_phase == StrategicPhase.BRIEFING and blueprint_result.get("complete"):
+            lightning_brief = blueprint._generate_lightning_brief()
+            lightning_brief_data = {
+                "situation_summary": lightning_brief.situation_summary,
+                "key_insights": lightning_brief.key_insights,
+                "strategic_options": [
+                    {
+                        "title": opt.title,
+                        "description": opt.description,
+                        "confidence_score": opt.confidence_score
+                    } for opt in lightning_brief.strategic_options
+                ],
+                "critical_assumptions": lightning_brief.critical_assumptions,
+                "next_actions": lightning_brief.next_actions,
+                "confidence_level": lightning_brief.confidence_level,
+                "generated_at": lightning_brief.generated_at.isoformat()
+            }
+        
+        # Generate red team challenge if requested and appropriate
+        red_team_challenge_data = None
+        if request.enable_red_team and blueprint.current_phase == StrategicPhase.VALIDATION:
+            if blueprint.strategic_options:
+                challenge = red_team_protocol.generate_challenge(
+                    "strategic_option",
+                    blueprint.strategic_options[0].title,
+                    {"phase": blueprint.current_phase.value}
+                )
+                red_team_challenge_data = {
+                    "challenge_type": challenge.challenge_type.value,
+                    "question": challenge.question,
+                    "target": challenge.target,
+                    "difficulty": challenge.difficulty.value
+                }
+        
+        return StrategicInteractionResponse(
+            agent_id=agent.agent_id,
+            agent_name=agent.name,
+            response=ai_response,
+            session_id=session_id,
+            current_phase=blueprint.current_phase.value,
+            strategic_data=strategic_data,
+            lightning_brief=lightning_brief_data,
+            red_team_challenge=red_team_challenge_data,
+            model_used=agent.model_name
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Strategic interaction error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to interact with strategist agent: {str(e)}"
+        )
+
+
+@router.post("/agents/red-team-challenge")
+async def generate_red_team_challenge(
+    request: RedTeamChallengeRequest,
+    current_user: UserInDB = Depends(get_current_user)
+):
+    """Generate a red team challenge for strategic validation"""
+    try:
+        if request.session_id not in strategist_sessions:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Strategic session not found"
+            )
+        
+        blueprint = strategist_sessions[request.session_id]
+        
+        # Determine challenge type
+        challenge_type_enum = None
+        if request.challenge_type:
+            try:
+                challenge_type_enum = ChallengeType(request.challenge_type)
+            except ValueError:
+                pass
+        
+        # Determine difficulty
+        difficulty_enum = ChallengeDifficulty.MODERATE
+        if request.difficulty:
+            try:
+                difficulty_enum = ChallengeDifficulty(request.difficulty)
+            except ValueError:
+                pass
+        
+        # Generate challenge
+        challenge = red_team_protocol.generate_challenge(
+            request.challenge_type or "strategic_option",
+            request.target_content,
+            {"phase": blueprint.current_phase.value},
+            difficulty_enum
+        )
+        
+        return {
+            "challenge_id": f"challenge_{len(red_team_protocol.active_challenges)}",
+            "challenge_type": challenge.challenge_type.value,
+            "question": challenge.question,
+            "target": challenge.target,
+            "difficulty": challenge.difficulty.value,
+            "expected_elements": challenge.expected_response_elements,
+            "follow_up_questions": challenge.follow_up_questions
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate red team challenge: {str(e)}"
+        )
+
+
+@router.post("/agents/red-team-response")
+async def evaluate_red_team_response(
+    request: RedTeamResponseRequest,
+    current_user: UserInDB = Depends(get_current_user)
+):
+    """Evaluate user response to red team challenge"""
+    try:
+        if request.session_id not in strategist_sessions:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Strategic session not found"
+            )
+        
+        # Find the challenge (simplified - in production use proper ID lookup)
+        if not red_team_protocol.active_challenges:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No active challenges found"
+            )
+        
+        challenge = red_team_protocol.active_challenges[-1]  # Get most recent challenge
+        
+        # Evaluate response
+        evaluation = red_team_protocol.evaluate_response(challenge, request.user_response)
+        
+        # Generate follow-up if needed
+        follow_up = None
+        if evaluation["follow_up_needed"]:
+            follow_up = red_team_protocol.generate_socratic_follow_up(
+                challenge, request.user_response, evaluation
+            )
+        
+        return {
+            "evaluation": evaluation,
+            "follow_up_question": follow_up,
+            "challenge_resolved": not evaluation["follow_up_needed"],
+            "strategic_strength_assessment": red_team_protocol._assess_strategic_robustness()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to evaluate red team response: {str(e)}"
+        )
+
+
+@router.get("/agents/strategic-session/{session_id}")
+async def get_strategic_session_status(
+    session_id: str,
+    current_user: UserInDB = Depends(get_current_user)
+):
+    """Get current status of strategic session"""
+    try:
+        if session_id not in strategist_sessions:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Strategic session not found"
+            )
+        
+        blueprint = strategist_sessions[session_id]
+        
+        return {
+            "session_id": session_id,
+            "current_phase": blueprint.current_phase.value,
+            "evidence_count": len(blueprint.evidence_base),
+            "strategic_options_count": len(blueprint.strategic_options),
+            "assumptions_count": len(blueprint.assumptions),
+            "evidence_quality_summary": blueprint._get_evidence_quality_summary(),
+            "phase_completion_status": {
+                "reconnaissance": len(blueprint.evidence_base) >= 3,
+                "analysis": len(blueprint.strategic_options) >= 2,
+                "synthesis": len(blueprint.assumptions) > 0,
+                "validation": blueprint.current_phase.value in ["validation", "briefing"],
+                "briefing": blueprint.current_phase == StrategicPhase.BRIEFING
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get session status: {str(e)}"
+        )
+
+
 @router.get("/agents/{agent_id}/info")
 async def get_agent_info(
     agent_id: str,
@@ -394,6 +795,22 @@ async def get_agent_info(
                 detail="Agent not found"
             )
         
+        capabilities = {
+            "can_interact": bool(agent.model_name),
+            "supported_models": ["openai/gpt-4", "openai/gpt-3.5-turbo"] if agent.model_name and agent.model_name.startswith("openai/") else []
+        }
+        
+        # Add strategic capabilities for strategist agent
+        if agent.agent_id == "strategist":
+            capabilities.update({
+                "strategic_blueprint": True,
+                "multi_phase_analysis": True,
+                "lightning_brief_generation": True,
+                "red_team_protocols": True,
+                "evidence_classification": True,
+                "supported_phases": [phase.value for phase in StrategicPhase]
+            })
+        
         return {
             "agent_id": agent.agent_id,
             "name": agent.name,
@@ -403,10 +820,7 @@ async def get_agent_info(
             "is_active": agent.is_active,
             "is_custom": agent.is_custom,
             "full_description": agent.full_description,
-            "capabilities": {
-                "can_interact": bool(agent.model_name),
-                "supported_models": ["openai/gpt-4", "openai/gpt-3.5-turbo"] if agent.model_name and agent.model_name.startswith("openai/") else []
-            }
+            "capabilities": capabilities
         }
         
     except HTTPException:

@@ -205,6 +205,119 @@ export interface AgentInteractionResponse {
   model_used?: string;
 }
 
+// Strategic agent interaction types
+export interface StrategicInteractionRequest {
+  agent_id: string;
+  prompt: string;
+  context?: Record<string, any>;
+  session_id?: string;
+  force_phase?: string;
+  enable_red_team?: boolean;
+}
+
+export interface StrategicOption {
+  title: string;
+  description: string;
+  confidence_score: number;
+  risk_factors?: string[];
+  opportunity_factors?: string[];
+  success_criteria?: string[];
+}
+
+export interface LightningBrief {
+  situation_summary: string;
+  key_insights: string[];
+  strategic_options: StrategicOption[];
+  critical_assumptions: string[];
+  next_actions: string[];
+  confidence_level: string;
+  generated_at: string;
+}
+
+export interface RedTeamChallenge {
+  challenge_type: string;
+  question: string;
+  target: string;
+  difficulty: string;
+  expected_elements: string[];
+  follow_up_questions: string[];
+}
+
+export interface StrategicInteractionResponse {
+  agent_id: string;
+  agent_name: string;
+  response: string;
+  session_id: string;
+  current_phase: string;
+  strategic_data: Record<string, any>;
+  lightning_brief?: LightningBrief;
+  red_team_challenge?: RedTeamChallenge;
+  phase_transition?: Record<string, any>;
+  model_used?: string;
+}
+
+// Red team challenge types
+export interface RedTeamChallengeRequest {
+  session_id: string;
+  challenge_type?: string;
+  target_content: string;
+  difficulty?: string;
+}
+
+export interface RedTeamResponseRequest {
+  session_id: string;
+  challenge_id: string;
+  user_response: string;
+}
+
+export interface ChallengeEvaluation {
+  response_quality: number;
+  addresses_challenge: boolean;
+  provides_evidence: boolean;
+  acknowledges_limitations: boolean;
+  suggests_mitigations: boolean;
+  strengthens_position: boolean;
+  areas_for_improvement: string[];
+  follow_up_needed: boolean;
+}
+
+export interface RedTeamEvaluationResponse {
+  evaluation: ChallengeEvaluation;
+  follow_up_question?: string;
+  challenge_resolved: boolean;
+  strategic_strength_assessment: string;
+}
+
+// Strategic session status types
+export interface StrategicSessionStatus {
+  session_id: string;
+  current_phase: string;
+  evidence_count: number;
+  strategic_options_count: number;
+  assumptions_count: number;
+  evidence_quality_summary: string;
+  phase_completion_status: Record<string, boolean>;
+}
+
+// Evidence classification types
+export interface EvidencePiece {
+  content: string;
+  type: string;
+  quality: string;
+  confidence: number;
+}
+
+export interface EvidenceClassification {
+  primary_quality: string;
+  quality_scores: Record<string, number>;
+  evidence_types: string[];
+  confidence_score: number;
+  evidence_pieces: EvidencePiece[];
+  source_reliability: number;
+  recency_score: number;
+  verification_level: number;
+}
+
 export interface AgentInfoResponse {
   agent_id: string;
   name: string;
@@ -217,6 +330,12 @@ export interface AgentInfoResponse {
   capabilities: {
     can_interact: boolean;
     supported_models: string[];
+    strategic_blueprint?: boolean;
+    multi_phase_analysis?: boolean;
+    lightning_brief_generation?: boolean;
+    red_team_protocols?: boolean;
+    evidence_classification?: boolean;
+    supported_phases?: string[];
   };
 }
 
@@ -846,6 +965,82 @@ class ApiClient {
     });
   }
 
+  // Strategic agent interaction methods
+  async strategicInteractWithAgent(data: StrategicInteractionRequest): Promise<StrategicInteractionResponse> {
+    console.log('=== STRATEGIC INTERACT API CALL ===');
+    console.log('Request data:', data);
+    
+    try {
+      const response = await this.request<StrategicInteractionResponse>('/agents/strategic-interact', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      
+      console.log('Strategic interaction response:', response);
+      return response;
+    } catch (error) {
+      console.error('=== STRATEGIC INTERACT ERROR ===');
+      console.error('Error details:', error);
+      throw error;
+    }
+  }
+
+  // Red team challenge methods
+  async generateRedTeamChallenge(data: RedTeamChallengeRequest): Promise<RedTeamChallenge & { challenge_id: string }> {
+    console.log('=== GENERATE RED TEAM CHALLENGE API CALL ===');
+    console.log('Request data:', data);
+    
+    try {
+      const response = await this.request<RedTeamChallenge & { challenge_id: string }>('/agents/red-team-challenge', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      
+      console.log('Red team challenge response:', response);
+      return response;
+    } catch (error) {
+      console.error('=== RED TEAM CHALLENGE ERROR ===');
+      console.error('Error details:', error);
+      throw error;
+    }
+  }
+
+  async evaluateRedTeamResponse(data: RedTeamResponseRequest): Promise<RedTeamEvaluationResponse> {
+    console.log('=== EVALUATE RED TEAM RESPONSE API CALL ===');
+    console.log('Request data:', data);
+    
+    try {
+      const response = await this.request<RedTeamEvaluationResponse>('/agents/red-team-response', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      
+      console.log('Red team evaluation response:', response);
+      return response;
+    } catch (error) {
+      console.error('=== RED TEAM EVALUATION ERROR ===');
+      console.error('Error details:', error);
+      throw error;
+    }
+  }
+
+  // Strategic session status methods
+  async getStrategicSessionStatus(sessionId: string): Promise<StrategicSessionStatus> {
+    console.log('=== GET STRATEGIC SESSION STATUS API CALL ===');
+    console.log('Session ID:', sessionId);
+    
+    try {
+      const response = await this.request<StrategicSessionStatus>(`/agents/strategic-session/${sessionId}`);
+      
+      console.log('Strategic session status response:', response);
+      return response;
+    } catch (error) {
+      console.error('=== STRATEGIC SESSION STATUS ERROR ===');
+      console.error('Error details:', error);
+      throw error;
+    }
+  }
+
   async getAgentInfo(agentId: string): Promise<AgentInfoResponse> {
     return await this.request<AgentInfoResponse>(`/agents/${agentId}/info`);
   }
@@ -1051,3 +1246,7 @@ export const autoConnectNodes = apiClient.autoConnectNodes.bind(apiClient);
 export const summarizeNodeTitle = apiClient.summarizeNodeTitle.bind(apiClient);
 export const summarizeConversation = apiClient.summarizeConversation.bind(apiClient);
 export const generateExecutiveSummary = apiClient.generateExecutiveSummary.bind(apiClient);
+export const strategicInteractWithAgent = apiClient.strategicInteractWithAgent.bind(apiClient);
+export const generateRedTeamChallenge = apiClient.generateRedTeamChallenge.bind(apiClient);
+export const evaluateRedTeamResponse = apiClient.evaluateRedTeamResponse.bind(apiClient);
+export const getStrategicSessionStatus = apiClient.getStrategicSessionStatus.bind(apiClient);

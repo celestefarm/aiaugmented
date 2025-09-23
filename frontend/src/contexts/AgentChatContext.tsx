@@ -1,5 +1,17 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
-import { apiClient, AgentInteractionRequest, AgentInteractionResponse } from '../lib/api';
+import {
+  apiClient,
+  AgentInteractionRequest,
+  AgentInteractionResponse,
+  StrategicInteractionRequest,
+  StrategicInteractionResponse,
+  LightningBrief,
+  RedTeamChallenge,
+  RedTeamChallengeRequest,
+  RedTeamResponseRequest,
+  RedTeamEvaluationResponse,
+  StrategicSessionStatus
+} from '../lib/api';
 import { useWorkspace } from './WorkspaceContext';
 import { useMap } from './MapContext';
 
@@ -50,6 +62,14 @@ interface AgentChatContextType {
   isLoadingMessages: boolean;
   chatError: string | null;
   
+  // Strategic interaction state
+  currentStrategicSession: string | null;
+  currentPhase: string | null;
+  lightningBrief: LightningBrief | null;
+  currentRedTeamChallenge: RedTeamChallenge | null;
+  strategicSessionStatus: StrategicSessionStatus | null;
+  isStrategicMode: boolean;
+  
   // Agent actions
   loadAgents: () => Promise<void>;
   activateAgent: (agentId: string) => Promise<void>;
@@ -60,6 +80,15 @@ interface AgentChatContextType {
   sendMessage: (content: string) => Promise<ChatMessage[]>;
   addMessageToMap: (messageId: string, nodeTitle?: string, nodeType?: string) => Promise<boolean>;
   clearMessages: () => void;
+  
+  // Strategic interaction actions
+  startStrategicSession: (agentId: string) => Promise<void>;
+  sendStrategicMessage: (content: string, enableRedTeam?: boolean) => Promise<StrategicInteractionResponse>;
+  generateRedTeamChallenge: (challengeType?: string, targetContent?: string, difficulty?: string) => Promise<RedTeamChallenge & { challenge_id: string }>;
+  respondToRedTeamChallenge: (challengeId: string, response: string) => Promise<RedTeamEvaluationResponse>;
+  getSessionStatus: () => Promise<StrategicSessionStatus | null>;
+  toggleStrategicMode: () => void;
+  resetStrategicSession: () => void;
   
   // Utility actions
   refreshData: () => Promise<void>;
@@ -85,6 +114,14 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  
+  // Strategic interaction state
+  const [currentStrategicSession, setCurrentStrategicSession] = useState<string | null>(null);
+  const [currentPhase, setCurrentPhase] = useState<string | null>(null);
+  const [lightningBrief, setLightningBrief] = useState<LightningBrief | null>(null);
+  const [currentRedTeamChallenge, setCurrentRedTeamChallenge] = useState<RedTeamChallenge | null>(null);
+  const [strategicSessionStatus, setStrategicSessionStatus] = useState<StrategicSessionStatus | null>(null);
+  const [isStrategicMode, setIsStrategicMode] = useState(false);
   
   const { currentWorkspace } = useWorkspace();
   const { refreshMapData } = useMap();
@@ -328,10 +365,175 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
     setChatError(null);
   }, []);
 
+  // Strategic interaction methods
+  const startStrategicSession = useCallback(async (agentId: string): Promise<void> => {
+    try {
+      setChatError(null);
+      setIsStrategicMode(true);
+      
+      // Initialize strategic session with first interaction
+      const response = await apiClient.strategicInteractWithAgent({
+        agent_id: agentId,
+        prompt: "I'd like to start a strategic analysis session.",
+        context: { session_type: 'strategic_analysis' }
+      });
+      
+      setCurrentStrategicSession(response.session_id);
+      setCurrentPhase(response.current_phase);
+      
+      if (response.lightning_brief) {
+        setLightningBrief(response.lightning_brief);
+      }
+      
+      if (response.red_team_challenge) {
+        setCurrentRedTeamChallenge(response.red_team_challenge);
+      }
+      
+      console.log('Strategic session started:', response);
+    } catch (error) {
+      console.error('Failed to start strategic session:', error);
+      setChatError(error instanceof Error ? error.message : 'Failed to start strategic session');
+      setIsStrategicMode(false);
+    }
+  }, []);
+
+  const sendStrategicMessage = useCallback(async (content: string, enableRedTeam: boolean = false): Promise<StrategicInteractionResponse> => {
+    if (!currentStrategicSession) {
+      throw new Error('No active strategic session');
+    }
+
+    try {
+      setChatError(null);
+      
+      const response = await apiClient.strategicInteractWithAgent({
+        agent_id: 'strategist',
+        prompt: content,
+        session_id: currentStrategicSession,
+        enable_red_team: enableRedTeam,
+        context: { strategic_mode: true }
+      });
+      
+      // Update session state
+      setCurrentPhase(response.current_phase);
+      
+      if (response.lightning_brief) {
+        setLightningBrief(response.lightning_brief);
+      }
+      
+      if (response.red_team_challenge) {
+        setCurrentRedTeamChallenge(response.red_team_challenge);
+      }
+      
+      console.log('Strategic message sent:', response);
+      return response;
+    } catch (error) {
+      console.error('Failed to send strategic message:', error);
+      setChatError(error instanceof Error ? error.message : 'Failed to send strategic message');
+      throw error;
+    }
+  }, [currentStrategicSession]);
+
+  const generateRedTeamChallenge = useCallback(async (
+    challengeType?: string,
+    targetContent?: string,
+    difficulty?: string
+  ): Promise<RedTeamChallenge & { challenge_id: string }> => {
+    if (!currentStrategicSession) {
+      throw new Error('No active strategic session');
+    }
+
+    try {
+      setChatError(null);
+      
+      const response = await apiClient.generateRedTeamChallenge({
+        session_id: currentStrategicSession,
+        challenge_type: challengeType,
+        target_content: targetContent || 'Current strategic analysis',
+        difficulty: difficulty
+      });
+      
+      setCurrentRedTeamChallenge(response);
+      console.log('Red team challenge generated:', response);
+      return response;
+    } catch (error) {
+      console.error('Failed to generate red team challenge:', error);
+      setChatError(error instanceof Error ? error.message : 'Failed to generate red team challenge');
+      throw error;
+    }
+  }, [currentStrategicSession]);
+
+  const respondToRedTeamChallenge = useCallback(async (
+    challengeId: string,
+    response: string
+  ): Promise<RedTeamEvaluationResponse> => {
+    if (!currentStrategicSession) {
+      throw new Error('No active strategic session');
+    }
+
+    try {
+      setChatError(null);
+      
+      const evaluation = await apiClient.evaluateRedTeamResponse({
+        session_id: currentStrategicSession,
+        challenge_id: challengeId,
+        user_response: response
+      });
+      
+      // Clear current challenge if resolved
+      if (evaluation.challenge_resolved) {
+        setCurrentRedTeamChallenge(null);
+      }
+      
+      console.log('Red team response evaluated:', evaluation);
+      return evaluation;
+    } catch (error) {
+      console.error('Failed to evaluate red team response:', error);
+      setChatError(error instanceof Error ? error.message : 'Failed to evaluate red team response');
+      throw error;
+    }
+  }, [currentStrategicSession]);
+
+  const getSessionStatus = useCallback(async (): Promise<StrategicSessionStatus | null> => {
+    if (!currentStrategicSession) {
+      return null;
+    }
+
+    try {
+      const status = await apiClient.getStrategicSessionStatus(currentStrategicSession);
+      setStrategicSessionStatus(status);
+      return status;
+    } catch (error) {
+      console.error('Failed to get session status:', error);
+      return null;
+    }
+  }, [currentStrategicSession]);
+
+  const toggleStrategicMode = useCallback((): void => {
+    setIsStrategicMode(prev => !prev);
+    if (!isStrategicMode) {
+      // Reset strategic state when entering strategic mode
+      resetStrategicSession();
+    }
+  }, [isStrategicMode]);
+
+  const resetStrategicSession = useCallback((): void => {
+    setCurrentStrategicSession(null);
+    setCurrentPhase(null);
+    setLightningBrief(null);
+    setCurrentRedTeamChallenge(null);
+    setStrategicSessionStatus(null);
+    setIsStrategicMode(false);
+  }, []);
+
   // Refresh all data
   const refreshData = useCallback(async (): Promise<void> => {
     await Promise.all([loadAgents(), loadMessages()]);
-  }, [loadAgents, loadMessages]);
+    
+    // Refresh strategic session status if active
+    if (currentStrategicSession) {
+      await getSessionStatus();
+    }
+  }, [loadAgents, loadMessages, currentStrategicSession, getSessionStatus]);
 
   // Load data when workspace changes
   useEffect(() => {
@@ -360,6 +562,14 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
     isLoadingMessages,
     chatError,
     
+    // Strategic interaction state
+    currentStrategicSession,
+    currentPhase,
+    lightningBrief,
+    currentRedTeamChallenge,
+    strategicSessionStatus,
+    isStrategicMode,
+    
     // Agent actions
     loadAgents,
     activateAgent,
@@ -370,6 +580,15 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
     sendMessage,
     addMessageToMap,
     clearMessages,
+    
+    // Strategic interaction actions
+    startStrategicSession,
+    sendStrategicMessage,
+    generateRedTeamChallenge,
+    respondToRedTeamChallenge,
+    getSessionStatus,
+    toggleStrategicMode,
+    resetStrategicSession,
     
     // Utility actions
     refreshData,

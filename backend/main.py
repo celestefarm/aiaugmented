@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
-from database import connect_to_mongo, close_mongo_connection
+from database_memory import connect_to_mongo, close_mongo_connection
 
 # Load environment variables
 load_dotenv()
@@ -15,6 +15,9 @@ async def lifespan(app: FastAPI):
     # Seed agents on startup
     from utils.seed_agents import seed_agents
     await seed_agents()
+    # Seed users on startup
+    from utils.seed_users import seed_users
+    await seed_users()
     yield
     # Shutdown
     await close_mongo_connection()

@@ -1418,12 +1418,41 @@ const handleModalClose = useCallback(() => {
   if (mapError) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-[#0A0A0A] text-[#E5E7EB]">
-        <div className="text-center">
+        <div className="text-center max-w-md mx-auto p-6">
           <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
             <X className="w-6 h-6 text-red-400" />
           </div>
-          <p className="text-red-300 mb-2">Failed to load map</p>
-          <p className="text-gray-400 text-sm">{mapError}</p>
+          <p className="text-red-300 mb-2 text-lg font-semibold">Failed to load map</p>
+          <p className="text-gray-400 text-sm mb-4">{mapError}</p>
+          
+          {/* Show different actions based on error type */}
+          {mapError.includes('Not authenticated') ? (
+            <div className="space-y-3">
+              <p className="text-yellow-400 text-sm">Please log in to access your workspace</p>
+              <button
+                onClick={() => window.location.href = '/auth'}
+                className="px-4 py-2 bg-[#6B6B3A] hover:bg-[#6B6B3A]/80 text-black font-medium rounded-lg transition-colors"
+              >
+                Go to Login
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <button
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 bg-[#6B6B3A] hover:bg-[#6B6B3A]/80 text-black font-medium rounded-lg transition-colors mr-2"
+              >
+                <RefreshCw className="w-4 h-4 inline mr-2" />
+                Retry
+              </button>
+              <button
+                onClick={() => window.location.href = '/dashboard'}
+                className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white font-medium rounded-lg transition-colors"
+              >
+                Back to Dashboard
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
