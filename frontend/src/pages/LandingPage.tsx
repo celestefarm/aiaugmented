@@ -189,20 +189,16 @@ const LandingPage: React.FC = () => {
         <div className="max-w-5xl mx-auto">
           <div className="text-center luxury-content">
             <h2 className="luxury-headline mb-8">
-              AI Intelligence. Human Wisdom.<br />
-              <span className="luxury-headline-accent">An Unassailable Advantage</span>
+              The New Loneliness of Command
             </h2>
-            <p className="luxury-subtitle mb-12">
-              For the leader who must be certain in a world of constant ambiguity
-            </p>
             <div className="luxury-body-text max-w-4xl mx-auto mb-12">
               <p className="mb-6">
-                You stand at the confluence of immense data and irreversible consequence. Every report offers a different version of the truth. Every advisor, a different path forward. In this deafening noise, you know the greatest risk is not in the information you have, but in the silent, unseen narrative you might be missing, the single insight that could define your legacy or seal your fate.
+                You have more data than ever, yet less certainty. Surrounded by noise, you know the career-defining decision is still yours alone. Your greatest risk isn't the information you have, but the single, unseen insight that will determine your legacy.
               </p>
             </div>
             <div className="flex justify-center">
               <p className="luxury-closing">
-                This is the loneliness of command. And it is where we meet you.
+                This is the new loneliness of command in the age of AI. And it is where we meet you.
               </p>
             </div>
           </div>
