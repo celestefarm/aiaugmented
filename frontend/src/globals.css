@@ -84,6 +84,12 @@
   }
 }
 
+/* Dashboard Background with Natural Dark Gradient - Slightly Brighter */
+.dashboard-background {
+  background: linear-gradient(180deg, #0a0a0a 0%, #141414 30%, #1e1e1e 60%, #282828 85%, #323232 100%) !important;
+  min-height: 100vh;
+}
+
 /* Glass pane effect */
 .glass-pane {
   background: rgba(10, 10, 10, 0.4);
