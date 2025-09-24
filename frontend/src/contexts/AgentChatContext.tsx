@@ -62,6 +62,9 @@ interface AgentChatContextType {
   isLoadingMessages: boolean;
   chatError: string | null;
   
+  // STATE MANAGEMENT FIX: Add-to-map loading state
+  addToMapLoading: Record<string, boolean>;
+  
   // Strategic interaction state
   currentStrategicSession: string | null;
   currentPhase: string | null;
@@ -114,6 +117,9 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  
+  // STATE MANAGEMENT FIX: Loading state for add-to-map operations
+  const [addToMapLoading, setAddToMapLoading] = useState<Record<string, boolean>>({});
   
   // Strategic interaction state
   const [currentStrategicSession, setCurrentStrategicSession] = useState<string | null>(null);
@@ -250,7 +256,7 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
     }
   }, [currentWorkspace]);
 
-  // Add a message to the map - NEW IMPLEMENTATION
+  // STATE MANAGEMENT FIX: Simplified message-to-map with proper error handling
   const addMessageToMap = useCallback(async (
     messageId: string,
     nodeTitle?: string,
@@ -261,103 +267,72 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
       return false;
     }
 
+    // STATE MANAGEMENT FIX: Check for duplicate requests
+    const localMessage = messages.find(m => m.id === messageId);
+    if (localMessage?.added_to_map) {
+      console.log('🔄 [STATE-FIX] Message already added to map, skipping');
+      setChatError('Message has already been added to map');
+      return false;
+    }
+
+    // STATE MANAGEMENT FIX: Check if already loading
+    const loadingStateKey = `adding-${messageId}`;
+    if (addToMapLoading[loadingStateKey]) {
+      console.log('🔄 [STATE-FIX] Add-to-map already in progress, skipping');
+      return false;
+    }
+    
     try {
       setChatError(null);
+      console.log('🔄 [STATE-FIX] Adding message to map:', messageId);
       
-      // Enhanced debug logging for new implementation
-      console.log('=== NEW CONTEXT ADD TO MAP DEBUG ===');
-      console.log('Current workspace:', currentWorkspace);
-      console.log('Workspace ID:', currentWorkspace.id);
-      console.log('Message ID:', messageId);
-      console.log('Message ID type:', typeof messageId);
-      console.log('Node title:', nodeTitle);
-      console.log('Node type:', nodeType);
+      // STATE MANAGEMENT FIX: Set loading state
+      setAddToMapLoading(prev => ({ ...prev, [loadingStateKey]: true }));
       
-      // Find message in local state
-      const localMessage = messages.find(m => m.id === messageId);
-      console.log('Local message found:', localMessage);
-      
-      // Check if already added to map locally
-      if (localMessage?.added_to_map) {
-        console.log('Message already marked as added to map locally');
-        setChatError('Message has already been added to map');
-        return false;
-      }
-      
-      // OPTIMISTIC UPDATE: Immediately update local state to prevent race conditions
-      console.log('=== OPTIMISTIC STATE UPDATE ===');
-      setMessages(prev => {
-        const updated = prev.map(msg =>
-          msg.id === messageId ? { ...msg, added_to_map: true } : msg
-        );
-        console.log('Optimistically updated messages:', updated.find(m => m.id === messageId));
-        return updated;
-      });
-      
-      console.log('Making API call to new addMessageToMap endpoint...');
       const response = await apiClient.addMessageToMap(currentWorkspace.id, messageId, {
         node_title: nodeTitle,
         node_type: nodeType || 'ai'
       });
       
-      console.log('New API response:', response);
-      
       if (response.success) {
-        console.log('New API call successful! Node ID:', response.node_id);
+        console.log('🔄 [STATE-FIX] API call successful, refreshing data');
         
-        // State was already optimistically updated above
-        console.log('Message state already updated optimistically');
+        // STATE MANAGEMENT FIX: Refresh both messages and map data atomically
+        await Promise.all([
+          loadMessages(), // Refresh messages to get updated added_to_map status
+          refreshMapData() // Refresh map to show new node
+        ]);
         
-        // Refresh map data to show the new node
-        console.log('Refreshing map data with new implementation...');
-        try {
-          await refreshMapData();
-          console.log('Map data refreshed successfully with new implementation');
-        } catch (mapError) {
-          console.error('Failed to refresh map data:', mapError);
-          // Don't fail the whole operation if map refresh fails
-        }
-        
+        console.log('🔄 [STATE-FIX] Data refreshed successfully');
         return true;
       } else {
-        console.error('New API call returned success: false');
-        
-        // ROLLBACK: Revert optimistic update on failure
-        console.log('=== ROLLBACK OPTIMISTIC UPDATE ===');
-        setMessages(prev => {
-          const reverted = prev.map(msg =>
-            msg.id === messageId ? { ...msg, added_to_map: false } : msg
-          );
-          console.log('Rolled back optimistic update for message:', messageId);
-          return reverted;
-        });
-        
-        setChatError('Failed to add message to map');
+        console.error('🔄 [STATE-FIX] API call failed:', response.message);
+        setChatError(response.message || 'Failed to add message to map');
         return false;
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to add message to map';
-      setChatError(errorMessage);
-      console.error('Failed to add message to map with new implementation - full error:', err);
-      console.error('Error message:', errorMessage);
-      console.error('Error stack:', err instanceof Error ? err.stack : 'No stack trace');
+      console.error('🔄 [STATE-FIX] Error adding message to map:', errorMessage);
       
-      // ROLLBACK: Revert optimistic update on error
-      console.log('=== ROLLBACK ON ERROR ===');
-      setMessages(prev => {
-        const reverted = prev.map(msg =>
-          msg.id === messageId ? {
-            ...msg,
-            added_to_map: errorMessage.includes('already been added') ? true : false
-          } : msg
-        );
-        console.log('Rolled back optimistic update due to error:', errorMessage);
-        return reverted;
-      });
+      // STATE MANAGEMENT FIX: Handle specific error cases
+      if (errorMessage.includes('already been added')) {
+        // Refresh messages to sync state with server
+        await loadMessages();
+        setChatError('Message has already been added to map');
+      } else {
+        setChatError(errorMessage);
+      }
       
       return false;
+    } finally {
+      // STATE MANAGEMENT FIX: Clear loading state
+      setAddToMapLoading(prev => {
+        const updated = { ...prev };
+        delete updated[loadingStateKey];
+        return updated;
+      });
     }
-  }, [currentWorkspace, messages, refreshMapData]);
+  }, [currentWorkspace, messages, loadMessages, refreshMapData, addToMapLoading]);
 
   // Clear chat messages
   const clearMessages = useCallback((): void => {
@@ -561,6 +536,9 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
     messages,
     isLoadingMessages,
     chatError,
+    
+    // STATE MANAGEMENT FIX: Add-to-map loading state
+    addToMapLoading,
     
     // Strategic interaction state
     currentStrategicSession,

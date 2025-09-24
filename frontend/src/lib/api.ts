@@ -1,5 +1,7 @@
 // API client for backend communication
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+import { createErrorHandler, withRetry, ErrorStateManager } from './errorHandler';
+
+const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
 
 // Types for API responses
 export interface User {
@@ -7,6 +9,8 @@ export interface User {
   _id?: string; // Backend returns _id, frontend uses id
   email: string;
   name: string;
+  position?: string;
+  goal?: string;
   created_at: string;
   last_login?: string;
   is_active: boolean;
@@ -447,128 +451,117 @@ class ApiClient {
     localStorage.removeItem('auth_token');
   }
 
-  // Generic request method
+  // ERROR HANDLING FIX: Enhanced request method with comprehensive error handling
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
-    const token = this.getToken();
+    const errorHandler = createErrorHandler('ApiClient', {
+      maxRetries: 2,
+      baseDelay: 1000,
+      retryableStatuses: [408, 429, 500, 502, 503, 504]
+    });
 
-    // Enhanced logging for debugging authentication issues
-    console.log('=== API REQUEST DEBUG ===');
-    console.log('Endpoint:', endpoint);
-    console.log('Token exists:', !!token);
-    console.log('Token value:', token ? `${token.substring(0, 20)}...` : 'null');
-    console.log('Is authenticated:', this.isAuthenticated());
+    return await errorHandler.handleOperation(
+      async () => {
+        const url = `${this.baseUrl}${endpoint}`;
+        const token = this.getToken();
 
-    const config: RequestInit = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
-        ...options.headers,
-      },
-      ...options,
-    };
+        console.log('🌐 [ApiClient] Making request:', { endpoint, hasToken: !!token });
 
-    console.log('Request headers:', config.headers);
+        const config: RequestInit = {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token && { Authorization: `Bearer ${token}` }),
+            ...options.headers,
+          },
+          ...options,
+        };
 
-    try {
-      const response = await fetch(url, config);
-      
-      console.log('Response status:', response.status);
-      console.log('Response ok:', response.ok);
-      console.log('Response object:', response);
-      
-      if (!response.ok) {
-        const errorData: ApiError = await response.json().catch(() => ({
-          detail: `HTTP ${response.status}: ${response.statusText}`,
-        }));
-        console.log('API Error:', errorData);
+        const response = await fetch(url, config);
         
-        // Special handling for authentication errors
-        if (response.status === 401) {
-          console.log('Authentication failed - clearing token and forcing re-login');
-          this.clearAuth();
+        console.log('📡 [ApiClient] Response received:', {
+          status: response.status,
+          ok: response.ok,
+          endpoint
+        });
+        
+        if (!response.ok) {
+          const errorData: ApiError = await response.json().catch(() => ({
+            detail: `HTTP ${response.status}: ${response.statusText}`,
+          }));
           
-          // Trigger a page reload to force the user back to login
-          // This handles the case where the backend was restarted and user IDs changed
-          if (typeof window !== 'undefined') {
-            console.log('Reloading page to force re-authentication');
-            window.location.reload();
+          // ERROR HANDLING FIX: Enhanced error context
+          const errorMessage = `${errorData.detail} (${endpoint})`;
+          
+          // Special handling for authentication errors
+          if (response.status === 401) {
+            console.log('🔐 [ApiClient] Authentication failed - clearing token');
+            this.clearAuth();
+            
+            // Trigger page reload for re-authentication
+            if (typeof window !== 'undefined') {
+              setTimeout(() => window.location.reload(), 1000);
+            }
           }
+          
+          throw new Error(errorMessage);
+        }
+
+        // Handle different response types
+        const contentType = response.headers.get('content-type');
+        const contentLength = response.headers.get('content-length');
+        
+        // Handle 204 No Content responses
+        if (response.status === 204) {
+          console.log('✅ [ApiClient] 204 No Content response');
+          return {} as T;
         }
         
-        throw new Error(errorData.detail);
-      }
-
-      // Handle empty responses (like logout and DELETE operations)
-      const contentType = response.headers.get('content-type');
-      const contentLength = response.headers.get('content-length');
-      console.log('Content-Type:', contentType);
-      console.log('Content-Length:', contentLength);
-      console.log('Response status:', response.status);
-      
-      // CRITICAL FIX: Handle 204 No Content responses properly
-      if (response.status === 204) {
-        console.log('204 No Content response - returning empty object');
-        return {} as T;
-      }
-      
-      // CRITICAL FIX: Check for empty content before trying to parse JSON
-      if (contentLength === '0' || contentLength === null) {
-        console.log('Empty content detected - returning empty object');
-        return {} as T;
-      }
-      
-      if (contentType && contentType.includes('application/json')) {
-        try {
-          // CRITICAL FIX: Add try-catch around JSON parsing to handle malformed responses
+        // Handle empty content
+        if (contentLength === '0' || contentLength === null) {
+          console.log('✅ [ApiClient] Empty content response');
+          return {} as T;
+        }
+        
+        // Parse JSON responses
+        if (contentType && contentType.includes('application/json')) {
           const responseText = await response.text();
-          console.log('Raw response text:', responseText);
           
           if (!responseText || responseText.trim() === '') {
-            console.log('Empty response text - returning empty object');
+            console.log('✅ [ApiClient] Empty JSON response');
             return {} as T;
           }
           
-          const jsonResponse = JSON.parse(responseText);
-          console.log('Parsed JSON Response:', jsonResponse);
-          
-          // CRITICAL: Add null/undefined check for response data
-          if (jsonResponse === null || jsonResponse === undefined) {
-            console.error('CRITICAL: API returned null/undefined response');
-            throw new Error('API returned invalid response data');
+          try {
+            const jsonResponse = JSON.parse(responseText);
+            
+            // Validate response data
+            if (jsonResponse === null || jsonResponse === undefined) {
+              throw new Error('API returned null/undefined response data');
+            }
+            
+            console.log('✅ [ApiClient] JSON response parsed successfully');
+            return jsonResponse;
+          } catch (parseError) {
+            // For successful responses with JSON parsing issues, return empty object
+            if (response.status >= 200 && response.status < 300) {
+              console.log('⚠️ [ApiClient] JSON parsing failed but response successful');
+              return {} as T;
+            }
+            throw new Error(`JSON parsing failed: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
           }
-          
-          return jsonResponse;
-        } catch (parseError) {
-          console.error('JSON parsing error:', parseError);
-          console.error('Failed to parse response as JSON');
-          // For DELETE operations and other cases where JSON parsing fails, return empty object
-          if (response.status >= 200 && response.status < 300) {
-            console.log('Successful response but JSON parsing failed - returning empty object');
-            return {} as T;
-          }
-          throw new Error(`Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : 'Unknown parsing error'}`);
         }
+        
+        console.log('✅ [ApiClient] Non-JSON response handled');
+        return {} as T;
+      },
+      {
+        context: 'ApiClient',
+        operation: `${options.method || 'GET'} ${endpoint}`,
+        showUserMessage: true
       }
-      
-      console.log('Returning empty object for non-JSON response');
-      return {} as T;
-    } catch (error) {
-      console.error('=== API REQUEST ERROR ===');
-      console.error('Request failed for endpoint:', endpoint);
-      console.error('Error details:', error);
-      console.error('Error type:', typeof error);
-      console.error('Error message:', error instanceof Error ? error.message : 'Unknown error');
-      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-      
-      if (error instanceof Error) {
-        throw error;
-      }
-      throw new Error('An unexpected error occurred');
-    }
+    );
   }
 
   // Authentication methods
@@ -631,7 +624,7 @@ class ApiClient {
     return user;
   }
 
-  async updateProfile(data: { name?: string }): Promise<User> {
+  async updateProfile(data: { name?: string; position?: string; goal?: string }): Promise<User> {
     return await this.request<User>('/auth/me', {
       method: 'PUT',
       body: JSON.stringify(data),

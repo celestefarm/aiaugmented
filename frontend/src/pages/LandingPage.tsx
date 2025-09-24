@@ -15,7 +15,7 @@ const LandingPage: React.FC = () => {
 
   // Background text animation effect with robust initialization
   useEffect(() => {
-    console.log('🎬 Animation effect starting...'); // Debug log
+    // Debug log
     
     let isComponentMounted = true;
     let animationInterval: NodeJS.Timeout | null = null;
@@ -27,7 +27,7 @@ const LandingPage: React.FC = () => {
       if (!isComponentMounted) return;
       
       const sentences = document.querySelectorAll('.animated-sentence');
-      console.log('🔍 Found sentences:', sentences.length, 'Retry:', retryCount); // Debug log
+      // Debug log
       
       if (sentences.length === 0) {
         retryCount++;
@@ -41,16 +41,15 @@ const LandingPage: React.FC = () => {
         }
       }
 
-      console.log('✅ Animation initialization successful!');
       let currentIndex = 0;
 
       const showSentence = (index: number) => {
         if (!isComponentMounted) {
-          console.log('🛑 Component unmounted, skipping sentence show'); // Debug log
+          // Debug log
           return;
         }
 
-        console.log(`🎭 Showing sentence ${index + 1}/${sentences.length}`); // Debug log
+        // Debug log
         
         // Clear any existing fade timeout
         if (fadeTimeout) {
@@ -64,7 +63,7 @@ const LandingPage: React.FC = () => {
           element.style.opacity = '0';
           element.style.transition = 'opacity 0.8s ease-in-out';
           if (i === index) {
-            console.log('📝 Current sentence text:', element.textContent?.substring(0, 50) + '...'); // Debug log
+            // Debug log
           }
         });
 
@@ -74,7 +73,7 @@ const LandingPage: React.FC = () => {
           fadeTimeout = setTimeout(() => {
             if (isComponentMounted && currentSentence) {
               currentSentence.style.opacity = '1';
-              console.log('✨ Sentence faded in successfully'); // Debug log
+              // Debug log
             }
           }, 100); // Shorter delay for smoother transition
         }
@@ -82,11 +81,11 @@ const LandingPage: React.FC = () => {
 
       const animateSentences = () => {
         if (!isComponentMounted) {
-          console.log('🛑 Component unmounted, stopping animation'); // Debug log
+          // Debug log
           return;
         }
 
-        console.log(`🔄 Animation cycle ${currentIndex + 1}, timestamp:`, Date.now()); // Debug log
+        // Debug log
         
         showSentence(currentIndex);
         
@@ -95,7 +94,7 @@ const LandingPage: React.FC = () => {
       };
 
       // Start the animation immediately
-      console.log('🚀 Starting animation loop...'); // Debug log
+      // Debug log
       animateSentences();
       
       // Set up interval for continuous animation
@@ -117,7 +116,7 @@ const LandingPage: React.FC = () => {
 
     // Cleanup function
     return () => {
-      console.log('🧹 Cleaning up animation resources...'); // Debug log
+      // Debug log
       isComponentMounted = false;
       
       // Clear all timers

@@ -238,17 +238,24 @@ export function generateDisplayTitle(
  * Generates a smart title for display using backend AI summarization when available
  * @param node - The node object containing title and cached summaries
  * @param context - The display context ('card' | 'tooltip' | 'list')
+ * @param signal - Optional AbortSignal for request cancellation
  * @returns Promise resolving to a context-appropriate title
  */
 export async function generateSmartDisplayTitle(
   node: Node,
-  context: 'card' | 'tooltip' | 'list' = 'card'
+  context: 'card' | 'tooltip' | 'list' = 'card',
+  signal?: AbortSignal
 ): Promise<string> {
-  console.log('=== GENERATE SMART DISPLAY TITLE ===');
+  // MEMORY LEAK FIX: Early return if request is cancelled
+  if (signal?.aborted) {
+    throw new DOMException('Request was cancelled', 'AbortError');
+  }
+  
+  console.log('=== GENERATE SMART DISPLAY TITLE (MEMORY LEAK FIX) ===');
   console.log('Node ID:', node.id);
   console.log('Node title:', node.title);
   console.log('Context:', context);
-  console.log('Node summarized_titles:', node.summarized_titles);
+  console.log('Has abort signal:', !!signal);
   
   // CRITICAL FIX: Check for valid node ID before making API calls
   if (!node.id || node.id === 'undefined' || typeof node.id !== 'string') {
@@ -264,7 +271,6 @@ export async function generateSmartDisplayTitle(
   };
 
   const maxLength = maxLengths[context];
-  console.log('Max length for context:', maxLength);
 
   // If title is already short enough, return as-is
   if (node.title.length <= maxLength) {
@@ -283,13 +289,31 @@ export async function generateSmartDisplayTitle(
     }
   }
 
+  // MEMORY LEAK FIX: Check abort signal before API call
+  if (signal?.aborted) {
+    throw new DOMException('Request was cancelled', 'AbortError');
+  }
+
   // Try to get a new summarized title from the backend
   try {
     console.log('Calling summarizeNodeTitle API with valid node ID:', node.id);
+    // Note: The API client would need to be updated to support AbortSignal
+    // For now, we'll handle cancellation at the component level
     const result = await summarizeNodeTitle(node.id, context, maxLength);
+    
+    // MEMORY LEAK FIX: Check if cancelled after API call
+    if (signal?.aborted) {
+      throw new DOMException('Request was cancelled', 'AbortError');
+    }
+    
     console.log('API result:', result);
     return result.summarized_title;
   } catch (error) {
+    // MEMORY LEAK FIX: Don't log errors for cancelled requests
+    if (signal?.aborted || (error instanceof DOMException && error.name === 'AbortError')) {
+      throw error;
+    }
+    
     console.warn(`Failed to get summarized title for node ${node.id}:`, error);
     // Fallback to local truncation
     const fallback = generateDisplayTitle(node.title, node.description, context);

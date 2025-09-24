@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials
-from models.user import UserSignupRequest, UserLoginRequest, UserResponse, TokenResponse, UserInDB, UserCreate
+from models.user import UserSignupRequest, UserLoginRequest, UserUpdateRequest, UserResponse, TokenResponse, UserInDB, UserCreate
 from utils.auth import hash_password, verify_password, create_access_token, get_token_expiry
 from utils.dependencies import get_current_active_user, security
 from database_memory import get_database
@@ -281,29 +281,33 @@ async def get_current_user_profile(current_user: UserResponse = Depends(get_curr
 
 @router.put("/auth/me", response_model=UserResponse)
 async def update_current_user_profile(
-    update_data: Dict[str, str],
+    update_data: UserUpdateRequest,
     current_user: UserResponse = Depends(get_current_active_user)
 ):
     """
     Update current authenticated user's profile.
     
     Args:
-        update_data: Fields to update (currently supports 'name')
+        update_data: Fields to update (name, position, goal)
         current_user: Current authenticated user (from dependency)
         
     Returns:
         Updated user profile data
         
     Raises:
-        HTTPException: If update fails or invalid fields provided
+        HTTPException: If update fails or no valid fields provided
     """
-    # Only allow updating specific fields
-    allowed_fields = {"name"}
+    # Build update fields from the request model
     update_fields = {}
     
-    for field, value in update_data.items():
-        if field in allowed_fields and value:
-            update_fields[field] = value
+    if update_data.name is not None and update_data.name.strip():
+        update_fields["name"] = update_data.name.strip()
+    
+    if update_data.position is not None:
+        update_fields["position"] = update_data.position.strip() if update_data.position.strip() else None
+    
+    if update_data.goal is not None:
+        update_fields["goal"] = update_data.goal.strip() if update_data.goal.strip() else None
     
     if not update_fields:
         raise HTTPException(

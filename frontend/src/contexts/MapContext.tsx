@@ -1,14 +1,16 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback, useMemo, useRef } from 'react';
 import { Node, Edge, NodeCreateRequest, NodeUpdateRequest, EdgeCreateRequest, apiClient } from '../lib/api';
 import { useWorkspace } from './WorkspaceContext';
 import { useAuth } from './AuthContext';
+import { createErrorHandler, ErrorStateManager, ErrorState } from '../lib/errorHandler';
 
-// Map context types
+// ERROR HANDLING FIX: Enhanced Map context types with comprehensive error handling
 interface MapContextType {
   nodes: Node[];
   edges: Edge[];
   isLoading: boolean;
   error: string | null;
+  errorState: ErrorState;
   
   // Node actions
   loadMapData: () => Promise<void>;
@@ -24,6 +26,10 @@ interface MapContextType {
   clearMapData: () => void;
   refreshMapData: () => Promise<void>;
   autoArrangeNodes: () => Promise<void>;
+  
+  // ERROR HANDLING FIX: Error management actions
+  clearError: () => void;
+  retryLastOperation: () => Promise<void>;
 }
 
 // Create context
@@ -34,121 +40,143 @@ interface MapProviderProps {
   children: ReactNode;
 }
 
-// Map provider component
+// ERROR HANDLING FIX: Enhanced Map provider with comprehensive error handling
 export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorState, setErrorState] = useState<ErrorState>(ErrorStateManager.createInitialState());
+  const [lastFailedOperation, setLastFailedOperation] = useState<(() => Promise<void>) | null>(null);
   
   const { currentWorkspace } = useWorkspace();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
 
-  // Load map data (nodes and edges) for current workspace
+  // PERFORMANCE FIX: Memoize error handler to prevent recreation on every render
+  const errorHandler = useMemo(() => createErrorHandler('MapContext', {
+    maxRetries: 2,
+    baseDelay: 1500,
+    retryableStatuses: [408, 429, 500, 502, 503, 504]
+  }), []);
+
+  // PERFORMANCE FIX: Add request deduplication to prevent multiple simultaneous requests
+  const [isLoadingRef, setIsLoadingRef] = useState(false);
+
+  // Clear map data function - defined early to avoid dependency issues
+  const clearMapData = useCallback((): void => {
+    setNodes([]);
+    setEdges([]);
+    setError(null);
+  }, []);
+
+  // PERFORMANCE FIX: Enhanced load map data with dependency cycle prevention
   const loadMapData = useCallback(async (forceRefresh: boolean = false): Promise<void> => {
+    // PERFORMANCE FIX: Request deduplication - prevent multiple simultaneous requests
+    if (isLoadingRef && !forceRefresh) {
+      console.log('🔄 [MapContext] Request already in progress, skipping duplicate');
+      return;
+    }
+
     if (!currentWorkspace?.id) {
-      console.log('=== MAP CONTEXT DEBUG ===');
-      console.log('No current workspace, clearing map data');
+      console.log('🏠 [MapContext] No current workspace, clearing map data');
       clearMapData();
       return;
     }
 
-    // Wait for authentication to be initialized before loading map data
     if (authLoading) {
-      console.log('=== MAP CONTEXT DEBUG ===');
-      console.log('Authentication still loading, waiting...');
+      console.log('🔐 [MapContext] Authentication still loading, waiting...');
       return;
     }
 
-    // CRITICAL FIX: Check if we have a valid token instead of relying on auth context state
     const hasValidToken = apiClient.isAuthenticated();
     if (!hasValidToken) {
-      console.log('=== MAP CONTEXT DEBUG ===');
-      console.log('No valid authentication token, cannot load map data');
-      console.log('Auth context authenticated:', isAuthenticated);
-      console.log('API client authenticated:', hasValidToken);
+      console.log('🚫 [MapContext] No valid authentication token');
+      const authError = ErrorStateManager.setError(new Error('Authentication required'), 'MapContext');
+      setErrorState(authError);
       setError('Not authenticated');
       clearMapData();
       return;
     }
 
-    try {
+    const operation = async () => {
+      setIsLoadingRef(true);
       setIsLoading(true);
       setError(null);
+      setErrorState(ErrorStateManager.clearError());
       
-      console.log('=== MAP CONTEXT DEBUG ===');
-      console.log('Loading map data for workspace:', currentWorkspace.id);
-      console.log('Force refresh:', forceRefresh);
-      console.log('Auth token exists:', !!localStorage.getItem('auth_token'));
-      console.log('API client authenticated:', apiClient.isAuthenticated());
-      console.log('Auth context authenticated:', isAuthenticated);
-      console.log('Auth loading:', authLoading);
+      console.log('🔄 [MapContext] Loading map data for workspace:', currentWorkspace.id);
       
-      // Load nodes and edges from API (cache-busting is handled in API client)
+      // Load nodes and edges from API with error handling
       const [nodesResponse, edgesResponse] = await Promise.all([
         apiClient.getNodes(currentWorkspace.id),
         apiClient.getEdges(currentWorkspace.id)
       ]);
       
-      console.log('=== MAP DATA LOADED SUCCESSFULLY ===');
-      console.log('Node count:', nodesResponse.nodes.length);
-      console.log('Edge count:', edgesResponse.edges.length);
+      console.log('✅ [MapContext] Map data loaded successfully:', {
+        nodes: nodesResponse.nodes.length,
+        edges: edgesResponse.edges.length
+      });
       
-      // Log key_message data verification
-      const nodesWithKeyMessage = nodesResponse.nodes.filter(node => node.key_message);
-      console.log(`Nodes with key_message: ${nodesWithKeyMessage.length}/${nodesResponse.nodes.length}`);
-      
-      if (nodesWithKeyMessage.length > 0) {
-        console.log('=== KEY MESSAGE VERIFICATION ===');
-        nodesWithKeyMessage.forEach((node, index) => {
-          console.log(`Node ${index + 1}: "${node.title}" -> Key Message: "${node.key_message}"`);
-        });
-      }
-      
-      // Force component re-render by creating new array references
+      // Update state with new data
       setNodes([...nodesResponse.nodes]);
       setEdges([...edgesResponse.edges]);
-      
-      console.log('✅ Map data state updated, components should re-render');
+    };
+
+    // Store operation for retry capability
+    setLastFailedOperation(() => operation);
+
+    try {
+      await errorHandler.handleOperation(operation, {
+        context: 'MapContext',
+        operation: 'loadMapData',
+        showUserMessage: true
+      });
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load map data';
-      console.error('=== MAP LOADING ERROR ===');
-      console.error('Error message:', errorMessage);
-      console.error('Full error:', err);
-      console.error('Workspace ID:', currentWorkspace.id);
-      console.error('Auth token exists:', !!localStorage.getItem('auth_token'));
-      console.error('API client authenticated:', apiClient.isAuthenticated());
-      console.error('Auth context authenticated:', isAuthenticated);
-      console.error('Auth loading:', authLoading);
-      
-      setError(errorMessage);
-      // Set empty arrays on error
+      console.error('❌ [MapContext] Failed to load map data:', err);
+      const errorState = ErrorStateManager.setError(err, 'MapContext');
+      setErrorState(errorState);
+      setError(errorState.error);
       setNodes([]);
       setEdges([]);
     } finally {
+      setIsLoadingRef(false);
       setIsLoading(false);
     }
-  }, [currentWorkspace, isAuthenticated, authLoading]);
+  }, [currentWorkspace?.id, isAuthenticated, authLoading, errorHandler]);
 
-  // Create a new node
+  // ERROR HANDLING FIX: Enhanced create node with error handling
   const createNode = useCallback(async (data: NodeCreateRequest): Promise<Node | null> => {
     if (!currentWorkspace?.id) {
-      setError('No workspace selected');
+      const error = 'No workspace selected';
+      setError(error);
+      setErrorState(ErrorStateManager.setError(new Error(error), 'MapContext'));
       return null;
     }
 
     try {
       setError(null);
-      const newNode = await apiClient.createNode(currentWorkspace.id, data);
+      setErrorState(ErrorStateManager.clearError());
+      
+      const newNode = await errorHandler.handleOperation(
+        () => apiClient.createNode(currentWorkspace.id, data),
+        {
+          context: 'MapContext',
+          operation: 'createNode',
+          showUserMessage: true
+        }
+      );
+      
       setNodes(prev => [...prev, newNode]);
+      console.log('✅ [MapContext] Node created successfully:', newNode.id);
       return newNode;
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to create node';
-      setError(errorMessage);
-      console.error('Failed to create node:', err);
+      console.error('❌ [MapContext] Failed to create node:', err);
+      const errorState = ErrorStateManager.setError(err, 'MapContext');
+      setErrorState(errorState);
+      setError(errorState.error);
       return null;
     }
-  }, [currentWorkspace]);
+  }, [currentWorkspace, errorHandler]);
 
   // Update an existing node
   const updateNode = useCallback(async (nodeId: string, data: NodeUpdateRequest): Promise<Node | null> => {
@@ -237,13 +265,6 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
     }
   }, [currentWorkspace]);
 
-  // Clear map data
-  const clearMapData = useCallback((): void => {
-    setNodes([]);
-    setEdges([]);
-    setError(null);
-  }, []);
-
   // Refresh map data with force refresh
   const refreshMapData = useCallback(async (): Promise<void> => {
     console.log('=== MANUAL REFRESH TRIGGERED ===');
@@ -279,21 +300,65 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
     }
   }, [currentWorkspace, loadMapData]);
 
-  // Load map data when workspace changes or authentication state changes
+  // PERFORMANCE FIX: Use refs to prevent infinite re-renders
+  const lastWorkspaceIdRef = useRef<string | null>(null);
+  const lastAuthStateRef = useRef<{ loading: boolean; authenticated: boolean }>({ loading: true, authenticated: false });
+
   useEffect(() => {
-    if (currentWorkspace && !authLoading) {
+    const currentWorkspaceId = currentWorkspace?.id || null;
+    const currentAuthState = { loading: authLoading, authenticated: isAuthenticated };
+    
+    // Only proceed if there's an actual change
+    const workspaceChanged = lastWorkspaceIdRef.current !== currentWorkspaceId;
+    const authChanged = lastAuthStateRef.current.loading !== currentAuthState.loading ||
+                       lastAuthStateRef.current.authenticated !== currentAuthState.authenticated;
+    
+    if (!workspaceChanged && !authChanged) {
+      return; // No changes, skip execution
+    }
+    
+    // Update refs
+    lastWorkspaceIdRef.current = currentWorkspaceId;
+    lastAuthStateRef.current = currentAuthState;
+    
+    if (currentWorkspace && !authLoading && isAuthenticated) {
+      console.log('🔄 [MapContext] Workspace or auth state changed, loading map data');
       loadMapData();
     } else if (!currentWorkspace) {
+      console.log('🏠 [MapContext] No workspace, clearing map data');
       clearMapData();
     }
-  }, [currentWorkspace, loadMapData, authLoading, isAuthenticated]);
+  }, [currentWorkspace?.id, authLoading, isAuthenticated, loadMapData, clearMapData]);
 
-  // Context value
+  // ERROR HANDLING FIX: Clear error function
+  const clearError = useCallback(() => {
+    setError(null);
+    setErrorState(ErrorStateManager.clearError());
+  }, []);
+
+  // ERROR HANDLING FIX: Retry last failed operation
+  const retryLastOperation = useCallback(async () => {
+    if (lastFailedOperation) {
+      console.log('🔄 [MapContext] Retrying last failed operation');
+      try {
+        await lastFailedOperation();
+        setLastFailedOperation(null);
+      } catch (err) {
+        console.error('❌ [MapContext] Retry failed:', err);
+        const errorState = ErrorStateManager.setError(err, 'MapContext');
+        setErrorState(errorState);
+        setError(errorState.error);
+      }
+    }
+  }, [lastFailedOperation]);
+
+  // ERROR HANDLING FIX: Enhanced context value with error handling
   const value: MapContextType = {
     nodes,
     edges,
     isLoading,
     error,
+    errorState,
     loadMapData: () => loadMapData(false),
     createNode,
     updateNode,
@@ -303,6 +368,8 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
     clearMapData,
     refreshMapData,
     autoArrangeNodes,
+    clearError,
+    retryLastOperation,
   };
 
   return (

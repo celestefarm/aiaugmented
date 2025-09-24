@@ -96,6 +96,13 @@ export class InteractionManager {
   private onNodeSelect?: (nodeId: string) => void;
   private onConnectionCreate?: (fromNodeId: string, toNodeId: string) => void;
   
+  // EVENT LISTENER FIX: Single global event listener management
+  private globalListenersAttached: boolean = false;
+  private boundHandlers: {
+    mousemove: (event: MouseEvent) => void;
+    mouseup: (event: MouseEvent) => void;
+  };
+  
   constructor(
     onNodePositionUpdate?: (nodeId: string, position: Point) => void,
     onTransformUpdate?: (transform: Transform) => void,
@@ -108,6 +115,12 @@ export class InteractionManager {
     this.onStateChange = onStateChange;
     this.onNodeSelect = onNodeSelect;
     this.onConnectionCreate = onConnectionCreate;
+    
+    // EVENT LISTENER FIX: Create bound handlers once to avoid memory leaks
+    this.boundHandlers = {
+      mousemove: this.handleGlobalMouseMove.bind(this),
+      mouseup: this.handleGlobalMouseUp.bind(this)
+    };
   }
   
   // Update current transform for coordinate calculations
@@ -678,13 +691,15 @@ export class InteractionManager {
     // DIRECT CANVAS DRAG: Update immediately without requestAnimationFrame delay
     this.onTransformUpdate?.(this.currentTransform);
     
-    // Log every 60th event for performance monitoring
+    // DIAGNOSTIC: Enhanced logging for canvas drag fix validation
     if (this.mouseMoveCount % 60 === 0) {
-      console.log('⚡ [DIRECT-CANVAS-DRAG] Immediate response:', {
+      console.log('⚡ [CANVAS-DRAG-FIX] Transform update:', {
         deltaX: deltaX.toFixed(2),
         deltaY: deltaY.toFixed(2),
         currentTransform: this.currentTransform,
-        mouseMoveCount: this.mouseMoveCount
+        mouseMoveCount: this.mouseMoveCount,
+        svgSyncNote: 'SVG layer should now follow this transform',
+        timestamp: new Date().toISOString()
       });
     }
   }
@@ -1109,23 +1124,39 @@ export class InteractionManager {
     return this.connectionStart;
   }
   
-  // Ensure global listeners are attached
+  // EVENT LISTENER FIX: Optimized global listener management
   private ensureGlobalListenersAttached(): void {
-    console.log('🔧 [InteractionManager] Checking if global listeners need to be attached');
-    
-    if (this.mode === 'DRAGGING_NODE' || this.mode === 'PANNING') {
-      console.log('🔧 [InteractionManager] Mode requires global listeners, ensuring they are attached');
-      
-      // Remove any existing listeners first to avoid duplicates
-      document.removeEventListener('mousemove', this.handleGlobalMouseMove);
-      document.removeEventListener('mouseup', this.handleGlobalMouseUp);
-      
-      // Add listeners with explicit non-passive and capture settings
-      document.addEventListener('mousemove', this.handleGlobalMouseMove, { passive: false, capture: true });
-      document.addEventListener('mouseup', this.handleGlobalMouseUp, { passive: false, capture: true });
-      
-      console.log('🔧 [InteractionManager] Global listeners attached directly by InteractionManager');
+    if (this.globalListenersAttached) {
+      console.log('🔧 [EVENT-LISTENER-FIX] Global listeners already attached, skipping');
+      return;
     }
+    
+    if (this.mode === 'DRAGGING_NODE' || this.mode === 'PANNING' || this.mode === 'DRAGGING_CONNECTION') {
+      console.log('🔧 [EVENT-LISTENER-FIX] Attaching global listeners for mode:', this.mode);
+      
+      // EVENT LISTENER FIX: Use bound handlers to prevent memory leaks
+      document.addEventListener('mousemove', this.boundHandlers.mousemove, { passive: false, capture: true });
+      document.addEventListener('mouseup', this.boundHandlers.mouseup, { passive: false, capture: true });
+      
+      this.globalListenersAttached = true;
+      console.log('🔧 [EVENT-LISTENER-FIX] Global listeners attached successfully');
+    }
+  }
+  
+  // EVENT LISTENER FIX: Proper cleanup method
+  private removeGlobalListeners(): void {
+    if (!this.globalListenersAttached) {
+      return;
+    }
+    
+    console.log('🔧 [EVENT-LISTENER-FIX] Removing global listeners');
+    
+    // EVENT LISTENER FIX: Use bound handlers for proper removal
+    document.removeEventListener('mousemove', this.boundHandlers.mousemove, true);
+    document.removeEventListener('mouseup', this.boundHandlers.mouseup, true);
+    
+    this.globalListenersAttached = false;
+    console.log('🔧 [EVENT-LISTENER-FIX] Global listeners removed successfully');
   }
   
   // HYBRID SMOOTHNESS: Helper methods for advanced animations
@@ -1323,20 +1354,40 @@ export class InteractionManager {
     this.startLightMomentum();
   }
 
-  // Bound methods for global event listeners
-  private handleGlobalMouseMove = (event: MouseEvent) => {
-    console.log('🔧 [InteractionManager] Global mouse move received');
+  // EVENT LISTENER FIX: Optimized bound methods for global event listeners
+  private handleGlobalMouseMove(event: MouseEvent): void {
+    // Only process if we're in an active interaction mode
+    if (this.mode === 'IDLE') {
+      console.log('🔧 [EVENT-LISTENER-FIX] Ignoring mouse move in IDLE mode');
+      return;
+    }
+    
+    console.log('🔧 [EVENT-LISTENER-FIX] Processing global mouse move for mode:', this.mode);
     this.handleMouseMove(event);
-  };
+  }
   
-  private handleGlobalMouseUp = (event: MouseEvent) => {
-    console.log('🔧 [InteractionManager] Global mouse up received');
+  private handleGlobalMouseUp(event: MouseEvent): void {
+    console.log('🔧 [EVENT-LISTENER-FIX] Global mouse up received for mode:', this.mode);
     this.handleMouseUp(event);
     
-    // Clean up global listeners after mouse up
-    document.removeEventListener('mousemove', this.handleGlobalMouseMove);
-    document.removeEventListener('mouseup', this.handleGlobalMouseUp);
-    console.log('🔧 [InteractionManager] Global listeners cleaned up');
-  };
+    // EVENT LISTENER FIX: Clean up listeners after interaction ends
+    this.removeGlobalListeners();
+  }
+  
+  // EVENT LISTENER FIX: Public cleanup method for external use
+  public cleanup(): void {
+    console.log('🔧 [EVENT-LISTENER-FIX] Performing complete cleanup');
+    
+    // Cancel any active interactions
+    this.cancelInteraction();
+    
+    // Remove global listeners
+    this.removeGlobalListeners();
+    
+    // Clear animation frames
+    this.clearAnimationFrames();
+    
+    console.log('🔧 [EVENT-LISTENER-FIX] Cleanup completed');
+  }
 }
       

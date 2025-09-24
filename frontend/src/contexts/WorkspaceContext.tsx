@@ -62,10 +62,6 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
       // Persist to localStorage
       localStorage.setItem('currentWorkspace', JSON.stringify(newWorkspace));
       
-      console.log('=== WORKSPACE CREATION SUCCESS ===');
-      console.log('New workspace created:', newWorkspace.id);
-      console.log('Set as current workspace:', newWorkspace.id);
-      
       return newWorkspace;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create workspace';

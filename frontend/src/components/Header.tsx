@@ -158,7 +158,6 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, title, onTit
           <div className="flex">
             <button
               onClick={() => {
-                console.log('Exploration Map clicked, current view:', currentView);
                 alert('Exploration Map clicked! Current view: ' + currentView);
                 onViewChange('exploration');
               }}
@@ -173,7 +172,6 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, title, onTit
             </button>
             <button
               onClick={() => {
-                console.log('Last-Mile Brief clicked, current view:', currentView);
                 alert('Last-Mile Brief clicked! Current view: ' + currentView);
                 onViewChange('brief');
               }}

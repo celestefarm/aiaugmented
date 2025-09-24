@@ -82,11 +82,8 @@ const Index: React.FC = () => {
       <Header
         currentView={currentView}
         onViewChange={(view) => {
-          console.log('Index.tsx: View change requested to:', view);
-          console.log('Index.tsx: Current view before change:', currentView);
           setCurrentView(view);
-          console.log('Index.tsx: setCurrentView called with:', view);
-        }}
+          }}
         title={currentWorkspace.title}
         onTitleChange={handleTitleChange}
       />
@@ -98,7 +95,6 @@ const Index: React.FC = () => {
         </div>
         
         {(() => {
-          console.log('Index.tsx: Rendering view:', currentView);
           if (currentView === 'exploration') {
             return <ExplorationMap key="exploration" />;
           } else {

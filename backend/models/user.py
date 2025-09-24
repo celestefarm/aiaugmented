@@ -39,6 +39,13 @@ class UserLoginRequest(BaseModel):
     password: str = Field(..., description="User password")
 
 
+class UserUpdateRequest(BaseModel):
+    """User profile update request model"""
+    name: Optional[str] = Field(None, min_length=1, max_length=100, description="User display name")
+    position: Optional[str] = Field(None, max_length=200, description="User's job title or position")
+    goal: Optional[str] = Field(None, max_length=500, description="User's professional goal or objective")
+
+
 class UserResponse(BaseModel):
     """User response model (without sensitive data)"""
     model_config = ConfigDict(
@@ -50,6 +57,8 @@ class UserResponse(BaseModel):
     id: Optional[PyObjectId] = Field(default=None, alias="_id")
     email: EmailStr
     name: str
+    position: Optional[str] = Field(default=None, description="User's job title or position")
+    goal: Optional[str] = Field(default=None, description="User's professional goal or objective")
     created_at: datetime
     last_login: Optional[datetime] = None
     is_active: bool = True
@@ -76,6 +85,8 @@ class UserInDB(BaseModel):
     email: EmailStr
     password_hash: str
     name: str
+    position: Optional[str] = Field(default=None, description="User's job title or position")
+    goal: Optional[str] = Field(default=None, description="User's professional goal or objective")
     created_at: datetime
     last_login: Optional[datetime] = None
     is_active: bool = True
@@ -86,6 +97,8 @@ class UserInDB(BaseModel):
             id=self.id,
             email=self.email,
             name=self.name,
+            position=self.position,
+            goal=self.goal,
             created_at=self.created_at,
             last_login=self.last_login,
             is_active=self.is_active

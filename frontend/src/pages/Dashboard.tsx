@@ -95,21 +95,12 @@ const Dashboard: React.FC = () => {
   const handleHome = (e?: React.MouseEvent) => {
     e?.preventDefault();
     e?.stopPropagation();
-    console.log('🏠 HOME BUTTON CLICKED - navigating to landing page');
-    
-    // Navigate to the landing page (home)
     navigate('/');
-    
-    console.log('✅ Navigated to landing page');
   };
 
   // Handle create workspace
   const handleCreateWorkspace = async () => {
     if (!newWorkspaceTitle.trim() || !newWorkspaceSituation.trim() || !newWorkspaceGoal.trim()) {
-      console.log('❌ [CREATE-DEBUG] Validation failed - missing required fields');
-      console.log('  - title:', newWorkspaceTitle);
-      console.log('  - situation:', newWorkspaceSituation);
-      console.log('  - goal:', newWorkspaceGoal);
       return;
     }
 
@@ -140,10 +131,6 @@ const Dashboard: React.FC = () => {
       setEnduringValue('');
       
       // Navigate to the new workspace (no need to call selectWorkspace since createWorkspace now sets it as current)
-      console.log('=== DASHBOARD: WORKSPACE CREATED ===');
-      console.log('New workspace ID:', workspace.id);
-      console.log('Workspace context:', { situation: newWorkspaceSituation.trim(), goal: newWorkspaceGoal.trim() });
-      console.log('Navigating to workspace...');
       navigate('/workspace');
     } catch (error) {
       console.error('Failed to create workspace:', error);
@@ -155,68 +142,35 @@ const Dashboard: React.FC = () => {
   // Handle edit workspace
   const handleEditWorkspace = async (workspace: any, event: React.MouseEvent) => {
     event.stopPropagation();
-    console.log('🔧 [EDIT-DEBUG] Edit button clicked for workspace:', workspace.id, workspace.title);
-    console.log('🔧 [EDIT-DEBUG] Current showEditDialog state:', showEditDialog);
     
     try {
       setEditingWorkspace(workspace);
       setEditWorkspaceTitle(workspace.title);
       setShowEditDialog(true);
-      console.log('✅ [EDIT-DEBUG] Edit dialog state set to true');
-      console.log('✅ [EDIT-DEBUG] Editing workspace:', workspace);
-      console.log('✅ [EDIT-DEBUG] Edit workspace title:', workspace.title);
-      
-      // Add a small delay to ensure state is updated
-      setTimeout(() => {
-        console.log('🔧 [EDIT-DEBUG] After timeout - showEditDialog:', showEditDialog);
-      }, 100);
     } catch (error) {
-      console.error('❌ [EDIT-DEBUG] Error opening edit dialog:', error);
+      console.error('Error opening edit dialog:', error);
     }
   };
 
   // Handle update workspace
   const handleUpdateWorkspace = async () => {
     if (!editWorkspaceTitle.trim() || !editingWorkspace) {
-      console.log('❌ [EDIT-DEBUG] Validation failed - missing title or workspace');
-      console.log('  - editWorkspaceTitle:', editWorkspaceTitle);
-      console.log('  - editingWorkspace:', editingWorkspace);
       return;
     }
-
-    console.log('🔧 [EDIT-DEBUG] Starting workspace update process...');
-    console.log('  - Workspace ID:', editingWorkspace.id);
-    console.log('  - Current title:', editingWorkspace.title);
-    console.log('  - New title:', editWorkspaceTitle.trim());
-    console.log('  - updateWorkspace function available:', typeof updateWorkspace);
 
     try {
       setIsUpdating(true);
       
-      console.log('🔧 [EDIT-DEBUG] CRITICAL ISSUE IDENTIFIED: Currently only simulating update!');
-      console.log('🔧 [EDIT-DEBUG] The actual updateWorkspace API call is commented out as TODO');
-      console.log('🔧 [EDIT-DEBUG] This is why changes are not persisted to the database');
-      
-      // ACTUAL API CALL - Replace the simulation with real API call
-      console.log('🔧 [EDIT-DEBUG] Calling actual updateWorkspace API...');
       const updatedWorkspace = await updateWorkspace(editingWorkspace.id, {
         title: editWorkspaceTitle.trim()
       });
-      
-      console.log('✅ [EDIT-DEBUG] API call successful, updated workspace:', updatedWorkspace);
       
       // Close dialog and reset state
       setShowEditDialog(false);
       setEditingWorkspace(null);
       setEditWorkspaceTitle('');
-      
-      console.log('✅ [EDIT-DEBUG] Workspace update completed successfully with real API call');
     } catch (error) {
-      console.error('❌ [EDIT-DEBUG] Failed to update workspace:', error);
-      console.error('❌ [EDIT-DEBUG] Error details:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : 'No stack trace'
-      });
+      console.error('Failed to update workspace:', error);
     } finally {
       setIsUpdating(false);
     }
@@ -225,25 +179,17 @@ const Dashboard: React.FC = () => {
   // Handle update account
   const handleUpdateAccount = async () => {
     if (!accountName.trim()) {
-      console.log('❌ [ACCOUNT-DEBUG] Validation failed - missing name');
-      console.log('  - accountName:', accountName);
       return;
     }
-
-    console.log('🔧 [ACCOUNT-DEBUG] Starting account update process...');
-    console.log('  - Current name:', user?.name);
-    console.log('  - New name:', accountName.trim());
 
     try {
       setIsUpdatingAccount(true);
       
-      // Use the real API call to update user profile
-      console.log('🔧 [ACCOUNT-DEBUG] Calling real updateUser API...');
       await updateUser({
-        name: accountName.trim()
+        name: accountName.trim(),
+        position: accountPosition.trim() || undefined,
+        goal: accountGoal.trim() || undefined
       });
-      
-      console.log('✅ [ACCOUNT-DEBUG] API call successful');
       
       // Close dialog and reset state
       setShowAccountDialog(false);
@@ -251,14 +197,8 @@ const Dashboard: React.FC = () => {
       setAccountEmail('');
       setAccountPosition('');
       setAccountGoal('');
-      
-      console.log('✅ [ACCOUNT-DEBUG] Account update completed successfully with real API call');
     } catch (error) {
-      console.error('❌ [ACCOUNT-DEBUG] Failed to update account:', error);
-      console.error('❌ [ACCOUNT-DEBUG] Error details:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : 'No stack trace'
-      });
+      console.error('Failed to update account:', error);
     } finally {
       setIsUpdatingAccount(false);
     }
@@ -267,16 +207,11 @@ const Dashboard: React.FC = () => {
   // Handle workspace status toggle
   const handleToggleWorkspaceStatus = (workspaceId: string, event: React.MouseEvent) => {
     event.stopPropagation(); // Prevent workspace selection when clicking status
-    console.log('🔧 [STATUS-DEBUG] Toggling status for workspace:', workspaceId);
     
-    setWorkspaceStatuses(prev => {
-      const newStatus = !prev[workspaceId];
-      console.log('✅ [STATUS-DEBUG] Status changed to:', newStatus ? 'Active' : 'Inactive');
-      return {
-        ...prev,
-        [workspaceId]: newStatus
-      };
-    });
+    setWorkspaceStatuses(prev => ({
+      ...prev,
+      [workspaceId]: !prev[workspaceId]
+    }));
   };
 
   // Handle workspace selection
@@ -285,12 +220,9 @@ const Dashboard: React.FC = () => {
     const isActive = workspaceStatuses[workspace.id] !== false;
     
     if (!isActive) {
-      console.log('❌ [ACCESS-DEBUG] Access denied - workspace is inactive:', workspace.id, workspace.title);
-      // You could show a toast notification here in the future
       return;
     }
     
-    console.log('✅ [ACCESS-DEBUG] Access granted - workspace is active:', workspace.id, workspace.title);
     selectWorkspace(workspace);
     navigate('/workspace');
   };
@@ -363,7 +295,6 @@ const Dashboard: React.FC = () => {
             </Button>
             <Button
               onClick={() => {
-                console.log('🔍 [FORM-DEBUG] New Workspace button clicked - opening dialog');
                 setShowCreateDialog(true);
               }}
               className="bg-[#6B6B3A] hover:bg-[#6B6B3A]/80 text-black font-medium"
@@ -444,8 +375,8 @@ const Dashboard: React.FC = () => {
                   onClick={() => {
                     setAccountName(user?.name || '');
                     setAccountEmail(user?.email || '');
-                    setAccountPosition(''); // TODO: Get from user profile when available
-                    setAccountGoal(''); // TODO: Get from user profile when available
+                    setAccountPosition(user?.position || '');
+                    setAccountGoal(user?.goal || '');
                     setShowAccountDialog(true);
                   }}
                   onMouseEnter={(e) => {
@@ -611,7 +542,6 @@ const Dashboard: React.FC = () => {
             padding: '20px'
           }}
           onClick={() => {
-            console.log('🔍 [FORM-DEBUG] Dialog overlay clicked - closing dialog');
             setShowCreateDialog(false);
           }}
         >
@@ -634,7 +564,6 @@ const Dashboard: React.FC = () => {
               overflow: 'hidden'
             }}
             onClick={(e) => {
-              console.log('🔍 [FORM-DEBUG] Dialog content clicked - preventing close');
               e.stopPropagation();
             }}
           >
@@ -772,7 +701,6 @@ const Dashboard: React.FC = () => {
                         zIndex: 1001
                       }}
                       onFocus={(e) => {
-                        console.log('🔍 [FORM-DEBUG] Title field focused');
                         const target = e.target as HTMLInputElement;
                         target.style.borderColor = 'rgba(107, 107, 58, 0.4)';
                         target.style.background = 'rgba(60, 60, 60, 0.7)';
@@ -782,19 +710,15 @@ const Dashboard: React.FC = () => {
                         `;
                       }}
                       onBlur={(e) => {
-                        console.log('🔍 [FORM-DEBUG] Title field blurred');
                         const target = e.target as HTMLInputElement;
                         target.style.borderColor = 'rgba(107, 107, 58, 0.25)';
                         target.style.background = 'rgba(55, 55, 55, 0.6)';
                         target.style.boxShadow = 'inset 0 1px 3px rgba(0, 0, 0, 0.15)';
                       }}
                       onClick={(e) => {
-                        console.log('🔍 [FORM-DEBUG] Title field clicked');
                         e.stopPropagation();
                       }}
-                      onInput={(e) => {
-                        console.log('🔍 [FORM-DEBUG] Title field input:', (e.target as HTMLInputElement).value);
-                      }}
+                      
                     />
                   </div>
 
@@ -839,7 +763,6 @@ const Dashboard: React.FC = () => {
                         zIndex: 1001
                       }}
                       onFocus={(e) => {
-                        console.log('🔍 [FORM-DEBUG] Situation field focused');
                         const target = e.target as HTMLTextAreaElement;
                         target.style.borderColor = 'rgba(107, 107, 58, 0.4)';
                         target.style.background = 'rgba(60, 60, 60, 0.7)';
@@ -849,19 +772,15 @@ const Dashboard: React.FC = () => {
                         `;
                       }}
                       onBlur={(e) => {
-                        console.log('🔍 [FORM-DEBUG] Situation field blurred');
                         const target = e.target as HTMLTextAreaElement;
                         target.style.borderColor = 'rgba(107, 107, 58, 0.25)';
                         target.style.background = 'rgba(55, 55, 55, 0.6)';
                         target.style.boxShadow = 'inset 0 1px 3px rgba(0, 0, 0, 0.15)';
                       }}
                       onClick={(e) => {
-                        console.log('🔍 [FORM-DEBUG] Situation field clicked');
                         e.stopPropagation();
                       }}
-                      onInput={(e) => {
-                        console.log('🔍 [FORM-DEBUG] Situation field input:', (e.target as HTMLTextAreaElement).value);
-                      }}
+                      
                     />
                   </div>
                 </div>
@@ -909,7 +828,6 @@ const Dashboard: React.FC = () => {
                         zIndex: 1001
                       }}
                       onFocus={(e) => {
-                        console.log('🔍 [FORM-DEBUG] Goal field focused');
                         const target = e.target as HTMLTextAreaElement;
                         target.style.borderColor = 'rgba(107, 107, 58, 0.4)';
                         target.style.background = 'rgba(60, 60, 60, 0.7)';
@@ -919,19 +837,15 @@ const Dashboard: React.FC = () => {
                         `;
                       }}
                       onBlur={(e) => {
-                        console.log('🔍 [FORM-DEBUG] Goal field blurred');
                         const target = e.target as HTMLTextAreaElement;
                         target.style.borderColor = 'rgba(107, 107, 58, 0.25)';
                         target.style.background = 'rgba(55, 55, 55, 0.6)';
                         target.style.boxShadow = 'inset 0 1px 3px rgba(0, 0, 0, 0.15)';
                       }}
                       onClick={(e) => {
-                        console.log('🔍 [FORM-DEBUG] Goal field clicked');
                         e.stopPropagation();
                       }}
-                      onInput={(e) => {
-                        console.log('🔍 [FORM-DEBUG] Goal field input:', (e.target as HTMLTextAreaElement).value);
-                      }}
+                      
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && e.ctrlKey && !isCreating) {
                           handleCreateWorkspace();
@@ -1345,7 +1259,6 @@ const Dashboard: React.FC = () => {
             {/* Close button */}
             <button
               onClick={() => {
-                console.log('🔧 [EDIT-DEBUG] Close button clicked');
                 setShowEditDialog(false);
                 setEditingWorkspace(null);
                 setEditWorkspaceTitle('');
@@ -1497,7 +1410,6 @@ const Dashboard: React.FC = () => {
             >
               <button
                 onClick={() => {
-                  console.log('🔧 [EDIT-DEBUG] Cancel button clicked');
                   setShowEditDialog(false);
                   setEditingWorkspace(null);
                   setEditWorkspaceTitle('');

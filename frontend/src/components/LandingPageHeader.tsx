@@ -17,46 +17,38 @@ const LandingPageHeader: React.FC = () => {
   const [isSignupOpen, setIsSignupOpen] = useState(false);
 
   const handleSignIn = () => {
-    console.log('🔍 DEBUG: Sign In button clicked - Opening modal');
     setIsLoginOpen(true);
   };
 
   const handleSignUp = () => {
-    console.log('🔍 DEBUG: Sign Up button clicked - Opening modal');
     setIsSignupOpen(true);
   };
 
   const handleAuthSuccess = () => {
-    console.log('🔍 DEBUG: Auth success - Closing modals and navigating');
     setIsLoginOpen(false);
     setIsSignupOpen(false);
     navigate('/dashboard');
   };
 
   const handleSwitchToSignup = () => {
-    console.log('🔍 DEBUG: Switching from login to signup');
     setIsLoginOpen(false);
     setIsSignupOpen(true);
   };
 
   const handleSwitchToLogin = () => {
-    console.log('🔍 DEBUG: Switching from signup to login');
     setIsSignupOpen(false);
     setIsLoginOpen(true);
   };
 
   const handleDashboard = () => {
-    console.log('🔍 DEBUG: Dashboard button clicked - Navigating to dashboard');
     navigate('/dashboard');
   };
 
   const handleLogout = async () => {
-    console.log('🔍 DEBUG: Logout button clicked');
     try {
       await logout();
-      console.log('✅ DEBUG: Logout successful');
     } catch (error) {
-      console.error('❌ DEBUG: Logout failed:', error);
+      console.error('Logout failed:', error);
     }
   };
 

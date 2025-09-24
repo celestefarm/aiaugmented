@@ -16,6 +16,7 @@ interface SVGEdgesProps {
   NODE_HEIGHT: number;
   interactionState: InteractionContext;
   screenToCanvas: (screenX: number, screenY: number) => { x: number; y: number };
+  transform: { x: number; y: number; scale: number };
 }
 
 const SVGEdges: React.FC<SVGEdgesProps> = React.memo(({
@@ -26,7 +27,8 @@ const SVGEdges: React.FC<SVGEdgesProps> = React.memo(({
   NODE_WIDTH,
   NODE_HEIGHT,
   interactionState,
-  screenToCanvas
+  screenToCanvas,
+  transform
 }) => {
   // REAL-TIME SYNC: State for forcing re-renders synchronized with animation frames
   const [animationTick, setAnimationTick] = useState(0);
@@ -47,15 +49,6 @@ const SVGEdges: React.FC<SVGEdgesProps> = React.memo(({
   const targetPositionsRef = useRef<Record<string, { x: number; y: number }>>({});
   const smoothingFactor = 0.15; // Lower = smoother but more lag, Higher = more responsive but less smooth
 
-  console.log('🔄 [SVGEdges] Component rendering with:', {
-    nodeCount: nodes.length,
-    edgeCount: edges.length,
-    interactionState: interactionState.state,
-    draggedNodeId: interactionState.data.draggedNodeId,
-    animationTick,
-    timestamp: new Date().toISOString()
-  });
-
   // CLICK-STABILITY FIX: Only start animation loop for confirmed drag operations with timing/distance thresholds
   useEffect(() => {
     const isDragging = interactionState.state === 'DRAGGING_NODE';
@@ -68,7 +61,6 @@ const SVGEdges: React.FC<SVGEdgesProps> = React.memo(({
     if (isDragging && draggedNodeId) {
       // Initialize drag tracking if this is a new drag
       if (!dragStartTimeRef.current || lastDraggedNodeRef.current !== draggedNodeId) {
-        console.log('🎬 [SVGEdges] Drag initiated - starting validation period');
         dragStartTimeRef.current = currentTime;
         dragConfirmedRef.current = false;
         lastDraggedNodeRef.current = draggedNodeId;
@@ -112,11 +104,6 @@ const SVGEdges: React.FC<SVGEdgesProps> = React.memo(({
       const isDragConfirmed = dragDuration >= MIN_DRAG_TIME || dragDistance >= MIN_DRAG_DISTANCE;
       
       if (isDragConfirmed && !dragConfirmedRef.current) {
-        console.log('🎬 [SVGEdges] ✅ DRAG CONFIRMED - Starting animation frame sync', {
-          dragDuration,
-          dragDistance,
-          thresholds: { time: MIN_DRAG_TIME, distance: MIN_DRAG_DISTANCE }
-        });
         dragConfirmedRef.current = true;
         
         const animationLoop = () => {
@@ -137,16 +124,10 @@ const SVGEdges: React.FC<SVGEdgesProps> = React.memo(({
         
         animationFrameRef.current = requestAnimationFrame(animationLoop);
       } else if (!isDragConfirmed) {
-        console.log('🎬 [SVGEdges] Drag not yet confirmed - waiting...', {
-          dragDuration,
-          dragDistance,
-          needed: { time: MIN_DRAG_TIME, distance: MIN_DRAG_DISTANCE }
-        });
-      }
+        }
       
       // REAL-TIME FIX: Start animation immediately for any drag, but only read DOM for confirmed drags
       if (!animationFrameRef.current && isDragging && draggedNodeId) {
-        console.log('🎬 [SVGEdges] Starting immediate animation for potential drag');
         const animationLoop = () => {
           if (isDraggingRef.current && interactionState.state === 'DRAGGING_NODE') {
             setAnimationTick(prev => prev + 1);
@@ -162,46 +143,31 @@ const SVGEdges: React.FC<SVGEdgesProps> = React.memo(({
       }
       
     } else if (!isDragging && lastDraggedNodeRef.current) {
-      console.log('🚨 [FLICKER-DEBUG] DRAG ENDED - POTENTIAL FLICKER POINT', {
-        wasConfirmed: dragConfirmedRef.current,
-        dragDuration: dragStartTimeRef.current ? currentTime - dragStartTimeRef.current : 0,
-        animationFrameActive: !!animationFrameRef.current,
-        timestamp: new Date().toISOString()
-      });
-      
       // FLICKER FIX: Immediate cleanup without nested animation frames
-      console.log('🚨 [FLICKER-DEBUG] Implementing immediate cleanup to prevent flicker');
-      
       // Cancel any existing animation frame immediately
       if (animationFrameRef.current) {
-        console.log('🚨 [FLICKER-DEBUG] Cancelling existing animation frame:', animationFrameRef.current);
         cancelAnimationFrame(animationFrameRef.current);
         animationFrameRef.current = null;
       }
       
       // Clear timeout immediately
       if (dragEndTimeoutRef.current) {
-        console.log('🚨 [FLICKER-DEBUG] Clearing drag end timeout');
         clearTimeout(dragEndTimeoutRef.current);
         dragEndTimeoutRef.current = null;
       }
       
       // FLICKER FIX: Single synchronous cleanup without animation frame delays
-      console.log('🚨 [FLICKER-DEBUG] Performing immediate synchronous cleanup');
       lastDraggedNodeRef.current = null;
       dragStartTimeRef.current = null;
       dragConfirmedRef.current = false;
       initialMousePosRef.current = null;
       
       // FLICKER FIX: Force one final render immediately to capture final state
-      console.log('🚨 [FLICKER-DEBUG] Forcing final render to capture end state');
       setAnimationTick(prev => prev + 1);
       
-      console.log('🚨 [FLICKER-DEBUG] Immediate cleanup completed - no nested frames');
-    } else {
+      } else {
       // CLICK-STABILITY FIX: Immediately clean up if not dragging
       if (lastDraggedNodeRef.current) {
-        console.log('🎬 [SVGEdges] Immediate cleanup - not a drag operation');
         lastDraggedNodeRef.current = null;
         dragStartTimeRef.current = null;
         dragConfirmedRef.current = false;
@@ -254,18 +220,9 @@ const SVGEdges: React.FC<SVGEdgesProps> = React.memo(({
         const isFromNodeDragged = interactionState.data.draggedNodeId === fromNode.id;
         const isToNodeDragged = interactionState.data.draggedNodeId === toNode.id;
         
-        if (isFromNodeDragged || isToNodeDragged) {
-          console.log(`🔍 [JUMP-DEBUG] Edge ${edgeId} initial positions:`, {
-            fromNode: { id: fromNode.id, x: fromX, y: fromY },
-            toNode: { id: toNode.id, x: toX, y: toY },
-            draggedNodeId: interactionState.data.draggedNodeId,
-            interactionState: interactionState.state,
-            timestamp: new Date().toISOString()
-          });
-        }
         
         // COORDINATE SYSTEM FIX: Simplified DOM reading with consistent coordinate system
-        const isDragging = interactionState.state === 'DRAGGING_NODE';
+        const isDragging = interactionState.state === 'DRAGGING_NODE' || interactionState.state === 'PANNING';
         const draggedNodeId = interactionState.data.draggedNodeId;
         
         // COORDINATE SYSTEM FIX: Since InteractionManager now uses left/top positioning consistently,
@@ -278,17 +235,6 @@ const SVGEdges: React.FC<SVGEdgesProps> = React.memo(({
         // COORDINATE SYSTEM FIX: Read DOM during active drag for real-time updates
         const shouldReadDOM = isActiveDrag;
         
-        // COORDINATE SYSTEM FIX: Reduced logging since coordinate system is now consistent
-        if ((isFromNodeDragged || isToNodeDragged) && animationTick % 50 === 0) {
-          console.log('🔍 [COORDINATE-SYSTEM-FIX] DOM reading decision:', {
-            edgeId,
-            isDragging,
-            isActiveDrag,
-            shouldReadDOM,
-            draggedNodeId,
-            coordinateSystemNote: 'Using consistent left/top positioning'
-          });
-        }
         
         if (shouldReadDOM) {
           // COORDINATE SYSTEM FIX: Simplified DOM position reading
@@ -307,14 +253,6 @@ const SVGEdges: React.FC<SVGEdgesProps> = React.memo(({
                 fromX = canvasPos.x;
                 fromY = canvasPos.y;
                 
-                // COORDINATE SYSTEM FIX: Reduced logging frequency
-                if (animationTick % 30 === 0) {
-                  console.log('🎯 [COORDINATE-SYSTEM-FIX] FromNode position:', {
-                    nodeId: fromNode.id,
-                    canvasPos: { x: fromX, y: fromY },
-                    tick: animationTick
-                  });
-                }
               }
             }
           }
@@ -335,38 +273,18 @@ const SVGEdges: React.FC<SVGEdgesProps> = React.memo(({
                 toX = canvasPos.x;
                 toY = canvasPos.y;
                 
-                // COORDINATE SYSTEM FIX: Reduced logging frequency
-                if (animationTick % 30 === 0) {
-                  console.log('🎯 [COORDINATE-SYSTEM-FIX] ToNode position:', {
-                    nodeId: toNode.id,
-                    canvasPos: { x: toX, y: toY },
-                    tick: animationTick
-                  });
-                }
               }
             }
           }
         }
         // CLICK-STABILITY FIX: Removed grace period DOM reading to prevent flickering on clicks
         
-        // Calculate center points of nodes for connection lines
+        // SIMPLE FIX: Calculate center points normally since SVG layer now moves with canvas
         const fromCenterX = fromX + NODE_WIDTH / 2 + 2000;
         const fromCenterY = fromY + NODE_HEIGHT / 2 + 2000;
         const toCenterX = toX + NODE_WIDTH / 2 + 2000;
         const toCenterY = toY + NODE_HEIGHT / 2 + 2000;
         
-        // JUMP DIAGNOSTIC: Log final SVG coordinates
-        if (isFromNodeDragged || isToNodeDragged) {
-          console.log(`🔍 [JUMP-DEBUG] Edge ${edgeId} final SVG coordinates:`, {
-            fromCenter: { x: fromCenterX, y: fromCenterY },
-            toCenter: { x: toCenterX, y: toCenterY },
-            shouldReadDOM,
-            isActiveDrag,
-            dragConfirmed: dragConfirmedRef.current,
-            animationTick,
-            timestamp: new Date().toISOString()
-          });
-        }
 
         return (
           <g key={edge.id}>
@@ -392,10 +310,9 @@ const SVGEdges: React.FC<SVGEdgesProps> = React.memo(({
   );
 }, (prevProps, nextProps) => {
   // REAL-TIME SYNC: Never memoize during drag operations - let animation frame control updates
-  if (prevProps.interactionState.state === 'DRAGGING_NODE' ||
-      nextProps.interactionState.state === 'DRAGGING_NODE') {
-    console.log('🎬 [SVGEdges] Animation frame sync active - allowing all re-renders');
-    return false; // Always re-render during drag for animation frame synchronization
+  if (['DRAGGING_NODE', 'PANNING'].includes(prevProps.interactionState.state as string) ||
+      ['DRAGGING_NODE', 'PANNING'].includes(nextProps.interactionState.state as string)) {
+    return false; // Always re-render during drag/pan for animation frame synchronization
   }
   
   // CLICK-STABILITY FIX: Much more restrictive memoization to prevent flickering
@@ -414,24 +331,12 @@ const SVGEdges: React.FC<SVGEdgesProps> = React.memo(({
         edge.type !== nextEdge.type;
     });
   
-  // JUMP FIX: Enhanced drag state change detection with logging
-  const prevIsDragging = prevProps.interactionState.state === 'DRAGGING_NODE';
-  const nextIsDragging = nextProps.interactionState.state === 'DRAGGING_NODE';
+  // Fix: Check for actual dragging states - use type-safe approach
+  const prevIsDragging = ['DRAGGING_NODE', 'PANNING'].includes(prevProps.interactionState.state as string);
+  const nextIsDragging = ['DRAGGING_NODE', 'PANNING'].includes(nextProps.interactionState.state as string);
   const prevDraggedNodeId = prevProps.interactionState.data?.draggedNodeId;
   const nextDraggedNodeId = nextProps.interactionState.data?.draggedNodeId;
   
-  // JUMP DIAGNOSTIC: Log state transitions that might cause jumping
-  if (prevIsDragging !== nextIsDragging || prevDraggedNodeId !== nextDraggedNodeId) {
-    console.log('🚨 [JUMP-DEBUG] SVGEdges memoization - State transition detected:', {
-      prevState: prevProps.interactionState.state,
-      nextState: nextProps.interactionState.state,
-      prevDraggedNodeId,
-      nextDraggedNodeId,
-      transitionType: prevIsDragging && !nextIsDragging ? 'DRAG_END' :
-                     !prevIsDragging && nextIsDragging ? 'DRAG_START' : 'DRAG_CHANGE',
-      timestamp: new Date().toISOString()
-    });
-  }
   
   // CLICK-STABILITY FIX: Only consider it a significant change if we're actually starting/stopping a drag
   const dragStateChanged = (prevIsDragging !== nextIsDragging) || (prevDraggedNodeId !== nextDraggedNodeId);
@@ -440,12 +345,7 @@ const SVGEdges: React.FC<SVGEdgesProps> = React.memo(({
   
   // CLICK-STABILITY FIX: Reduced logging to prevent console spam
   if (shouldUpdate && (nodesChanged || edgesChanged)) {
-    console.log('🔄 [SVGEdges] Re-rendering due to data changes:', {
-      nodesChanged,
-      edgesChanged,
-      dragStateChanged
-    });
-  }
+    }
   
   // Return true if props are equal (don't re-render), false if they changed (re-render)
   return !shouldUpdate;

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode, useMemo, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, ReactNode, useMemo, useRef, useEffect } from 'react';
 import { InteractionManager, Point, Transform, InteractionMode, DragContext, ConnectionDragContext } from '@/managers/InteractionManager';
 
 // Legacy interaction state types for backward compatibility
@@ -164,6 +164,13 @@ export const InteractionProvider: React.FC<InteractionProviderProps> = ({ childr
       }
     );
   }, []);
+
+  // EVENT LISTENER FIX: Cleanup on component unmount
+  useEffect(() => {
+    return () => {
+      interactionManager.cleanup();
+    };
+  }, [interactionManager]);
 
   // Methods to register external callbacks
   const registerNodePositionUpdateCallback = useCallback((callback: (nodeId: string, position: Point) => void) => {
