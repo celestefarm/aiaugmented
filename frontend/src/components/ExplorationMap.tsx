@@ -279,6 +279,12 @@ const ExplorationMap: React.FC = () => {
   
   // Canvas transform state (separate from interaction state)
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
+  const [hasInitializedView, setHasInitializedView] = useState(false);
+  
+  // Force re-centering when component updates (for debugging)
+  useEffect(() => {
+    setHasInitializedView(false);
+  }, []);
   
   // Note: draggedNodePosition state removed - now using interactionState directly for better performance
   
@@ -575,6 +581,99 @@ const ExplorationMap: React.FC = () => {
 
     return () => clearInterval(interval);
   }, [currentWorkspace, transform]);
+
+  // Auto-center view on existing nodes when first loaded
+  useEffect(() => {
+    if (!hasInitializedView && nodes.length > 0 && canvasRef.current) {
+      // Calculate bounding box of all nodes with padding for node dimensions
+      const nodePositions = nodes.map(node => ({ x: node.x, y: node.y }));
+      
+      if (nodePositions.length > 0) {
+        // Account for node dimensions (NODE_WIDTH = 240, NODE_HEIGHT = 120)
+        const nodePadding = { width: NODE_WIDTH / 2, height: NODE_HEIGHT / 2 };
+        const viewportPadding = 50; // Extra padding from viewport edges
+        
+        const minX = Math.min(...nodePositions.map(p => p.x)) - nodePadding.width;
+        const maxX = Math.max(...nodePositions.map(p => p.x)) + nodePadding.width;
+        const minY = Math.min(...nodePositions.map(p => p.y)) - nodePadding.height;
+        const maxY = Math.max(...nodePositions.map(p => p.y)) + nodePadding.height;
+        
+        // Calculate center of all nodes (including their dimensions)
+        const centerX = (minX + maxX) / 2;
+        const centerY = (minY + maxY) / 2;
+        
+        // Calculate canvas center (accounting for toolbar space)
+        const canvasRect = canvasRef.current.getBoundingClientRect();
+        const toolbarHeight = 120; // Space for top toolbar
+        const canvasCenterX = canvasRect.width / 2;
+        const canvasCenterY = (canvasRect.height - toolbarHeight) / 2 + toolbarHeight;
+        
+        // Calculate transform to center the nodes in the viewport with padding
+        const newTransform = {
+          x: canvasCenterX - centerX,
+          y: canvasCenterY - centerY + viewportPadding, // Slight upward adjustment
+          scale: 1
+        };
+        
+        setTransform(newTransform);
+        setHasInitializedView(true);
+        
+        console.log('Auto-centered view on existing nodes:', {
+          nodeCount: nodes.length,
+          nodeCenter: { x: centerX, y: centerY },
+          canvasCenter: { x: canvasCenterX, y: canvasCenterY },
+          newTransform,
+          nodeDimensions: { width: NODE_WIDTH, height: NODE_HEIGHT }
+        });
+      }
+    }
+  }, [nodes, hasInitializedView]);
+
+  // Manual re-center function for the button
+  const handleRecenterView = useCallback(() => {
+    if (nodes.length > 0 && canvasRef.current) {
+      // Calculate bounding box of all nodes with padding for node dimensions
+      const nodePositions = nodes.map(node => ({ x: node.x, y: node.y }));
+      
+      // Account for node dimensions (NODE_WIDTH = 240, NODE_HEIGHT = 120)
+      const nodePadding = { width: NODE_WIDTH / 2, height: NODE_HEIGHT / 2 };
+      const viewportPadding = 50; // Extra padding from viewport edges
+      
+      const minX = Math.min(...nodePositions.map(p => p.x)) - nodePadding.width;
+      const maxX = Math.max(...nodePositions.map(p => p.x)) + nodePadding.width;
+      const minY = Math.min(...nodePositions.map(p => p.y)) - nodePadding.height;
+      const maxY = Math.max(...nodePositions.map(p => p.y)) + nodePadding.height;
+      
+      // Calculate center of all nodes (including their dimensions)
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      
+      // Calculate canvas center (accounting for toolbar space)
+      const canvasRect = canvasRef.current.getBoundingClientRect();
+      const toolbarHeight = 120; // Space for top toolbar
+      const canvasCenterX = canvasRect.width / 2;
+      const canvasCenterY = (canvasRect.height - toolbarHeight) / 2 + toolbarHeight;
+      
+      // Calculate transform to center the nodes in the viewport with padding
+      const newTransform = {
+        x: canvasCenterX - centerX,
+        y: canvasCenterY - centerY + viewportPadding, // Slight upward adjustment
+        scale: 1
+      };
+      
+      setTransform(newTransform);
+      showNotification('View re-centered on all nodes');
+      
+      console.log('Manual re-center triggered:', {
+        nodeCount: nodes.length,
+        nodeCenter: { x: centerX, y: centerY },
+        canvasCenter: { x: canvasCenterX, y: canvasCenterY },
+        newTransform
+      });
+    } else {
+      showNotification('No nodes to center on');
+    }
+  }, [nodes, showNotification]);
 
   // Undo functionality - disabled for API-based approach
   const undo = useCallback(() => {
@@ -1756,15 +1855,6 @@ const handleModalClose = useCallback(() => {
           role="application"
           aria-label="Strategy mapping canvas"
         >
-          {/* Debug Info - Node Count Display */}
-          <div className="absolute top-4 right-4 glass-pane px-4 py-2 text-sm text-[#E5E7EB] z-50">
-            <div className="text-xs">
-              <div>Nodes: {nodes.length}</div>
-              <div>Edges: {edges.length}</div>
-              <div>Loading: {mapLoading ? 'Yes' : 'No'}</div>
-              {mapError && <div className="text-red-400">Error: {mapError}</div>}
-            </div>
-          </div>
 
           {/* Top Toolbar */}
           <div className="absolute top-20 left-1/2 transform -translate-x-1/2 flex space-x-2 z-40">
@@ -1813,6 +1903,20 @@ const handleModalClose = useCallback(() => {
               <TooltipContent>Connect Nodes (C) - Click node and drag to connect</TooltipContent>
             </Tooltip>
 
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={handleRecenterView}
+                  disabled={nodes.length === 0}
+                  className="glass-pane px-4 py-2 text-sm font-medium text-[#E5E7EB] hover:text-[#6B6B3A] transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Re-center view on all nodes"
+                >
+                  <Target className="w-4 h-4" />
+                  <span>Re-center</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Re-center view on all nodes</TooltipContent>
+            </Tooltip>
 
             <Tooltip>
               <TooltipTrigger asChild>

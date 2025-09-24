@@ -89,11 +89,6 @@ const Index: React.FC = () => {
       />
       
       <main className="flex-1 overflow-hidden relative">
-        {/* Debug indicator */}
-        <div className="absolute top-4 left-4 z-50 bg-red-500 text-white px-3 py-1 rounded text-sm">
-          Current View: {currentView}
-        </div>
-        
         {(() => {
           if (currentView === 'exploration') {
             return <ExplorationMap key="exploration" />;

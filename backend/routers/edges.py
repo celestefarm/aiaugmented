@@ -66,15 +66,15 @@ async def verify_nodes_exist_in_workspace(workspace_id: str, from_node_id: str, 
     
     database = get_database()
     
-    # Check if both nodes exist in the workspace
+    # Check if both nodes exist in the workspace - use string format to match nodes.py
     from_node = await database.nodes.find_one({
         "_id": ObjectId(from_node_id),
-        "workspace_id": ObjectId(workspace_id)
+        "workspace_id": workspace_id
     })
     
     to_node = await database.nodes.find_one({
         "_id": ObjectId(to_node_id),
-        "workspace_id": ObjectId(workspace_id)
+        "workspace_id": workspace_id
     })
     
     if not from_node:
@@ -111,8 +111,8 @@ async def get_edges(
     # Get database instance
     database = get_database()
     
-    # Find all edges in the workspace
-    cursor = database.edges.find({"workspace_id": ObjectId(workspace_id)})
+    # Find all edges in the workspace - use string format to match nodes.py
+    cursor = database.edges.find({"workspace_id": workspace_id})
     edge_docs = await cursor.to_list(length=None)
     
     # Convert to response models
@@ -160,11 +160,11 @@ async def create_edge(
     # Get database instance
     database = get_database()
     
-    # Check if edge already exists between these nodes
+    # Check if edge already exists between these nodes - use string format to match nodes.py
     existing_edge = await database.edges.find_one({
-        "workspace_id": ObjectId(workspace_id),
-        "from_node_id": ObjectId(edge_data.from_node_id),
-        "to_node_id": ObjectId(edge_data.to_node_id),
+        "workspace_id": workspace_id,
+        "from_node_id": edge_data.from_node_id,
+        "to_node_id": edge_data.to_node_id,
         "type": edge_data.type
     })
     
@@ -234,10 +234,10 @@ async def delete_edge(
     # Get database instance
     database = get_database()
     
-    # Delete the edge (only if it exists in the workspace)
+    # Delete the edge (only if it exists in the workspace) - use string format to match nodes.py
     result = await database.edges.delete_one({
         "_id": ObjectId(edge_id),
-        "workspace_id": ObjectId(workspace_id)
+        "workspace_id": workspace_id
     })
     
     if result.deleted_count == 0:
