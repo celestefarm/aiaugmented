@@ -156,9 +156,15 @@ export class CanvasStateManager {
   // Update nodes from API data with spatial indexing
   updateNodes(apiNodes: Node[]): void {
     const newNodes = new Map<string, CanvasNode>();
+    const currentNodeIds = new Set(this.state.nodes.keys());
+    const newNodeIds = new Set(apiNodes.map(node => node.id));
     
-    // Clear and rebuild spatial index for nodes
-    globalSpatialIndex.clear();
+    // Remove nodes that are no longer present
+    currentNodeIds.forEach(nodeId => {
+      if (!newNodeIds.has(nodeId)) {
+        globalSpatialIndex.removeNode(nodeId);
+      }
+    });
     
     apiNodes.forEach(node => {
       const existingNode = this.state.nodes.get(node.id);
@@ -176,7 +182,7 @@ export class CanvasStateManager {
       
       newNodes.set(node.id, canvasNode);
       
-      // Add to spatial index
+      // Add or update node in spatial index (addNode handles existing nodes)
       globalSpatialIndex.addNode(node, 240, 120);
     });
 
@@ -188,6 +194,15 @@ export class CanvasStateManager {
   // Update edges from API data with spatial indexing
   updateEdges(apiEdges: Edge[]): void {
     const newEdges = new Map<string, CanvasEdge>();
+    const currentEdgeIds = new Set(this.state.edges.keys());
+    const newEdgeIds = new Set(apiEdges.map(edge => edge.id));
+    
+    // Remove edges that are no longer present
+    currentEdgeIds.forEach(edgeId => {
+      if (!newEdgeIds.has(edgeId)) {
+        globalSpatialIndex.removeEdge(edgeId);
+      }
+    });
     
     apiEdges.forEach(edge => {
       const fromNode = this.state.nodes.get(edge.from_node_id);
@@ -209,7 +224,7 @@ export class CanvasStateManager {
         
         newEdges.set(edge.id, canvasEdge);
         
-        // Add to spatial index
+        // Add or update edge in spatial index (addEdge handles existing edges)
         globalSpatialIndex.addEdge(edge, fromNode, toNode);
       }
     });

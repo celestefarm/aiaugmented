@@ -262,15 +262,19 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
     nodeTitle?: string,
     nodeType?: string
   ): Promise<boolean> => {
+    console.log('🔄 [ADD-TO-MAP] Starting process for message:', messageId);
+    
     if (!currentWorkspace?.id) {
+      console.error('🔄 [ADD-TO-MAP] No workspace selected');
       setChatError('No workspace selected');
       return false;
     }
 
     // STATE MANAGEMENT FIX: Check for duplicate requests
     const localMessage = messages.find(m => m.id === messageId);
+    
     if (localMessage?.added_to_map) {
-      console.log('🔄 [STATE-FIX] Message already added to map, skipping');
+      console.log('🔄 [ADD-TO-MAP] Message already added to map, skipping');
       setChatError('Message has already been added to map');
       return false;
     }
@@ -278,45 +282,42 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
     // STATE MANAGEMENT FIX: Check if already loading
     const loadingStateKey = `adding-${messageId}`;
     if (addToMapLoading[loadingStateKey]) {
-      console.log('🔄 [STATE-FIX] Add-to-map already in progress, skipping');
+      console.log('🔄 [ADD-TO-MAP] Already in progress, skipping');
       return false;
     }
     
     try {
       setChatError(null);
-      console.log('🔄 [STATE-FIX] Adding message to map:', messageId);
+      console.log('🔄 [ADD-TO-MAP] Adding message to map:', messageId);
       
-      // STATE MANAGEMENT FIX: Set loading state
+      // Set loading state
       setAddToMapLoading(prev => ({ ...prev, [loadingStateKey]: true }));
-      
       const response = await apiClient.addMessageToMap(currentWorkspace.id, messageId, {
         node_title: nodeTitle,
         node_type: nodeType || 'ai'
       });
       
       if (response.success) {
-        console.log('🔄 [STATE-FIX] API call successful, refreshing data');
+        console.log('🔄 [ADD-TO-MAP] ✅ Success! Node created:', response.node_id);
         
-        // STATE MANAGEMENT FIX: Refresh both messages and map data atomically
+        // Refresh both messages and map data
         await Promise.all([
-          loadMessages(), // Refresh messages to get updated added_to_map status
-          refreshMapData() // Refresh map to show new node
+          loadMessages(),
+          refreshMapData()
         ]);
         
-        console.log('🔄 [STATE-FIX] Data refreshed successfully');
         return true;
       } else {
-        console.error('🔄 [STATE-FIX] API call failed:', response.message);
+        console.error('🔄 [ADD-TO-MAP] ❌ API failed:', response.message);
         setChatError(response.message || 'Failed to add message to map');
         return false;
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to add message to map';
-      console.error('🔄 [STATE-FIX] Error adding message to map:', errorMessage);
+      console.error('🔄 [ADD-TO-MAP] ❌ Error:', errorMessage);
       
-      // STATE MANAGEMENT FIX: Handle specific error cases
+      // Handle specific error cases
       if (errorMessage.includes('already been added')) {
-        // Refresh messages to sync state with server
         await loadMessages();
         setChatError('Message has already been added to map');
       } else {
@@ -325,7 +326,7 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
       
       return false;
     } finally {
-      // STATE MANAGEMENT FIX: Clear loading state
+      // Clear loading state
       setAddToMapLoading(prev => {
         const updated = { ...prev };
         delete updated[loadingStateKey];

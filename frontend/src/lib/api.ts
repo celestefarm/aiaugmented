@@ -467,7 +467,10 @@ class ApiClient {
         const url = `${this.baseUrl}${endpoint}`;
         const token = this.getToken();
 
-        console.log('🌐 [ApiClient] Making request:', { endpoint, hasToken: !!token });
+        // Reduced logging - only log important requests
+        if (endpoint.includes('/add-to-map') || endpoint.includes('/messages')) {
+          console.log('🌐 [ApiClient] Making request:', { endpoint, hasToken: !!token });
+        }
 
         const config: RequestInit = {
           headers: {
@@ -480,11 +483,14 @@ class ApiClient {
 
         const response = await fetch(url, config);
         
-        console.log('📡 [ApiClient] Response received:', {
-          status: response.status,
-          ok: response.ok,
-          endpoint
-        });
+        // Reduced logging - only log important responses or errors
+        if (!response.ok || endpoint.includes('/add-to-map') || endpoint.includes('/messages')) {
+          console.log('📡 [ApiClient] Response received:', {
+            status: response.status,
+            ok: response.ok,
+            endpoint
+          });
+        }
         
         if (!response.ok) {
           const errorData: ApiError = await response.json().catch(() => ({
@@ -541,7 +547,10 @@ class ApiClient {
               throw new Error('API returned null/undefined response data');
             }
             
-            console.log('✅ [ApiClient] JSON response parsed successfully');
+            // Only log successful parsing for important endpoints
+            if (endpoint.includes('/add-to-map') || endpoint.includes('/messages')) {
+              console.log('✅ [ApiClient] JSON response parsed successfully');
+            }
             return jsonResponse;
           } catch (parseError) {
             // For successful responses with JSON parsing issues, return empty object

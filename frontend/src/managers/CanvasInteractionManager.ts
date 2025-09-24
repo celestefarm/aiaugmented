@@ -38,13 +38,22 @@ export class CanvasInteractionManager {
   private marqueeStartPosition: Point | null = null;
 
   constructor(callbacks: CanvasInteractionCallbacks = {}) {
+    console.log('🔧 [CANVAS-DEBUG] CanvasInteractionManager initialized');
     this.callbacks = callbacks;
     this.setupKeyboardListeners();
   }
 
   // Handle mouse down events
   handleMouseDown(event: MouseEvent, nodeId?: string): void {
-    event.preventDefault();
+    console.log('🔧 [CANVAS-DEBUG] handleMouseDown called', { nodeId, button: event.button });
+    
+    // CRITICAL FIX: Only preventDefault for non-passive events
+    try {
+      event.preventDefault();
+      console.log('🔧 [CANVAS-DEBUG] preventDefault successful');
+    } catch (error) {
+      console.warn('🔧 [CANVAS-DEBUG] preventDefault failed (passive listener):', error);
+    }
     
     const position = { x: event.clientX, y: event.clientY };
     this.lastMousePosition = position;
@@ -58,7 +67,15 @@ export class CanvasInteractionManager {
 
   // Handle wheel events for zooming
   handleWheel(event: WheelEvent): void {
-    event.preventDefault();
+    console.log('🔧 [CANVAS-DEBUG] handleWheel called');
+    
+    // CRITICAL FIX: Only preventDefault for non-passive events
+    try {
+      event.preventDefault();
+      console.log('🔧 [CANVAS-DEBUG] wheel preventDefault successful');
+    } catch (error) {
+      console.warn('🔧 [CANVAS-DEBUG] wheel preventDefault failed (passive listener):', error);
+    }
     
     const rect = (event.target as HTMLElement).getBoundingClientRect();
     const centerX = event.clientX - rect.left;
@@ -665,8 +682,25 @@ export class CanvasInteractionManager {
 
   // Attach global event listeners
   private attachGlobalListeners(): void {
-    document.addEventListener('mousemove', this.handleMouseMove, { passive: false });
-    document.addEventListener('mouseup', this.handleMouseUp, { passive: false });
+    console.log('🔧 [CANVAS-DEBUG] Attaching global listeners');
+    
+    // CRITICAL FIX: Use proper event listener options to avoid passive conflicts
+    try {
+      document.addEventListener('mousemove', this.handleMouseMove, {
+        passive: false,
+        capture: false
+      });
+      document.addEventListener('mouseup', this.handleMouseUp, {
+        passive: false,
+        capture: false
+      });
+      console.log('🔧 [CANVAS-DEBUG] Global listeners attached successfully');
+    } catch (error) {
+      console.error('🔧 [CANVAS-DEBUG] Failed to attach global listeners:', error);
+      // Fallback to passive listeners if non-passive fails
+      document.addEventListener('mousemove', this.handleMouseMove);
+      document.addEventListener('mouseup', this.handleMouseUp);
+    }
   }
 
   // Detach global event listeners

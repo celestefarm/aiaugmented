@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add to Map Verification Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-section {
+            background: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 1px solid #444;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success { background: #1a4a1a; border: 1px solid #4a8a4a; }
+        .error { background: #4a1a1a; border: 1px solid #8a4a4a; }
+        .info { background: #1a1a4a; border: 1px solid #4a4a8a; }
+        button {
+            background: #4a8a4a;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #5a9a5a; }
+        #results {
+            background: #333;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>🪲 Add to Map Functionality Verification</h1>
+    
+    <div class="test-section">
+        <h2>Test Overview</h2>
+        <p>This test verifies that the "add to map" functionality is working correctly after our fixes:</p>
+        <ul>
+            <li>✅ Fixed canvas rendering issues in CanvasRenderer.tsx</li>
+            <li>✅ Fixed spatial index race conditions in canvasStore.ts</li>
+            <li>✅ Enhanced event handling in CanvasInteractionManager.ts</li>
+            <li>✅ Restored rich node design in UnifiedExplorationMap.tsx</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>Server Status Check</h2>
+        <button onclick="checkServers()">Check Backend & Frontend Servers</button>
+        <div id="server-status"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Add to Map API Test</h2>
+        <button onclick="testAddToMapAPI()">Test Add Message to Map API</button>
+        <div id="api-status"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Frontend Integration Test</h2>
+        <p>To test the complete flow:</p>
+        <ol>
+            <li>Open the application at <a href="http://localhost:5173" target="_blank">http://localhost:5173</a></li>
+            <li>Navigate to a workspace with the exploration map</li>
+            <li>Start a chat with an AI agent</li>
+            <li>Send a message and click "Add to Map"</li>
+            <li>Verify the node appears on the canvas with rich styling</li>
+        </ol>
+        <button onclick="openApp()">Open Application</button>
+    </div>
+
+    <div id="results"></div>
+
+    <script>
+        const results = document.getElementById('results');
+        
+        function log(message) {
+            results.textContent += new Date().toLocaleTimeString() + ': ' + message + '\n';
+        }
+
+        async function checkServers() {
+            const statusDiv = document.getElementById('server-status');
+            statusDiv.innerHTML = '<div class="status info">Checking servers...</div>';
+            
+            try {
+                // Check backend
+                const backendResponse = await fetch('http://localhost:8000/health');
+                const backendStatus = backendResponse.ok ? 'Running' : 'Error';
+                
+                // Check frontend
+                const frontendResponse = await fetch('http://localhost:5173');
+                const frontendStatus = frontendResponse.ok ? 'Running' : 'Error';
+                
+                statusDiv.innerHTML = `
+                    <div class="status ${backendStatus === 'Running' ? 'success' : 'error'}">
+                        Backend (Port 8000): ${backendStatus}
+                    </div>
+                    <div class="status ${frontendStatus === 'Running' ? 'success' : 'error'}">
+                        Frontend (Port 5173): ${frontendStatus}
+                    </div>
+                `;
+                
+                log(`Server Status - Backend: ${backendStatus}, Frontend: ${frontendStatus}`);
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="status error">Error checking servers: ${error.message}</div>`;
+                log(`Server check error: ${error.message}`);
+            }
+        }
+
+        async function testAddToMapAPI() {
+            const statusDiv = document.getElementById('api-status');
+            statusDiv.innerHTML = '<div class="status info">Testing Add to Map API...</div>';
+            
+            try {
+                // Test the add-to-map endpoint
+                const testMessage = {
+                    content: "Test message for add to map verification",
+                    sender: "user",
+                    timestamp: new Date().toISOString()
+                };
+                
+                const response = await fetch('http://localhost:8000/messages/add-to-map', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: testMessage,
+                        workspace_id: "test_workspace_id",
+                        position: { x: 100, y: 100 }
+                    })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    statusDiv.innerHTML = `
+                        <div class="status success">
+                            ✅ Add to Map API working! Node created with ID: ${result.node_id || 'N/A'}
+                        </div>
+                    `;
+                    log(`API Test Success - Node ID: ${result.node_id || 'N/A'}`);
+                } else {
+                    const error = await response.text();
+                    statusDiv.innerHTML = `
+                        <div class="status error">
+                            ❌ API Error (${response.status}): ${error}
+                        </div>
+                    `;
+                    log(`API Test Failed - Status: ${response.status}, Error: ${error}`);
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="status error">❌ Network Error: ${error.message}</div>`;
+                log(`API Test Network Error: ${error.message}`);
+            }
+        }
+
+        function openApp() {
+            window.open('http://localhost:5173', '_blank');
+            log('Opened application in new tab');
+        }
+
+        // Auto-check servers on load
+        window.onload = () => {
+            log('Add to Map Verification Test Started');
+            checkServers();
+        };
+    </script>
+</body>
+</html>

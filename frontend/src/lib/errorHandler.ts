@@ -118,6 +118,18 @@ export class ApiErrorClassifier {
         };
       }
 
+      // Bad request errors (400) - typically validation or business logic errors
+      if (message.includes('400') || message.includes('Bad Request')) {
+        return {
+          code: 'BAD_REQUEST_ERROR',
+          message,
+          userMessage: message.includes('already been added') ? 'This item has already been added.' : 'Invalid request. Please check your input and try again.',
+          retryable: false,
+          severity: 'low',
+          context: { context }
+        };
+      }
+
       // Validation errors
       if (message.includes('422') || message.includes('validation') || message.includes('invalid')) {
         return {

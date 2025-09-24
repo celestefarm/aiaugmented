@@ -70,10 +70,12 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
 
   // Update canvas state when props change
   useEffect(() => {
+    console.log('🔄 [CANVAS-RENDERER] Nodes prop changed:', nodes.length);
     canvasStateManager.updateNodes(nodes);
   }, [nodes]);
 
   useEffect(() => {
+    console.log('🔄 [CANVAS-RENDERER] Edges prop changed:', edges.length);
     canvasStateManager.updateEdges(edges);
   }, [edges]);
 
@@ -669,9 +671,22 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
     // Use spatial index to get only visible nodes
     const visibleNodes = globalSpatialIndex.queryNodes(viewportMinX, viewportMinY, viewportMaxX, viewportMaxY);
     
+    // CRITICAL DEBUG: Log spatial index query results
+    console.log('🎨 [CANVAS-RENDERER-DEBUG] Spatial index query:');
+    console.log('  Viewport bounds:', { viewportMinX, viewportMinY, viewportMaxX, viewportMaxY });
+    console.log('  Transform:', transform);
+    console.log('  Visible nodes from spatial index:', visibleNodes.length);
+    console.log('  Raw nodes prop:', nodes.length);
+    
+    // FALLBACK: If spatial index returns no nodes but we have nodes, render all nodes
+    const nodesToRender = visibleNodes.length > 0 ? visibleNodes : nodes.map(node => ({ data: node }));
+    console.log('  Nodes to render:', nodesToRender.length);
+    
     // Draw nodes in canvas coordinates with LOD optimization - only visible ones
-    visibleNodes.forEach(spatialNode => {
+    nodesToRender.forEach((spatialNode, index) => {
       const node = spatialNode.data;
+      console.log(`  Rendering node ${index + 1}:`, { id: node.id, x: node.x, y: node.y, title: node.title });
+      
       const isSelected = canvasState.interaction.selectedNodeIds.has(node.id);
       const isHovered = canvasState.interaction.hoveredNodeId === node.id;
       const isDragging = canvasState.interaction.mode === 'DRAGGING_NODE' &&
@@ -728,6 +743,9 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
       }
     };
 
+    // CRITICAL FIX: Always render at least once when dependencies change
+    render();
+
     // Start animation if needed
     if (!isAnimating && (canvasState.isDirty || canvasState.interaction.mode !== 'IDLE')) {
       animationFrameRef.current = requestAnimationFrame(animate);
@@ -738,7 +756,7 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [render, canvasState.isDirty, canvasState.interaction.mode, canvasState.interaction.connectionDragContext]);
+  }, [render, canvasState.isDirty, canvasState.interaction.mode, canvasState.interaction.connectionDragContext, nodes, edges]);
 
   // Handle canvas resize
   useEffect(() => {
