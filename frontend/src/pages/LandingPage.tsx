@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import '../styles/landing.css';
@@ -9,138 +9,30 @@ import ThreeJsOrbitAnimation from '../components/ThreeJsOrbitAnimation';
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated, isLoading } = useAuth();
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [isSignupOpen, setIsSignupOpen] = useState(false);
 
   // Disable automatic redirect to allow landing page to be viewed by all users
   // Authentication redirect is handled by other routes if needed
 
-  // Background text animation effect with robust initialization
-  useEffect(() => {
-    // Debug log
-    
-    let isComponentMounted = true;
-    let animationInterval: NodeJS.Timeout | null = null;
-    let fadeTimeout: NodeJS.Timeout | null = null;
-    let retryCount = 0;
-    const maxRetries = 10;
-    
-    const initializeAnimation = () => {
-      if (!isComponentMounted) return;
-      
-      const sentences = document.querySelectorAll('.animated-sentence');
-      // Debug log
-      
-      if (sentences.length === 0) {
-        retryCount++;
-        if (retryCount < maxRetries) {
-          console.warn(`⚠️ No animated sentences found, retrying in 500ms (${retryCount}/${maxRetries})`);
-          setTimeout(initializeAnimation, 500);
-          return;
-        } else {
-          console.error('❌ Failed to find animated sentences after maximum retries');
-          return;
-        }
-      }
+  const handleOpenLogin = () => {
+    console.log('DEBUG: Opening sign-in modal from landing page button');
+    setIsLoginOpen(true);
+  };
 
-      let currentIndex = 0;
+  const handleOpenSignup = () => {
+    console.log('DEBUG: Opening sign-up modal from landing page button');
+    setIsSignupOpen(true);
+  };
 
-      const showSentence = (index: number) => {
-        if (!isComponentMounted) {
-          // Debug log
-          return;
-        }
+  const handleCloseLogin = () => {
+    setIsLoginOpen(false);
+  };
 
-        // Debug log
-        
-        // Clear any existing fade timeout
-        if (fadeTimeout) {
-          clearTimeout(fadeTimeout);
-          fadeTimeout = null;
-        }
-        
-        // Hide all sentences first with immediate effect
-        sentences.forEach((sentence, i) => {
-          const element = sentence as HTMLElement;
-          element.style.opacity = '0';
-          element.style.transition = 'opacity 0.8s ease-in-out';
-          if (i === index) {
-            // Debug log
-          }
-        });
+  const handleCloseSignup = () => {
+    setIsSignupOpen(false);
+  };
 
-        // Show current sentence with fade-in after ensuring fade-out completes
-        const currentSentence = sentences[index] as HTMLElement;
-        if (currentSentence && isComponentMounted) {
-          fadeTimeout = setTimeout(() => {
-            if (isComponentMounted && currentSentence) {
-              currentSentence.style.opacity = '1';
-              // Debug log
-            }
-          }, 100); // Shorter delay for smoother transition
-        }
-      };
-
-      const animateSentences = () => {
-        if (!isComponentMounted) {
-          // Debug log
-          return;
-        }
-
-        // Debug log
-        
-        showSentence(currentIndex);
-        
-        // Move to next sentence
-        currentIndex = (currentIndex + 1) % sentences.length;
-      };
-
-      // Start the animation immediately
-      // Debug log
-      animateSentences();
-      
-      // Set up interval for continuous animation
-      animationInterval = setInterval(() => {
-        if (isComponentMounted) {
-          animateSentences();
-        } else {
-          // Clean up if component is unmounted
-          if (animationInterval) {
-            clearInterval(animationInterval);
-            animationInterval = null;
-          }
-        }
-      }, 3500); // Change sentence every 3.5 seconds
-    };
-
-    // Start initialization with multiple fallback attempts
-    const initTimer = setTimeout(initializeAnimation, 100);
-
-    // Cleanup function
-    return () => {
-      // Debug log
-      isComponentMounted = false;
-      
-      // Clear all timers
-      clearTimeout(initTimer);
-      
-      if (animationInterval) {
-        clearInterval(animationInterval);
-        animationInterval = null;
-      }
-      
-      if (fadeTimeout) {
-        clearTimeout(fadeTimeout);
-        fadeTimeout = null;
-      }
-      
-      // Reset all sentence opacities to prevent visual artifacts
-      const sentences = document.querySelectorAll('.animated-sentence');
-      sentences.forEach((sentence) => {
-        const element = sentence as HTMLElement;
-        element.style.opacity = '0';
-        element.style.transition = 'none';
-      });
-    };
-  }, []);
 
   // Show loading state while checking authentication
   if (isLoading) {
@@ -154,7 +46,14 @@ const LandingPage: React.FC = () => {
   // Only show landing page for unauthenticated users
   return (
     <>
-      <LandingPageHeader />
+      <LandingPageHeader
+        isLoginOpen={isLoginOpen}
+        isSignupOpen={isSignupOpen}
+        onLoginOpen={handleOpenLogin}
+        onSignupOpen={handleOpenSignup}
+        onLoginClose={handleCloseLogin}
+        onSignupClose={handleCloseSignup}
+      />
       <div className="landing-container relative h-screen bg-black">
         {/* Three.js Orbit Animation Background */}
         <ThreeJsOrbitAnimation className="threejs-canvas" />
@@ -199,7 +98,7 @@ const LandingPage: React.FC = () => {
             <div className="flex justify-center">
               <button
                 className="hero-cta-button"
-                onClick={() => navigate('/auth')}
+                onClick={handleOpenLogin}
               >
                 Begin Your Strategic Advantage
               </button>
@@ -277,35 +176,6 @@ const LandingPage: React.FC = () => {
             
           </div>
         </div>
-      </section>
-
-      {/* Section 2 - Black background with animated text - Reduced size */}
-      <section className="w-full bg-black py-48 px-4 relative overflow-hidden">
-        {/* Background animated text */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="background-text-animation">
-            <div className="animated-sentence position-1" data-sentence="0">Am I just a glorified prompt engineer, or am I still a true expert in my field?</div>
-            <div className="animated-sentence position-2" data-sentence="1">How can I compete with a junior who can get a perfect answer from an AI in seconds when it takes me days of research?</div>
-            <div className="animated-sentence position-3" data-sentence="2">How do I tell my boss I'm still valuable when an AI tool is doing the work that once defined me?</div>
-            <div className="animated-sentence position-4" data-sentence="3">Am I becoming an unnecessary bottleneck by trying to perfect something an AI could have done in minutes?</div>
-            <div className="animated-sentence position-5" data-sentence="4">Are my skills in danger of becoming as obsolete as a fax machine?</div>
-            <div className="animated-sentence position-6" data-sentence="5">Is my job secure, or am I a few prompts away from being replaced?</div>
-            <div className="animated-sentence position-7" data-sentence="6">Will my resume get filtered out by an AI-powered hiring system that sees my age as a weakness?</div>
-            <div className="animated-sentence position-8" data-sentence="7">Why do I feel so much shame when I have to ask a younger colleague for help with an AI tool?</div>
-            <div className="animated-sentence position-9" data-sentence="8">How do I showcase my unique value to a company when so many of my past achievements can be automated?</div>
-            <div className="animated-sentence position-10" data-sentence="9">How can I possibly keep up with the overwhelming pace of technological change?</div>
-            <div className="animated-sentence position-11" data-sentence="10">Am I losing my place in the professional landscape because I'm not fluent in AI and other new technologies?</div>
-            <div className="animated-sentence position-12" data-sentence="11">Is it my responsibility to manage the ethical implications of the AI tools my team uses, and am I prepared for that?</div>
-            <div className="animated-sentence position-13" data-sentence="12">Why do I hesitate to ask for more training for my team on new tools, even when I know we need it?</div>
-            <div className="animated-sentence position-14" data-sentence="13">Does all my accumulated wisdom and "gut feeling" matter anymore, or is it just a novelty?</div>
-            <div className="animated-sentence position-15" data-sentence="14">Is my entire professional identity, built over decades, at risk because of AI?</div>
-            <div className="animated-sentence position-16" data-sentence="15">Is my career path inevitably shifting away from hands-on work toward being a pure manager?</div>
-            <div className="animated-sentence position-17" data-sentence="16">Why do I feel like I have to be an expert in both my original field and every new AI technology?</div>
-            <div className="animated-sentence position-18" data-sentence="17">Am I afraid to pursue new opportunities because I might have to learn a new AI tool and fail?</div>
-            <div className="animated-sentence position-19" data-sentence="18">Why do I feel like any negative feedback is confirmation that I'm a fraud?</div>
-          </div>
-        </div>
-        
       </section>
 
       {/* Section 3 - Restoring Your Authority */}
@@ -465,7 +335,7 @@ const LandingPage: React.FC = () => {
               <div className="flex justify-center">
                 <button
                   className="why-now-cta-button"
-                  onClick={() => navigate('/auth')}
+                  onClick={handleOpenLogin}
                 >
                   Build Your Advantage Now
                 </button>
@@ -497,10 +367,10 @@ const LandingPage: React.FC = () => {
               <h3 className="footer-section-title">Quick Links</h3>
               <div className="footer-underline mb-4"></div>
               <ul className="footer-nav">
-                <li><a href="#how-it-works" className="footer-link">How It Works</a></li>
-                <li><a href="#why-now" className="footer-link">Why Now</a></li>
-                <li><a href="#about" className="footer-link">About</a></li>
-                <li><a href="/auth" className="footer-link">Sign Up</a></li>
+                <li><a href="/#how-it-works" className="footer-link">How It Works</a></li>
+                <li><a href="/about" className="footer-link">Our Conviction</a></li>
+                <li><a href="/ai-agent" className="footer-link">AI Agent</a></li>
+                <li><button onClick={handleOpenSignup} className="footer-link bg-transparent border-none p-0 text-left cursor-pointer">Sign Up</button></li>
               </ul>
             </div>
             
@@ -510,8 +380,8 @@ const LandingPage: React.FC = () => {
               <div className="footer-underline mb-4"></div>
               <div className="contact-info">
                 <p className="contact-item">
-                  <a href="mailto:celeste.farm@ausurmai.ai" className="footer-link">
-                    celeste.farm@ausurmai.ai
+                  <a href="mailto:celeste.farm@aureumai.ai" className="footer-link">
+                    celeste.farm@aureumai.ai
                   </a>
                 </p>
                 <p className="contact-item">

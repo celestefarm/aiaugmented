@@ -10,34 +10,93 @@ import {
 import LoginForm from './auth/LoginForm';
 import SignupForm from './auth/SignupForm';
 
-const LandingPageHeader: React.FC = () => {
+interface LandingPageHeaderProps {
+  isLoginOpen?: boolean;
+  isSignupOpen?: boolean;
+  onLoginOpen?: () => void;
+  onSignupOpen?: () => void;
+  onLoginClose?: () => void;
+  onSignupClose?: () => void;
+}
+
+const LandingPageHeader: React.FC<LandingPageHeaderProps> = ({
+  isLoginOpen: externalIsLoginOpen,
+  isSignupOpen: externalIsSignupOpen,
+  onLoginOpen,
+  onSignupOpen,
+  onLoginClose,
+  onSignupClose
+}) => {
   const navigate = useNavigate();
   const { isAuthenticated, user, logout } = useAuth();
-  const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const [isSignupOpen, setIsSignupOpen] = useState(false);
+  const [internalIsLoginOpen, setInternalIsLoginOpen] = useState(false);
+  const [internalIsSignupOpen, setInternalIsSignupOpen] = useState(false);
+
+  // Use external state if provided, otherwise use internal state
+  const isLoginOpen = externalIsLoginOpen !== undefined ? externalIsLoginOpen : internalIsLoginOpen;
+  const isSignupOpen = externalIsSignupOpen !== undefined ? externalIsSignupOpen : internalIsSignupOpen;
 
   const handleSignIn = () => {
-    setIsLoginOpen(true);
+    if (onLoginOpen) {
+      onLoginOpen();
+    } else {
+      setInternalIsLoginOpen(true);
+    }
   };
 
   const handleSignUp = () => {
-    setIsSignupOpen(true);
+    if (onSignupOpen) {
+      onSignupOpen();
+    } else {
+      setInternalIsSignupOpen(true);
+    }
   };
 
   const handleAuthSuccess = () => {
-    setIsLoginOpen(false);
-    setIsSignupOpen(false);
+    if (onLoginClose && onSignupClose) {
+      onLoginClose();
+      onSignupClose();
+    } else {
+      setInternalIsLoginOpen(false);
+      setInternalIsSignupOpen(false);
+    }
     navigate('/dashboard');
   };
 
   const handleSwitchToSignup = () => {
-    setIsLoginOpen(false);
-    setIsSignupOpen(true);
+    if (onLoginClose && onSignupOpen) {
+      onLoginClose();
+      onSignupOpen();
+    } else {
+      setInternalIsLoginOpen(false);
+      setInternalIsSignupOpen(true);
+    }
   };
 
   const handleSwitchToLogin = () => {
-    setIsSignupOpen(false);
-    setIsLoginOpen(true);
+    if (onSignupClose && onLoginOpen) {
+      onSignupClose();
+      onLoginOpen();
+    } else {
+      setInternalIsSignupOpen(false);
+      setInternalIsLoginOpen(true);
+    }
+  };
+
+  const handleLoginClose = () => {
+    if (onLoginClose) {
+      onLoginClose();
+    } else {
+      setInternalIsLoginOpen(false);
+    }
+  };
+
+  const handleSignupClose = () => {
+    if (onSignupClose) {
+      onSignupClose();
+    } else {
+      setInternalIsSignupOpen(false);
+    }
   };
 
   const handleDashboard = () => {
@@ -159,7 +218,7 @@ const LandingPageHeader: React.FC = () => {
       </div>
 
       {/* Login Modal */}
-      <Dialog open={isLoginOpen} onOpenChange={setIsLoginOpen}>
+      <Dialog open={isLoginOpen} onOpenChange={handleLoginClose}>
         <DialogContent className="sm:max-w-md bg-[#1A1A1A] border-[#333333]">
           <DialogHeader>
             <DialogTitle className="text-[#E5E7EB]">Welcome Back</DialogTitle>
@@ -172,7 +231,7 @@ const LandingPageHeader: React.FC = () => {
       </Dialog>
 
       {/* Signup Modal */}
-      <Dialog open={isSignupOpen} onOpenChange={setIsSignupOpen}>
+      <Dialog open={isSignupOpen} onOpenChange={handleSignupClose}>
         <DialogContent className="sm:max-w-md bg-[#1A1A1A] border-[#333333]">
           <DialogHeader>
             <DialogTitle className="text-[#E5E7EB]">Create Account</DialogTitle>

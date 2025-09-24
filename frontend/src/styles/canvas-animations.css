@@ -1,0 +1,266 @@
+/* Canvas Micro-Interactions and Animations */
+
+/* Smooth transitions for all interactive elements */
+.canvas-element {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Node hover effects */
+.node-hover-effect {
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out, opacity 0.15s ease-out;
+}
+
+.node-hover-effect:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(107, 107, 58, 0.3);
+}
+
+/* Selection ring animation */
+.node-selection-ring {
+  animation: selection-pulse 2s ease-in-out infinite;
+}
+
+@keyframes selection-pulse {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.02);
+  }
+}
+
+/* Edge hover effects */
+.edge-hover-effect {
+  transition: stroke-width 0.2s ease-out, opacity 0.2s ease-out;
+}
+
+/* Connection point animations */
+.connection-point {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.connection-point-highlighted {
+  animation: connection-point-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes connection-point-pulse {
+  0%, 100% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+/* Marquee selection animation */
+.marquee-selection {
+  animation: marquee-dash 1s linear infinite;
+}
+
+@keyframes marquee-dash {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 8;
+  }
+}
+
+/* Tooltip animations */
+.tooltip-enter {
+  animation: tooltip-fade-in 0.2s ease-out forwards;
+}
+
+.tooltip-exit {
+  animation: tooltip-fade-out 0.15s ease-in forwards;
+}
+
+@keyframes tooltip-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes tooltip-fade-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+/* Enhanced tooltip positioning */
+.tooltip-smart-position {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: auto;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tooltip-smart-position.tooltip-above {
+  transform-origin: bottom center;
+}
+
+.tooltip-smart-position.tooltip-below {
+  transform-origin: top center;
+}
+
+.tooltip-smart-position.tooltip-left {
+  transform-origin: right center;
+}
+
+.tooltip-smart-position.tooltip-right {
+  transform-origin: left center;
+}
+
+/* Drag feedback */
+.node-dragging {
+  transition: none !important;
+  cursor: grabbing !important;
+  z-index: 100;
+}
+
+.node-dragging::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border: 2px solid rgba(107, 107, 58, 0.5);
+  border-radius: inherit;
+  animation: drag-glow 1s ease-in-out infinite alternate;
+}
+
+@keyframes drag-glow {
+  from {
+    box-shadow: 0 0 8px rgba(107, 107, 58, 0.3);
+  }
+  to {
+    box-shadow: 0 0 16px rgba(107, 107, 58, 0.6);
+  }
+}
+
+/* Connection drag preview */
+.connection-preview-line {
+  animation: connection-flow 2s linear infinite;
+}
+
+@keyframes connection-flow {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 20;
+  }
+}
+
+/* Snap target indicator */
+.snap-target-indicator {
+  animation: snap-pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes snap-pulse {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+/* Multi-selection feedback */
+.multi-selection-count {
+  animation: selection-count-bounce 0.3s ease-out;
+}
+
+@keyframes selection-count-bounce {
+  0% {
+    transform: scale(0.8);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Smooth cursor transitions */
+.canvas-container {
+  transition: cursor 0.1s ease-out;
+}
+
+/* Loading states */
+.loading-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(107, 107, 58, 0.1) 0%,
+    rgba(107, 107, 58, 0.2) 50%,
+    rgba(107, 107, 58, 0.1) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Focus indicators for accessibility */
+.canvas-element:focus-visible {
+  outline: 2px solid rgba(107, 107, 58, 0.8);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .canvas-element,
+  .node-hover-effect,
+  .edge-hover-effect,
+  .connection-point,
+  .tooltip-smart-position {
+    transition: none !important;
+    animation: none !important;
+  }
+  
+  .node-selection-ring,
+  .connection-point-highlighted,
+  .marquee-selection,
+  .connection-preview-line,
+  .snap-target-indicator {
+    animation: none !important;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .node-hover-effect:hover {
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.5);
+  }
+  
+  .connection-point-highlighted {
+    border: 2px solid white;
+  }
+  
+  .tooltip-smart-position {
+    border: 1px solid white;
+  }
+}

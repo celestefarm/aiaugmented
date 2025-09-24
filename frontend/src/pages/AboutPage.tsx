@@ -1,21 +1,48 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/landing.css';
 import LandingPageHeader from '../components/LandingPageHeader';
 
 const AboutPage: React.FC = () => {
   const navigate = useNavigate();
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [isSignupOpen, setIsSignupOpen] = useState(false);
+
+  const handleOpenLogin = () => {
+    console.log('DEBUG: Opening sign-in modal from About page "Get Started Today" button');
+    setIsLoginOpen(true);
+  };
+
+  const handleOpenSignup = () => {
+    console.log('DEBUG: Opening sign-up modal from About page');
+    setIsSignupOpen(true);
+  };
+
+  const handleCloseLogin = () => {
+    setIsLoginOpen(false);
+  };
+
+  const handleCloseSignup = () => {
+    setIsSignupOpen(false);
+  };
 
   return (
     <>
-      <LandingPageHeader />
+      <LandingPageHeader
+        isLoginOpen={isLoginOpen}
+        isSignupOpen={isSignupOpen}
+        onLoginOpen={handleOpenLogin}
+        onSignupOpen={handleOpenSignup}
+        onLoginClose={handleCloseLogin}
+        onSignupClose={handleCloseSignup}
+      />
       
       {/* Hero Section - About AI-Augmented */}
       <section className="w-full bg-black py-32 px-4 hero-section">
         <div className="max-w-5xl mx-auto">
           <div className="text-center hero-content">
             <h1 className="hero-main-title mb-6">
-              About <button onClick={() => navigate('/')} className="hover:text-gray-300 transition-colors duration-200 cursor-pointer">AI-Augmented</button>
+              About AI-Augmented
             </h1>
             <p className="hero-description mb-12">
               We amplify human wisdom with AI intelligence to deliver unassailable strategic advantage for leaders who must be certain in a world of constant ambiguity.
@@ -239,7 +266,7 @@ const AboutPage: React.FC = () => {
             <div className="flex justify-center">
               <button
                 className="hero-cta-button"
-                onClick={() => navigate('/auth')}
+                onClick={handleOpenLogin}
               >
                 Get Started Today
               </button>
@@ -270,9 +297,10 @@ const AboutPage: React.FC = () => {
               <h3 className="footer-section-title">Quick Links</h3>
               <div className="footer-underline mb-4"></div>
               <ul className="footer-nav">
-                <li><a href="/" className="footer-link">Home</a></li>
-                <li><a href="/about" className="footer-link">About</a></li>
-                <li><a href="/auth" className="footer-link">Sign Up</a></li>
+                <li><a href="/#how-it-works" className="footer-link">How It Works</a></li>
+                <li><a href="/about" className="footer-link">Our Conviction</a></li>
+                <li><a href="/ai-agent" className="footer-link">AI Agent</a></li>
+                <li><button onClick={handleOpenSignup} className="footer-link bg-transparent border-none p-0 text-left cursor-pointer">Sign Up</button></li>
               </ul>
             </div>
             
@@ -282,8 +310,8 @@ const AboutPage: React.FC = () => {
               <div className="footer-underline mb-4"></div>
               <div className="contact-info">
                 <p className="contact-item">
-                  <a href="mailto:celeste.farm@ausurmai.ai" className="footer-link">
-                    celeste.farm@ausurmai.ai
+                  <a href="mailto:celeste.farm@aureumai.ai" className="footer-link">
+                    celeste.farm@aureumai.ai
                   </a>
                 </p>
                 <p className="contact-item">

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useWorkspace } from '../contexts/WorkspaceContext';
 import Header from '../components/Header';
 import ExplorationMap from '../components/ExplorationMap';
+import UnifiedExplorationMap from '../components/UnifiedExplorationMap';
 import LastMileBrief from '../components/LastMileBrief';
 
 const Index: React.FC = () => {
@@ -91,7 +92,8 @@ const Index: React.FC = () => {
       <main className="flex-1 overflow-hidden relative">
         {(() => {
           if (currentView === 'exploration') {
-            return <ExplorationMap key="exploration" />;
+            // Use the new unified canvas implementation
+            return <UnifiedExplorationMap key="exploration" />;
           } else {
             return <LastMileBrief key="brief" />;
           }

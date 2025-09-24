@@ -1,14 +1,41 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/landing.css';
 import LandingPageHeader from '../components/LandingPageHeader';
 
 const AIAgentPage: React.FC = () => {
   const navigate = useNavigate();
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [isSignupOpen, setIsSignupOpen] = useState(false);
+
+  const handleOpenLogin = () => {
+    console.log('DEBUG: Opening sign-in modal from AI Agent page button');
+    setIsLoginOpen(true);
+  };
+
+  const handleOpenSignup = () => {
+    console.log('DEBUG: Opening sign-up modal from AI Agent page');
+    setIsSignupOpen(true);
+  };
+
+  const handleCloseLogin = () => {
+    setIsLoginOpen(false);
+  };
+
+  const handleCloseSignup = () => {
+    setIsSignupOpen(false);
+  };
 
   return (
     <>
-      <LandingPageHeader />
+      <LandingPageHeader
+        isLoginOpen={isLoginOpen}
+        isSignupOpen={isSignupOpen}
+        onLoginOpen={handleOpenLogin}
+        onSignupOpen={handleOpenSignup}
+        onLoginClose={handleCloseLogin}
+        onSignupClose={handleCloseSignup}
+      />
       
       {/* Hero Section - Meet Your AI Strategic Partner */}
       <section className="w-full bg-black py-32 px-4 hero-section">
@@ -26,7 +53,7 @@ const AIAgentPage: React.FC = () => {
             <div className="flex justify-center">
               <button
                 className="hero-cta-button"
-                onClick={() => navigate('/auth')}
+                onClick={handleOpenLogin}
               >
                 Start Your Strategic Partnership
               </button>
@@ -223,7 +250,7 @@ const AIAgentPage: React.FC = () => {
               <div className="flex justify-center">
                 <button
                   className="why-now-cta-button"
-                  onClick={() => navigate('/auth')}
+                  onClick={handleOpenLogin}
                 >
                   Start Working with Your AI Agent
                 </button>
@@ -255,10 +282,10 @@ const AIAgentPage: React.FC = () => {
               <h3 className="footer-section-title">Quick Links</h3>
               <div className="footer-underline mb-4"></div>
               <ul className="footer-nav">
-                <li><a href="/" className="footer-link">Home</a></li>
-                <li><a href="/about" className="footer-link">About</a></li>
+                <li><a href="/#how-it-works" className="footer-link">How It Works</a></li>
+                <li><a href="/about" className="footer-link">Our Conviction</a></li>
                 <li><a href="/ai-agent" className="footer-link">AI Agent</a></li>
-                <li><a href="/auth" className="footer-link">Sign Up</a></li>
+                <li><button onClick={handleOpenSignup} className="footer-link bg-transparent border-none p-0 text-left cursor-pointer">Sign Up</button></li>
               </ul>
             </div>
             
@@ -268,8 +295,8 @@ const AIAgentPage: React.FC = () => {
               <div className="footer-underline mb-4"></div>
               <div className="contact-info">
                 <p className="contact-item">
-                  <a href="mailto:celeste.farm@ausurmai.ai" className="footer-link">
-                    celeste.farm@ausurmai.ai
+                  <a href="mailto:celeste.farm@aureumai.ai" className="footer-link">
+                    celeste.farm@aureumai.ai
                   </a>
                 </p>
                 <p className="contact-item">

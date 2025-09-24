@@ -8,6 +8,7 @@ import { DocumentProvider } from './contexts/DocumentContext';
 import { InteractionProvider } from './contexts/InteractionContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import ScrollToTop from './components/ScrollToTop';
 import LandingPage from './pages/LandingPage';
 import AboutPage from './pages/AboutPage';
 import AIAgentPage from './pages/AIAgentPage';
@@ -55,6 +56,7 @@ function App() {
                             <InteractionProvider>
                               <ErrorBoundary context="Router">
                                 <Router>
+                                  <ScrollToTop />
                                   <Routes>
                                     <Route path="/auth" element={
                                       <ErrorBoundary context="Auth Page">

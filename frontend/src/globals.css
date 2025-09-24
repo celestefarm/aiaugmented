@@ -1,6 +1,9 @@
 /* Import orbit animation styles */
 @import './styles/orbit-animation.css';
 
+/* Import canvas animations */
+@import './styles/canvas-animations.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

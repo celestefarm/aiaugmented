@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Button Brightness Debug</title>
+    <style>
+        body {
+            background: #000;
+            padding: 50px;
+            font-family: Arial, sans-serif;
+        }
+        
+        .debug-container {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            align-items: center;
+        }
+        
+        .button-test {
+            padding: 20px;
+            border: 1px solid #333;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .button-test h3 {
+            color: white;
+            margin-bottom: 15px;
+        }
+        
+        /* Original bright button */
+        .original-button {
+            background: linear-gradient(135deg,
+                #D4AF37 0%,
+                #F4E4BC 15%,
+                #D4AF37 30%,
+                #B8941F 45%,
+                #D4AF37 60%,
+                #F4E4BC 75%,
+                #D4AF37 90%,
+                #B8941F 100%);
+            color: #000000;
+            font-size: 1.375rem;
+            font-weight: 700;
+            padding: 1.5rem 4rem;
+            border: none;
+            border-radius: 16px;
+            cursor: pointer;
+            box-shadow:
+                0 12px 40px rgba(212, 175, 55, 0.6),
+                0 6px 20px rgba(0, 0, 0, 0.4),
+                0 2px 8px rgba(192, 192, 192, 0.3),
+                inset 0 2px 0 rgba(255, 255, 255, 0.3),
+                inset 0 -2px 0 rgba(184, 148, 31, 0.2);
+        }
+        
+        /* Test 1: Dimmer gradient colors */
+        .dimmer-gradient {
+            background: linear-gradient(135deg,
+                #A68B2F 0%,
+                #C4B896 15%,
+                #A68B2F 30%,
+                #8B7419 45%,
+                #A68B2F 60%,
+                #C4B896 75%,
+                #A68B2F 90%,
+                #8B7419 100%);
+            color: #000000;
+            font-size: 1.375rem;
+            font-weight: 700;
+            padding: 1.5rem 4rem;
+            border: none;
+            border-radius: 16px;
+            cursor: pointer;
+            box-shadow:
+                0 12px 40px rgba(212, 175, 55, 0.6),
+                0 6px 20px rgba(0, 0, 0, 0.4),
+                0 2px 8px rgba(192, 192, 192, 0.3),
+                inset 0 2px 0 rgba(255, 255, 255, 0.3),
+                inset 0 -2px 0 rgba(184, 148, 31, 0.2);
+        }
+        
+        /* Test 2: Reduced glow effects */
+        .reduced-glow {
+            background: linear-gradient(135deg,
+                #D4AF37 0%,
+                #F4E4BC 15%,
+                #D4AF37 30%,
+                #B8941F 45%,
+                #D4AF37 60%,
+                #F4E4BC 75%,
+                #D4AF37 90%,
+                #B8941F 100%);
+            color: #000000;
+            font-size: 1.375rem;
+            font-weight: 700;
+            padding: 1.5rem 4rem;
+            border: none;
+            border-radius: 16px;
+            cursor: pointer;
+            box-shadow:
+                0 8px 24px rgba(212, 175, 55, 0.3),
+                0 4px 12px rgba(0, 0, 0, 0.2),
+                0 1px 4px rgba(192, 192, 192, 0.15),
+                inset 0 1px 0 rgba(255, 255, 255, 0.15),
+                inset 0 -1px 0 rgba(184, 148, 31, 0.1);
+        }
+        
+        /* Test 3: Both fixes combined */
+        .dimmer-combined {
+            background: linear-gradient(135deg,
+                #A68B2F 0%,
+                #C4B896 15%,
+                #A68B2F 30%,
+                #8B7419 45%,
+                #A68B2F 60%,
+                #C4B896 75%,
+                #A68B2F 90%,
+                #8B7419 100%);
+            color: #000000;
+            font-size: 1.375rem;
+            font-weight: 700;
+            padding: 1.5rem 4rem;
+            border: none;
+            border-radius: 16px;
+            cursor: pointer;
+            box-shadow:
+                0 8px 24px rgba(166, 139, 47, 0.3),
+                0 4px 12px rgba(0, 0, 0, 0.2),
+                0 1px 4px rgba(192, 192, 192, 0.15),
+                inset 0 1px 0 rgba(255, 255, 255, 0.15),
+                inset 0 -1px 0 rgba(139, 116, 25, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="debug-container">
+        <div class="button-test">
+            <h3>Original (Too Bright)</h3>
+            <button class="original-button">Begin Your Strategic Advantage</button>
+        </div>
+        
+        <div class="button-test">
+            <h3>Test 1: Dimmer Gradient Colors</h3>
+            <button class="dimmer-gradient">Begin Your Strategic Advantage</button>
+        </div>
+        
+        <div class="button-test">
+            <h3>Test 2: Reduced Glow Effects</h3>
+            <button class="reduced-glow">Begin Your Strategic Advantage</button>
+        </div>
+        
+        <div class="button-test">
+            <h3>Test 3: Both Fixes Combined</h3>
+            <button class="dimmer-combined">Begin Your Strategic Advantage</button>
+        </div>
+    </div>
+    
+    <script>
+        console.log('Button brightness debug loaded');
+        console.log('Original gradient colors: #D4AF37, #F4E4BC (very bright)');
+        console.log('Dimmer gradient colors: #A68B2F, #C4B896 (reduced brightness)');
+        console.log('Original glow opacity: 0.6, 0.4, 0.3');
+        console.log('Reduced glow opacity: 0.3, 0.2, 0.15');
+    </script>
+</body>
+</html>
