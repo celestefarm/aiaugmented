@@ -403,7 +403,7 @@ canvas {
 
 /* Hero Section Styles - AI Intelligence Human Wisdom */
 .hero-section {
-  background: linear-gradient(180deg, #000000 0%, #0a0a0a 40%, #1a1a1a 70%, rgba(255, 255, 255, 0.1) 100%);
+  background: radial-gradient(ellipse at bottom, #1a1a1a 0%, #0a0a0a 50%, #000000 100%);
   padding: 8rem 2rem;
   min-height: auto;
   display: flex;
@@ -435,19 +435,29 @@ canvas {
 .hero-main-title {
   font-size: 5.5rem;
   font-weight: 300;
-  line-height: 1.05;
+  line-height: 1.15;
   color: #ffffff;
   margin-bottom: 2.5rem;
+  padding: 0.2em 0;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   letter-spacing: -0.02em;
   text-shadow:
     0 4px 8px rgba(0, 0, 0, 0.6),
     0 8px 16px rgba(0, 0, 0, 0.3),
     0 0 40px rgba(255, 255, 255, 0.1);
-  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 50%, #e9ecef 100%);
+  background: linear-gradient(135deg, #d1d5db 0%, #9ca3af 50%, #6b7280 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  overflow: visible;
+  
+  /* Prevent text selection and cursor appearance */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  cursor: default;
+  pointer-events: none;
 }
 
 .hero-subtitle {
@@ -481,14 +491,14 @@ canvas {
 
 .hero-cta-button {
   background: linear-gradient(135deg,
-    #D4AF37 0%,
-    #F4E4BC 15%,
-    #D4AF37 30%,
-    #B8941F 45%,
-    #D4AF37 60%,
-    #F4E4BC 75%,
-    #D4AF37 90%,
-    #B8941F 100%);
+    #A68B2F 0%,
+    #C4B896 15%,
+    #A68B2F 30%,
+    #8B7419 45%,
+    #A68B2F 60%,
+    #C4B896 75%,
+    #A68B2F 90%,
+    #8B7419 100%);
   color: #000000;
   font-size: 1.375rem;
   font-weight: 700;
@@ -503,11 +513,9 @@ canvas {
   position: relative;
   overflow: hidden;
   box-shadow:
-    0 12px 40px rgba(212, 175, 55, 0.6),
-    0 6px 20px rgba(0, 0, 0, 0.4),
-    0 2px 8px rgba(192, 192, 192, 0.3),
-    inset 0 2px 0 rgba(255, 255, 255, 0.3),
-    inset 0 -2px 0 rgba(184, 148, 31, 0.2);
+    0 4px 8px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 -1px 0 rgba(139, 116, 25, 0.1);
   backdrop-filter: blur(15px);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
@@ -549,21 +557,19 @@ canvas {
 
 .hero-cta-button:hover {
   background: linear-gradient(135deg,
-    #F4E4BC 0%,
-    #D4AF37 15%,
-    #B8941F 30%,
-    #D4AF37 45%,
-    #F4E4BC 60%,
-    #D4AF37 75%,
-    #B8941F 90%,
-    #D4AF37 100%);
+    #C4B896 0%,
+    #A68B2F 15%,
+    #8B7419 30%,
+    #A68B2F 45%,
+    #C4B896 60%,
+    #A68B2F 75%,
+    #8B7419 90%,
+    #A68B2F 100%);
   transform: translateY(-6px) scale(1.05);
   box-shadow:
-    0 20px 60px rgba(212, 175, 55, 0.8),
-    0 12px 30px rgba(0, 0, 0, 0.5),
-    0 4px 12px rgba(192, 192, 192, 0.4),
-    inset 0 2px 0 rgba(255, 255, 255, 0.4),
-    inset 0 -2px 0 rgba(184, 148, 31, 0.3);
+    0 6px 12px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -1px 0 rgba(139, 116, 25, 0.15);
 }
 
 .hero-cta-button:hover::before {
@@ -619,7 +625,12 @@ canvas {
 
 /* LUXURY EXECUTIVE SECTION 1: Our Conviction - Clean Minimal */
 .loneliness-section {
-  background: #1a1a1a;
+  background:
+    radial-gradient(ellipse at top, #1a1a1a 0%, #0a0a0a 50%, #000000 100%),
+    radial-gradient(ellipse at bottom, #1a1a1a 0%, #0a0a0a 50%, #000000 100%),
+    radial-gradient(ellipse at left, #0f0f0f 0%, #000000 70%),
+    radial-gradient(ellipse at right, #0f0f0f 0%, #000000 70%),
+    #000000;
   padding: 10rem 2rem;
   min-height: auto;
   display: flex;
@@ -692,12 +703,12 @@ canvas {
     0 0 60px rgba(255, 255, 255, 0.15),
     0 0 120px rgba(212, 175, 55, 0.1);
   background: linear-gradient(135deg,
-    #ffffff 0%,
-    #f8fafc 20%,
-    #e2e8f0 40%,
-    #cbd5e1 60%,
-    #94a3b8 80%,
-    #64748b 100%);
+    #d1d5db 0%,
+    #b5bac1 20%,
+    #9ca3af 40%,
+    #6b7280 60%,
+    #4b5563 80%,
+    #374151 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -1027,7 +1038,7 @@ canvas {
 
 /* LUXURY EXECUTIVE SECTION 4: The Problem We Solve - Unified Flow */
 .widening-chasm-section {
-  background: linear-gradient(135deg, #0a0a0a 0%, #141414 50%, #1e1e1e 100%) !important;
+  background: radial-gradient(ellipse at bottom, #1e1e1e 0%, #0f0f0f 50%, #000000 100%) !important;
   padding: 12rem 2rem;
   min-height: auto;
   position: relative;
@@ -1048,12 +1059,12 @@ canvas {
     0 0 80px rgba(255, 255, 255, 0.15),
     0 0 160px rgba(212, 175, 55, 0.1);
   background: linear-gradient(135deg,
-    #ffffff 0%,
-    #f8fafc 20%,
-    #e2e8f0 40%,
-    #cbd5e1 60%,
-    #94a3b8 80%,
-    #64748b 100%);
+    #d1d5db 0%,
+    #b5bac1 20%,
+    #9ca3af 40%,
+    #6b7280 60%,
+    #4b5563 80%,
+    #374151 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -1090,15 +1101,15 @@ canvas {
 }
 
 .chasm-column {
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(10px);
+  background: rgba(17, 24, 39, 0.95);
+  backdrop-filter: blur(15px);
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 16px;
   padding: 4rem 3rem;
   text-align: left;
   position: relative;
   transition: all 0.3s ease;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
   overflow: hidden;
 }
 
@@ -1296,7 +1307,7 @@ canvas {
     0 4px 8px rgba(0, 0, 0, 0.6),
     0 8px 16px rgba(0, 0, 0, 0.3),
     0 0 40px rgba(255, 255, 255, 0.1);
-  background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 50%, #e2e8f0 100%);
+  background: linear-gradient(135deg, #d1d5db 0%, #9ca3af 50%, #6b7280 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -1560,14 +1571,14 @@ canvas {
     0 0 100px rgba(212, 175, 55, 0.4),
     0 0 200px rgba(212, 175, 55, 0.2);
   background: linear-gradient(135deg,
-    #D4AF37 0%,
+    #FFF8DC 0%,
     #F4E4BC 15%,
-    #D4AF37 30%,
-    #B8941F 45%,
-    #D4AF37 60%,
-    #F4E4BC 75%,
-    #D4AF37 90%,
-    #B8941F 100%);
+    #E6D690 30%,
+    #D4AF37 45%,
+    #F4E4BC 60%,
+    #E6D690 75%,
+    #FFF8DC 90%,
+    #F4E4BC 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -1861,7 +1872,7 @@ canvas {
 }
 
 .why-now-cta-button {
-  background: linear-gradient(135deg, #D4AF37 0%, #F4E4BC 50%, #D4AF37 100%);
+  background: linear-gradient(135deg, #A68B2F 0%, #C4B896 50%, #A68B2F 100%);
   color: #000000;
   font-size: 1.25rem;
   font-weight: 600;
@@ -1876,9 +1887,9 @@ canvas {
   position: relative;
   overflow: hidden;
   box-shadow:
-    0 8px 32px rgba(212, 175, 55, 0.4),
-    0 4px 16px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    0 6px 24px rgba(166, 139, 47, 0.25),
+    0 3px 12px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
 }
 
@@ -1894,12 +1905,12 @@ canvas {
 }
 
 .why-now-cta-button:hover {
-  background: linear-gradient(135deg, #F4E4BC 0%, #D4AF37 50%, #B8941F 100%);
+  background: linear-gradient(135deg, #C4B896 0%, #A68B2F 50%, #8B7419 100%);
   transform: translateY(-3px) scale(1.02);
   box-shadow:
-    0 12px 48px rgba(212, 175, 55, 0.6),
-    0 8px 24px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    0 9px 36px rgba(166, 139, 47, 0.35),
+    0 6px 18px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
 .why-now-cta-button:hover::before {

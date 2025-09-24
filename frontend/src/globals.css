@@ -77,7 +77,48 @@
     @apply h-full w-full;
     margin: 0;
     padding: 0;
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scroll-behavior: auto !important;
+    scroll-padding-top: 0 !important;
+    scroll-margin-top: 0 !important;
+  }
+  
+  /* Ensure no smooth scrolling interferes with scroll-to-top */
+  * {
+    scroll-behavior: auto !important;
+  }
+  
+  /* Reset any potential scroll snap behavior */
+  html, body, #root, main, [role="main"] {
+    scroll-snap-type: none !important;
+    scroll-snap-align: none !important;
+  }
+  
+  /* Prevent text cursor on decorative/title elements */
+  h1, h2, h3, h4, h5, h6, .hero-main-title, .hero-subtitle, .hero-description {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    cursor: default;
+  }
+  
+  /* Allow text selection on body text and interactive elements */
+  p, span, div, a, button, input, textarea {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+  }
+  
+  /* Ensure buttons and links have proper cursor */
+  button, a, [role="button"] {
+    cursor: pointer !important;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
   }
   body {
     @apply bg-background text-foreground;
