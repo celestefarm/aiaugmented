@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode, useMemo, useRef } from 'react';
-import { InteractionManager, Point, Transform, InteractionMode, DragContext } from '@/managers/InteractionManager';
+import { InteractionManager, Point, Transform, InteractionMode, DragContext, ConnectionDragContext } from '@/managers/InteractionManager';
 
 // Legacy interaction state types for backward compatibility
-export type InteractionState = 'IDLE' | 'PANNING' | 'DRAGGING_NODE' | 'CONNECTING';
+export type InteractionState = 'IDLE' | 'PANNING' | 'DRAGGING_NODE' | 'CONNECTING' | 'DRAGGING_CONNECTION';
 
 // Enhanced interaction context data
 export interface InteractionData {
@@ -19,6 +19,9 @@ export interface InteractionData {
   
   // Connection context
   connectionStart?: string;
+  
+  // Connection drag context
+  connectionDragContext?: ConnectionDragContext;
 }
 
 // Complete interaction context
@@ -59,6 +62,7 @@ interface InteractionContextType {
   registerNodePositionUpdateCallback: (callback: (nodeId: string, position: Point) => void) => void;
   registerTransformUpdateCallback: (callback: (transform: Transform) => void) => void;
   registerNodeSelectCallback: (callback: (nodeId: string) => void) => void;
+  registerConnectionCreateCallback: (callback: (fromNodeId: string, toNodeId: string) => void) => void;
 }
 
 // Create context
@@ -80,6 +84,7 @@ export const InteractionProvider: React.FC<InteractionProviderProps> = ({ childr
   const nodePositionUpdateRef = useRef<((nodeId: string, position: Point) => void) | null>(null);
   const transformUpdateRef = useRef<((transform: Transform) => void) | null>(null);
   const nodeSelectRef = useRef<((nodeId: string) => void) | null>(null);
+  const connectionCreateRef = useRef<((fromNodeId: string, toNodeId: string) => void) | null>(null);
 
   // Create InteractionManager instance with callbacks
   const interactionManager = useMemo(() => {
@@ -110,6 +115,9 @@ export const InteractionProvider: React.FC<InteractionProviderProps> = ({ childr
           case 'CONNECTING':
             legacyState = 'CONNECTING';
             break;
+          case 'DRAGGING_CONNECTION':
+            legacyState = 'DRAGGING_CONNECTION';
+            break;
           default:
             legacyState = 'IDLE';
             break;
@@ -130,6 +138,11 @@ export const InteractionProvider: React.FC<InteractionProviderProps> = ({ childr
           legacyData = {
             connectionStart: data.connectionStart
           };
+        } else if (data && mode === 'DRAGGING_CONNECTION') {
+          const connectionDragContext = data as ConnectionDragContext;
+          legacyData = {
+            connectionDragContext
+          };
         }
         
         setInteractionState({
@@ -141,6 +154,12 @@ export const InteractionProvider: React.FC<InteractionProviderProps> = ({ childr
       (nodeId: string) => {
         if (nodeSelectRef.current) {
           nodeSelectRef.current(nodeId);
+        }
+      },
+      // onConnectionCreate callback
+      (fromNodeId: string, toNodeId: string) => {
+        if (connectionCreateRef.current) {
+          connectionCreateRef.current(fromNodeId, toNodeId);
         }
       }
     );
@@ -157,6 +176,10 @@ export const InteractionProvider: React.FC<InteractionProviderProps> = ({ childr
 
   const registerNodeSelectCallback = useCallback((callback: (nodeId: string) => void) => {
     nodeSelectRef.current = callback;
+  }, []);
+
+  const registerConnectionCreateCallback = useCallback((callback: (fromNodeId: string, toNodeId: string) => void) => {
+    connectionCreateRef.current = callback;
   }, []);
 
   // New unified event handlers that delegate to InteractionManager
@@ -294,6 +317,7 @@ export const InteractionProvider: React.FC<InteractionProviderProps> = ({ childr
     registerNodePositionUpdateCallback,
     registerTransformUpdateCallback,
     registerNodeSelectCallback,
+    registerConnectionCreateCallback,
   };
 
   return (

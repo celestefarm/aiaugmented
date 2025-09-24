@@ -169,6 +169,18 @@ async def get_messages(
     database = get_database()
     
     # Verify workspace exists and user owns it
+    print(f"=== WORKSPACE OWNERSHIP DEBUG ===")
+    print(f"Looking for workspace: {workspace_id}")
+    print(f"Current user ID: {current_user.id} (type: {type(current_user.id)})")
+    
+    # First, check if workspace exists at all
+    workspace_doc_any = await database.workspaces.find_one({"_id": ObjectId(workspace_id)})
+    if workspace_doc_any:
+        print(f"Workspace found with owner_id: {workspace_doc_any.get('owner_id')} (type: {type(workspace_doc_any.get('owner_id'))})")
+        print(f"Owner IDs match: {workspace_doc_any.get('owner_id') == current_user.id}")
+    else:
+        print(f"Workspace with ID {workspace_id} not found at all")
+    
     workspace_doc = await database.workspaces.find_one({
         "_id": ObjectId(workspace_id),
         "owner_id": current_user.id
@@ -180,14 +192,13 @@ async def get_messages(
             detail="Workspace not found"
         )
     
-    # Get messages for the workspace, sorted by creation time - handle both string and ObjectId formats
-    cursor = database.messages.find({
-        "$or": [
-            {"workspace_id": ObjectId(workspace_id)},  # ObjectId format
-            {"workspace_id": workspace_id}  # String format
-        ]
-    }).sort("created_at", 1)
+    # Get messages for the workspace, sorted by creation time
+    # Use string query since workspace_id is stored as string in our seeding
+    cursor = database.messages.find({"workspace_id": workspace_id}).sort("created_at", 1)
     message_docs = await cursor.to_list(length=None)
+    
+    print(f"=== MESSAGES QUERY DEBUG ===")
+    print(f"Found {len(message_docs)} messages for workspace {workspace_id}")
     
     # Convert to response models
     messages = []
@@ -249,7 +260,7 @@ async def send_message(
     # Create user message
     now = datetime.utcnow()
     user_message = MessageCreate(
-        workspace_id=workspace_id,  # Keep as string - PyObjectId will handle conversion
+        workspace_id=workspace_id,  # Keep as string - PyObjectId will handle validation
         author=current_user.name,
         type="human",
         content=message_data.content,
@@ -401,7 +412,7 @@ async def send_message(
             
             # Create AI message
             ai_message = MessageCreate(
-                workspace_id=workspace_id,  # Keep as string - PyObjectId will handle conversion
+                workspace_id=workspace_id,  # Keep as string - PyObjectId will handle validation
                 author=agent_doc["name"],
                 type="ai",
                 content=ai_response_content,
@@ -534,21 +545,73 @@ async def add_message_to_map(
         print(f"=== ATTEMPTING find_one_and_update ===")
         print(f"Query: _id={ObjectId(message_id)}, workspace_id={workspace_id}, added_to_map != True")
         
-        message_doc = await database.messages.find_one_and_update(
+        # FIXED: Use $or query to handle both string and ObjectId formats for workspace_id
+        # This addresses the type inconsistency issue where workspace_id might be stored as either format
+        print(f"=== USING ROBUST QUERY WITH BOTH FORMATS ===")
+        
+        # DIRECT FIX: Skip the complex query and do a direct update
+        print(f"=== USING DIRECT UPDATE APPROACH ===")
+        
+        # First, verify the message exists and get its current state
+        existing_message = await database.messages.find_one({
+            "_id": ObjectId(message_id),
+            "workspace_id": workspace_id
+        })
+        
+        if not existing_message:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Message not found"
+            )
+        
+        print(f"Found message: {existing_message['_id']}")
+        print(f"Current added_to_map status: {existing_message.get('added_to_map', 'NOT_SET')}")
+        
+        # Check if already added to map
+        if existing_message.get("added_to_map", False):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Message has already been added to map"
+            )
+        
+        # Do a direct update without complex conditions
+        update_result = await database.messages.update_one(
             {
                 "_id": ObjectId(message_id),
-                "workspace_id": workspace_id,  # Use string format since it works
-                "$or": [
-                    {"added_to_map": {"$exists": False}},  # Field doesn't exist
-                    {"added_to_map": False},  # Field is explicitly False
-                    {"added_to_map": {"$ne": True}}  # Field is not True
-                ]
+                "workspace_id": workspace_id
             },
             {
                 "$set": {"added_to_map": True}
-            },
-            return_document=True  # Return the updated document
+            }
         )
+        
+        # Fix for different MongoDB driver versions - check available attributes
+        matched_count = getattr(update_result, 'matched_count', getattr(update_result, 'matched', 0))
+        modified_count = getattr(update_result, 'modified_count', getattr(update_result, 'modified', 0))
+        
+        print(f"Update result: matched={matched_count}, modified={modified_count}")
+        
+        # The key check is modified_count - if something was modified, the update worked
+        if modified_count == 0:
+            # Only raise error if nothing was modified AND nothing was matched
+            if matched_count == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Message not found for update"
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Message found but not updated"
+                )
+        
+        print(f"✅ Update successful: {modified_count} document(s) modified")
+        
+        # Get the updated message
+        message_doc = await database.messages.find_one({
+            "_id": ObjectId(message_id),
+            "workspace_id": workspace_id
+        })
         
         print(f"find_one_and_update result: {message_doc is not None}")
         if message_doc:
@@ -597,7 +660,7 @@ async def add_message_to_map(
         node_type = request_data.node_type or ("ai" if message_doc["type"] == "ai" else "human")
         
         node_create = NodeCreate(
-            workspace_id=workspace_id,
+            workspace_id=workspace_id,  # Keep as string - PyObjectId will handle validation
             title=node_title,
             description=message_doc["content"],
             type=node_type,

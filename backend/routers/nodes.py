@@ -100,13 +100,8 @@ async def get_nodes(
     # Get database instance
     database = get_database()
     
-    # Find all nodes in the workspace (handle both string and ObjectId formats)
-    cursor = database.nodes.find({
-        "$or": [
-            {"workspace_id": workspace_id},  # String format
-            {"workspace_id": ObjectId(workspace_id)}  # ObjectId format
-        ]
-    })
+    # Find all nodes in the workspace - use string format since that's how we store workspace_id
+    cursor = database.nodes.find({"workspace_id": workspace_id})
     node_docs = await cursor.to_list(length=None)
     
     print(f"=== NODES API DEBUG ===")
@@ -221,13 +216,10 @@ async def update_node(
     # Get database instance
     database = get_database()
     
-    # Check if node exists in the workspace (handle both string and ObjectId formats)
+    # Check if node exists in the workspace - use string format since that's how we store workspace_id
     existing_node = await database.nodes.find_one({
         "_id": ObjectId(node_id),
-        "$or": [
-            {"workspace_id": workspace_id},  # String format
-            {"workspace_id": ObjectId(workspace_id)}  # ObjectId format
-        ]
+        "workspace_id": workspace_id
     })
     
     if not existing_node:
@@ -278,18 +270,10 @@ async def update_node(
     # Get updated node data
     node_doc = await database.nodes.find_one({"_id": ObjectId(node_id)})
     
-    # DEBUG: Log the types before conversion
-    print(f"=== UPDATE NODE DEBUG ===")
-    print(f"node_doc['_id'] type: {type(node_doc['_id'])}, value: {node_doc['_id']}")
-    print(f"node_doc['workspace_id'] type: {type(node_doc.get('workspace_id'))}, value: {node_doc.get('workspace_id')}")
-    
     # Convert ObjectId fields to strings for Pydantic validation (CRITICAL FIX)
     node_doc['_id'] = str(node_doc['_id'])
     if isinstance(node_doc.get('workspace_id'), ObjectId):
         node_doc['workspace_id'] = str(node_doc['workspace_id'])
-    
-    print(f"After conversion - _id: {node_doc['_id']} (type: {type(node_doc['_id'])})")
-    print(f"After conversion - workspace_id: {node_doc.get('workspace_id')} (type: {type(node_doc.get('workspace_id'))})")
     
     node_in_db = NodeInDB(**node_doc)
     
@@ -303,7 +287,7 @@ async def delete_node(
     current_user: UserResponse = Depends(get_current_active_user)
 ):
     """
-    Delete a node and its connected edges.
+    Delete a node and its connected edges, and reset the corresponding message's added_to_map status.
     
     Args:
         workspace_id: Workspace ID
@@ -326,13 +310,10 @@ async def delete_node(
     # Get database instance
     database = get_database()
     
-    # Check if node exists in the workspace (handle both string and ObjectId formats)
+    # Check if node exists in the workspace - use string format since that's how we store workspace_id
     existing_node = await database.nodes.find_one({
         "_id": ObjectId(node_id),
-        "$or": [
-            {"workspace_id": workspace_id},  # String format
-            {"workspace_id": ObjectId(workspace_id)}  # ObjectId format
-        ]
+        "workspace_id": workspace_id
     })
     
     if not existing_node:
@@ -340,6 +321,63 @@ async def delete_node(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Node not found in workspace"
         )
+    
+    # Find and reset the corresponding message's added_to_map status
+    # Look for a message that was created from this node by matching content/title
+    node_title = existing_node.get("title", "")
+    node_description = existing_node.get("description", "")
+    
+    # Try to find the message that created this node
+    # We'll look for messages with similar content and added_to_map=True
+    if node_title or node_description:
+        search_text = node_title or node_description
+        # Get first few words to match against message content
+        search_words = search_text.lower().split()[:5]  # First 5 words
+        
+        # Find messages in the workspace that might have created this node
+        messages_cursor = database.messages.find({
+            "workspace_id": workspace_id,
+            "added_to_map": True,
+            "type": "ai"  # Only AI messages can be added to map
+        })
+        
+        # Convert cursor to list for in-memory database compatibility
+        messages_docs = []
+        if hasattr(messages_cursor, 'to_list'):
+            messages_docs = await messages_cursor.to_list(length=None)
+        else:
+            try:
+                async for msg_doc in messages_cursor:
+                    messages_docs.append(msg_doc)
+            except TypeError:
+                for msg_doc in messages_cursor:
+                    messages_docs.append(msg_doc)
+        
+        # Find the most likely message that created this node
+        best_match = None
+        best_score = 0
+        
+        for msg_doc in messages_docs:
+            msg_content = msg_doc.get("content", "").lower()
+            
+            # Calculate similarity score based on word overlap
+            msg_words = msg_content.split()[:10]  # First 10 words of message
+            overlap = len(set(search_words) & set(msg_words))
+            score = overlap / max(len(search_words), 1)
+            
+            if score > best_score and score > 0.3:  # At least 30% word overlap
+                best_score = score
+                best_match = msg_doc
+        
+        # Reset the message's added_to_map status
+        if best_match:
+            await database.messages.update_one(
+                {"_id": best_match["_id"]},
+                {"$set": {"added_to_map": False, "updated_at": datetime.utcnow()}}
+            )
+            print(f"=== NODE DELETION DEBUG ===")
+            print(f"Reset message {best_match['_id']} added_to_map status to False")
+            print(f"Match score: {best_score:.2f}")
     
     # Delete all edges connected to this node (cascade deletion)
     await database.edges.delete_many({
@@ -350,13 +388,10 @@ async def delete_node(
         ]
     })
     
-    # Delete the node (handle both string and ObjectId formats)
+    # Delete the node - use string format since that's how we store workspace_id
     result = await database.nodes.delete_one({
         "_id": ObjectId(node_id),
-        "$or": [
-            {"workspace_id": workspace_id},  # String format
-            {"workspace_id": ObjectId(workspace_id)}  # ObjectId format
-        ]
+        "workspace_id": workspace_id
     })
     
     if result.deleted_count == 0:
@@ -392,37 +427,17 @@ async def clear_all_nodes(
     # Get database instance
     database = get_database()
     
-    # Count nodes before deletion
-    node_count = await database.nodes.count_documents({
-        "$or": [
-            {"workspace_id": workspace_id},  # String format
-            {"workspace_id": ObjectId(workspace_id)}  # ObjectId format
-        ]
-    })
+    # Count nodes before deletion - use string format since that's how we store workspace_id
+    node_count = await database.nodes.count_documents({"workspace_id": workspace_id})
     
-    # Count edges before deletion
-    edge_count = await database.edges.count_documents({
-        "$or": [
-            {"workspace_id": workspace_id},  # String format
-            {"workspace_id": ObjectId(workspace_id)}  # ObjectId format
-        ]
-    })
+    # Count edges before deletion - use string format since that's how we store workspace_id
+    edge_count = await database.edges.count_documents({"workspace_id": workspace_id})
     
     # Delete all edges in the workspace first
-    await database.edges.delete_many({
-        "$or": [
-            {"workspace_id": workspace_id},  # String format
-            {"workspace_id": ObjectId(workspace_id)}  # ObjectId format
-        ]
-    })
+    await database.edges.delete_many({"workspace_id": workspace_id})
     
     # Delete all nodes in the workspace
-    await database.nodes.delete_many({
-        "$or": [
-            {"workspace_id": workspace_id},  # String format
-            {"workspace_id": ObjectId(workspace_id)}  # ObjectId format
-        ]
-    })
+    await database.nodes.delete_many({"workspace_id": workspace_id})
     
     print(f"=== CLEAR NODES DEBUG ===")
     print(f"Workspace ID: {workspace_id}")
@@ -460,13 +475,8 @@ async def auto_arrange_nodes(
     # Get database instance
     database = get_database()
     
-    # Get all nodes in the workspace
-    cursor = database.nodes.find({
-        "$or": [
-            {"workspace_id": workspace_id},  # String format
-            {"workspace_id": ObjectId(workspace_id)}  # ObjectId format
-        ]
-    })
+    # Get all nodes in the workspace - use string format since that's how we store workspace_id
+    cursor = database.nodes.find({"workspace_id": workspace_id})
     node_docs = await cursor.to_list(length=None)
     
     if not node_docs:

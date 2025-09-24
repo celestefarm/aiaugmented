@@ -43,9 +43,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       if (apiClient.isAuthenticated()) {
         console.log('Fetching current user...');
-        const currentUser = await apiClient.getCurrentUser();
-        console.log('Current user:', currentUser);
-        setUser(currentUser);
+        try {
+          const currentUser = await apiClient.getCurrentUser();
+          console.log('Current user:', currentUser);
+          setUser(currentUser);
+        } catch (error) {
+          console.error('Failed to get current user, likely due to backend restart:', error);
+          console.log('Clearing authentication and forcing re-login');
+          apiClient.clearAuth();
+          setUser(null);
+          // The API client will handle the page reload on 401 errors
+        }
       } else {
         console.log('Not authenticated, setting user to null');
         setUser(null);

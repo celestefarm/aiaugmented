@@ -488,8 +488,15 @@ class ApiClient {
         
         // Special handling for authentication errors
         if (response.status === 401) {
-          console.log('Authentication failed - clearing token');
+          console.log('Authentication failed - clearing token and forcing re-login');
           this.clearAuth();
+          
+          // Trigger a page reload to force the user back to login
+          // This handles the case where the backend was restarted and user IDs changed
+          if (typeof window !== 'undefined') {
+            console.log('Reloading page to force re-authentication');
+            window.location.reload();
+          }
         }
         
         throw new Error(errorData.detail);

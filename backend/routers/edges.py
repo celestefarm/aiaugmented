@@ -118,6 +118,13 @@ async def get_edges(
     # Convert to response models
     edges = []
     for doc in edge_docs:
+        # Convert ObjectId fields to strings for Pydantic model
+        if doc:
+            doc["_id"] = str(doc["_id"])
+            doc["workspace_id"] = str(doc["workspace_id"])
+            doc["from_node_id"] = str(doc["from_node_id"])
+            doc["to_node_id"] = str(doc["to_node_id"])
+        
         edge_in_db = EdgeInDB(**doc)
         edges.append(edge_in_db.to_response())
     
@@ -170,9 +177,9 @@ async def create_edge(
     # Create edge document
     now = datetime.utcnow()
     edge_create = EdgeCreate(
-        workspace_id=ObjectId(workspace_id),
-        from_node_id=ObjectId(edge_data.from_node_id),
-        to_node_id=ObjectId(edge_data.to_node_id),
+        workspace_id=workspace_id,  # PyObjectId expects string, not ObjectId
+        from_node_id=edge_data.from_node_id,  # PyObjectId expects string, not ObjectId
+        to_node_id=edge_data.to_node_id,  # PyObjectId expects string, not ObjectId
         type=edge_data.type,
         description=edge_data.description,
         created_at=now
@@ -184,6 +191,14 @@ async def create_edge(
     
     # Get the created edge
     edge_doc = await database.edges.find_one({"_id": edge_id})
+    
+    # Convert ObjectId fields to strings for Pydantic model
+    if edge_doc:
+        edge_doc["_id"] = str(edge_doc["_id"])
+        edge_doc["workspace_id"] = str(edge_doc["workspace_id"])
+        edge_doc["from_node_id"] = str(edge_doc["from_node_id"])
+        edge_doc["to_node_id"] = str(edge_doc["to_node_id"])
+    
     edge_in_db = EdgeInDB(**edge_doc)
     
     return edge_in_db.to_response()

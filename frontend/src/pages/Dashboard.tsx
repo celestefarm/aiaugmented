@@ -323,7 +323,7 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A] text-[#E5E7EB]">
+    <div className="min-h-screen dashboard-background text-[#E5E7EB]">
       {/* Header */}
       <header className="glass-pane sticky top-0 z-50 w-full px-6 py-4 border-b border-gray-800/50">
         <div className="flex items-center justify-between">

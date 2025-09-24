@@ -19,6 +19,7 @@ import { EnhancedNodeTooltip } from './EnhancedNodeTooltip';
 import { NodeWithTooltip } from './NodeWithTooltip';
 import { FullContextModal } from './FullContextModal';
 import { ProcessedContent } from '@/utils/tooltipContentUtils';
+import SVGEdges from './SVGEdges';
 
 interface CustomAgentData {
   name: string;
@@ -245,7 +246,8 @@ const ExplorationMap: React.FC = () => {
     agentError,
     activateAgent,
     deactivateAgent,
-    addMessageToMap
+    addMessageToMap,
+    loadMessages
   } = useAgentChat();
   
   // Use enhanced InteractionContext with new InteractionManager
@@ -270,14 +272,14 @@ const ExplorationMap: React.FC = () => {
     updateDraggedNodePosition,
     registerNodePositionUpdateCallback,
     registerTransformUpdateCallback,
-    registerNodeSelectCallback
+    registerNodeSelectCallback,
+    registerConnectionCreateCallback
   } = useInteraction();
   
   // Canvas transform state (separate from interaction state)
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
   
-  // Real-time drag position state for visual feedback
-  const [draggedNodePosition, setDraggedNodePosition] = useState<{ nodeId: string; x: number; y: number } | null>(null);
+  // Note: draggedNodePosition state removed - now using interactionState directly for better performance
   
   // UI state
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
@@ -346,17 +348,34 @@ const ExplorationMap: React.FC = () => {
     setTimeout(() => setNotification(null), 3000);
   }, []);
 
-  // Smart title processing effect
+  // Smart title processing effect with throttling and performance optimization
   useEffect(() => {
+    // PERFORMANCE FIX: Throttle smart title processing to prevent API flooding
     const processSmartTitles = async () => {
-      for (const node of nodes) {
-        const contexts: Array<'card' | 'tooltip' | 'list'> = ['card', 'tooltip', 'list'];
+      console.log('🔍 [SMART-TITLES-DEBUG] Processing smart titles for', nodes.length, 'nodes');
+      
+      // PERFORMANCE FIX: Process nodes in batches to prevent overwhelming the API
+      const BATCH_SIZE = 2; // Process 2 nodes at a time
+      const BATCH_DELAY = 500; // 500ms delay between batches
+      
+      for (let i = 0; i < nodes.length; i += BATCH_SIZE) {
+        const batch = nodes.slice(i, i + BATCH_SIZE);
         
-        for (const context of contexts) {
-          const key = `${node.id}-${context}`;
-          const cached = smartTitles[key];
+        console.log(`🔍 [SMART-TITLES-DEBUG] Processing batch ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(nodes.length/BATCH_SIZE)}`);
+        
+        // Process current batch
+        for (const node of batch) {
+          const contexts: Array<'card' | 'tooltip' | 'list'> = ['card', 'tooltip', 'list'];
           
-          if (!cached) {
+          for (const context of contexts) {
+            const key = `${node.id}-${context}`;
+            const cached = smartTitles[key];
+            
+            // PERFORMANCE FIX: Skip if already cached or processing
+            if (cached) {
+              continue;
+            }
+            
             const maxLengths = { card: 25, tooltip: 40, list: 30 };
             const maxLength = maxLengths[context];
             
@@ -369,7 +388,7 @@ const ExplorationMap: React.FC = () => {
               continue;
             }
             
-            // Check for cached summarized title
+            // Check for cached summarized title from backend
             if (node.summarized_titles && node.summarized_titles[context]) {
               const cachedTitle = node.summarized_titles[context];
               if (cachedTitle.length <= maxLength) {
@@ -389,8 +408,12 @@ const ExplorationMap: React.FC = () => {
               [key]: { title: fallbackTitle, isLoading: true }
             }));
             
-            // Fetch smart title asynchronously
+            // PERFORMANCE FIX: Add delay between API calls to prevent flooding
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Fetch smart title asynchronously with error handling
             try {
+              console.log(`🔍 [SMART-TITLES-DEBUG] Fetching smart title for node ${node.id}, context ${context}`);
               const smartTitle = await generateSmartDisplayTitle(node, context);
               
               setSmartTitles(prev => ({
@@ -406,13 +429,27 @@ const ExplorationMap: React.FC = () => {
             }
           }
         }
+        
+        // PERFORMANCE FIX: Delay between batches to prevent API overload
+        if (i + BATCH_SIZE < nodes.length) {
+          console.log(`🔍 [SMART-TITLES-DEBUG] Waiting ${BATCH_DELAY}ms before next batch...`);
+          await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
+        }
       }
+      
+      console.log('🔍 [SMART-TITLES-DEBUG] Smart title processing completed');
     };
     
+    // PERFORMANCE FIX: Only process if we have nodes and avoid duplicate processing
     if (nodes.length > 0) {
-      processSmartTitles();
+      // Debounce the processing to avoid multiple rapid calls
+      const timeoutId = setTimeout(() => {
+        processSmartTitles();
+      }, 300); // 300ms debounce
+      
+      return () => clearTimeout(timeoutId);
     }
-  }, [nodes]);
+  }, [nodes.length]); // PERFORMANCE FIX: Only depend on nodes.length, not the entire nodes array
 
   // Helper function to get smart title
   const getSmartTitle = useCallback((node: Node, context: 'card' | 'tooltip' | 'list' = 'card') => {
@@ -529,11 +566,22 @@ const ExplorationMap: React.FC = () => {
       setSelectedNode(null);
       setFocusedNode(null);
       showNotification(`Deleted node: ${node.title}`);
+      
+      // CRITICAL FIX: Refresh chat messages to update "Added to map" labels
+      // The backend automatically resets the message's added_to_map status when a node is deleted
+      // We need to refresh the frontend chat state to reflect this change
+      try {
+        await loadMessages();
+        console.log('✅ Chat messages refreshed after node deletion');
+      } catch (refreshError) {
+        console.warn('Failed to refresh chat messages after node deletion:', refreshError);
+        // Don't fail the whole operation if message refresh fails
+      }
     } catch (error) {
       console.error('Failed to delete node:', error);
       showNotification('Failed to delete node');
     }
-  }, [nodes, saveToHistory, showNotification, deleteNodeAPI]);
+  }, [nodes, saveToHistory, showNotification, deleteNodeAPI, loadMessages]);
 
   // Delete edge
   const deleteEdge = useCallback(async (edgeId: string) => {
@@ -552,9 +600,17 @@ const ExplorationMap: React.FC = () => {
 
   // Create connection between nodes
   const createConnection = useCallback(async (fromId: string, toId: string, type: Edge['type'] = 'support') => {
+    console.log('🔗 [CONNECTION-DEBUG] createConnection function called', {
+      fromId,
+      toId,
+      type,
+      timestamp: new Date().toISOString()
+    });
+    
     try {
       // Prevent self-connections
       if (fromId === toId) {
+        console.log('🔗 [CONNECTION-DEBUG] ❌ Self-connection prevented');
         showNotification('Cannot connect node to itself');
         return null;
       }
@@ -564,6 +620,7 @@ const ExplorationMap: React.FC = () => {
         (e.from_node_id === fromId && e.to_node_id === toId) || (e.from_node_id === toId && e.to_node_id === fromId)
       );
       if (existingConnection) {
+        console.log('🔗 [CONNECTION-DEBUG] ❌ Duplicate connection prevented:', existingConnection);
         showNotification('Connection already exists');
         return null;
       }
@@ -571,7 +628,14 @@ const ExplorationMap: React.FC = () => {
       const fromNode = nodes.find(n => n.id === fromId);
       const toNode = nodes.find(n => n.id === toId);
       
+      console.log('🔗 [CONNECTION-DEBUG] Node lookup results:', {
+        fromNode: fromNode ? { id: fromNode.id, title: fromNode.title } : null,
+        toNode: toNode ? { id: toNode.id, title: toNode.title } : null,
+        totalNodes: nodes.length
+      });
+      
       if (!fromNode || !toNode) {
+        console.log('🔗 [CONNECTION-DEBUG] ❌ Invalid nodes for connection');
         showNotification('Invalid nodes for connection');
         return null;
       }
@@ -583,14 +647,23 @@ const ExplorationMap: React.FC = () => {
         description: `Connection from ${fromNode.title} to ${toNode.title}`
       };
       
+      console.log('🔗 [CONNECTION-DEBUG] Edge data prepared:', edgeData);
+      console.log('🔗 [CONNECTION-DEBUG] Saving to history...');
       saveToHistory();
+      
+      console.log('🔗 [CONNECTION-DEBUG] Calling createEdgeAPI...');
       const newEdge = await createEdgeAPI(edgeData);
+      
       if (newEdge) {
+        console.log('🔗 [CONNECTION-DEBUG] ✅ Edge created successfully:', newEdge);
         showNotification(`Connected ${fromNode.title} to ${toNode.title}`);
+      } else {
+        console.log('🔗 [CONNECTION-DEBUG] ❌ createEdgeAPI returned null/undefined');
       }
+      
       return newEdge;
     } catch (error) {
-      console.error('Failed to create connection:', error);
+      console.error('🔗 [CONNECTION-DEBUG] ❌ createConnection failed with error:', error);
       showNotification('Failed to create connection');
       return null;
     }
@@ -644,17 +717,9 @@ const ExplorationMap: React.FC = () => {
 
   // Legacy mouse handlers - now simplified since InteractionManager handles most logic
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    // Only handle connection preview for legacy compatibility
-    if (interactionState.state === 'CONNECTING') {
-      updateConnectionPreview(e);
-    }
-  }, [interactionState]);
-
-  // Update connection preview (legacy)
-  const updateConnectionPreview = useCallback((e: React.MouseEvent) => {
-    const canvasPos = screenToCanvas(e.clientX, e.clientY);
-    setConnectionPreview(canvasPos);
-  }, [screenToCanvas]);
+    // InteractionManager now handles all mouse movement logic
+    // No legacy connection preview needed
+  }, []);
 
   // Simplified mouse up handler
   const handleMouseUp = useCallback(async (e: React.MouseEvent) => {
@@ -764,13 +829,10 @@ const ExplorationMap: React.FC = () => {
         await updateNodeAPI(nodeId, updateData);
         showNotification(`Moved ${node.title}`);
         
-        // Clean up dragged position state after successful persistence
-        setDraggedNodePosition(null);
+        // Note: draggedNodePosition state removed - no cleanup needed
       } catch (error) {
         console.error('Failed to update node position:', error);
         showNotification('Failed to update node position');
-        // Clean up dragged position state even on error
-        setDraggedNodePosition(null);
       }
     });
 
@@ -786,79 +848,36 @@ const ExplorationMap: React.FC = () => {
       setSelectedNode(nodeId);
       setFocusedNode(nodeId);
     });
+
+    // Register connection create callback
+    registerConnectionCreateCallback(async (fromNodeId: string, toNodeId: string) => {
+      console.log('🔗 [CONNECTION-DEBUG] ExplorationMap connection create callback triggered!', {
+        fromNodeId,
+        toNodeId,
+        timestamp: new Date().toISOString()
+      });
+      
+      console.log('🔗 [CONNECTION-DEBUG] About to call createConnection function...');
+      try {
+        const result = await createConnection(fromNodeId, toNodeId);
+        console.log('🔗 [CONNECTION-DEBUG] createConnection completed successfully:', result);
+      } catch (error) {
+        console.error('🔗 [CONNECTION-DEBUG] createConnection failed:', error);
+        throw error;
+      }
+    });
   }, [
     registerNodePositionUpdateCallback,
     registerTransformUpdateCallback,
     registerNodeSelectCallback,
+    registerConnectionCreateCallback,
     nodes,
     updateNodeAPI,
-    showNotification
+    showNotification,
+    createConnection
   ]);
 
-  // Register real-time drag position update callback
-  useEffect(() => {
-    if (interactionManager) {
-      // Register callback for real-time drag position updates
-      const handleDragPositionUpdate = (nodeId: string, position: { x: number; y: number }) => {
-        console.log('🔄 [ExplorationMap] Real-time drag position update:', nodeId, position);
-        setDraggedNodePosition({ nodeId, x: position.x, y: position.y });
-      };
-
-      // Register callback for drag end cleanup
-      const handleDragEnd = () => {
-        console.log('🔄 [ExplorationMap] Drag ended, cleaning up position state');
-        setDraggedNodePosition(null);
-      };
-
-      // Note: These would need to be implemented in InteractionManager
-      // For now, we'll handle this through the existing interaction state
-    }
-  }, [interactionManager]);
-
-  // Monitor interaction state changes for drag position updates
-  useEffect(() => {
-    console.log('🎯 [POSITION-UPDATE] useEffect triggered for drag position updates');
-    console.log('🎯 [POSITION-UPDATE] Current interaction state:', {
-      state: interactionState.state,
-      draggedNodeId: interactionState.data.draggedNodeId,
-      dragOffset: interactionState.data.dragOffset,
-      dragCurrentPosition: interactionState.data.dragCurrentPosition,
-      dragStartPosition: interactionState.data.dragStartPosition
-    });
-    console.log('🎯 [POSITION-UPDATE] Current draggedNodePosition state:', draggedNodePosition);
-    
-    if (interactionState.state === 'DRAGGING_NODE' && interactionState.data.draggedNodeId) {
-      const { draggedNodeId, dragOffset, dragCurrentPosition } = interactionState.data;
-      
-      console.log('🎯 [POSITION-UPDATE] Processing drag state:', {
-        draggedNodeId,
-        hasDragOffset: !!dragOffset,
-        hasDragCurrentPosition: !!dragCurrentPosition,
-        dragOffsetValue: dragOffset,
-        dragCurrentPositionValue: dragCurrentPosition
-      });
-      
-      if (dragCurrentPosition && dragOffset) {
-        // Calculate real-time position during drag
-        const canvasPos = screenToCanvas(dragCurrentPosition.x, dragCurrentPosition.y);
-        const realTimePosition = {
-          x: canvasPos.x - dragOffset.x,
-          y: canvasPos.y - dragOffset.y
-        };
-        
-        setDraggedNodePosition({
-          nodeId: draggedNodeId,
-          x: realTimePosition.x,
-          y: realTimePosition.y
-        });
-      }
-    } else if (interactionState.state === 'IDLE') {
-      // Clean up drag position when returning to idle
-      if (draggedNodePosition) {
-        setDraggedNodePosition(null);
-      }
-    }
-  }, [interactionState, screenToCanvas, draggedNodePosition]);
+  // Note: Real-time drag position management removed - now handled directly in SVGEdges
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -910,13 +929,18 @@ const ExplorationMap: React.FC = () => {
           case 'c':
           case 'C':
             e.preventDefault();
+            console.log('🔗 [CONNECTION-FIX] Keyboard shortcut C pressed!', {
+              currentState: interactionState.state,
+              timestamp: new Date().toISOString()
+            });
             if (interactionState.state === 'CONNECTING') {
-              transitionToIdle();
-              setConnectionPreview(null);
+              console.log('🔗 [CONNECTION-FIX] Cancelling connection mode via keyboard...');
+              cancelInteraction();
               showNotification('Cancelled connection mode');
             } else if (interactionState.state === 'IDLE') {
-              transitionToConnecting();
-              showNotification('Connection mode activated - Ctrl+click nodes to connect');
+              console.log('🔗 [CONNECTION-FIX] ✅ FIXED: Using startConnecting() for keyboard shortcut');
+              startConnecting();
+              showNotification('Connection mode activated - Click a node and drag to connect');
             }
             break;
           case 'Delete':
@@ -929,8 +953,7 @@ const ExplorationMap: React.FC = () => {
           case 'Escape':
             e.preventDefault();
             // Cancel any active interaction and return to IDLE
-            transitionToIdle();
-            setConnectionPreview(null);
+            cancelInteraction();
             setSelectedNode(null);
             setShowContextMenu(null);
             showNotification('Operation cancelled');
@@ -967,19 +990,11 @@ const ExplorationMap: React.FC = () => {
     }
   }, [handleCanvasMouseDown, handleNodeMouseDown, nodes]);
 
-  // Handle connection target selection
+  // Legacy connection target handler - now handled by InteractionManager
   const handleConnectionTarget = useCallback((nodeId: string) => {
-    const { connectionStart } = interactionState.data;
-    
-    if (connectionStart && connectionStart !== nodeId) {
-      createConnection(connectionStart, nodeId);
-      transitionToIdle();
-      setConnectionPreview(null);
-    } else if (!connectionStart) {
-      transitionToConnecting(nodeId);
-      showNotification('Click another node to create connection');
-    }
-  }, [interactionState, createConnection, transitionToIdle, transitionToConnecting, showNotification]);
+    // This function is kept for compatibility but InteractionManager now handles all connection logic
+    console.log('🔗 [CONNECTION-DEBUG] Legacy handleConnectionTarget called - should not be used');
+  }, []);
 
   // Remove the old handleCanvasMouseDown since it's now provided by InteractionContext
   // The InteractionContext handleCanvasMouseDown will be used directly
@@ -1226,10 +1241,10 @@ const handleModalClose = useCallback(() => {
     switch (type) {
       case 'support':
         return {
-          stroke: `rgba(34, 197, 94, ${baseOpacity})`,
+          stroke: `rgba(156, 163, 175, ${baseOpacity})`,
           strokeWidth,
           strokeDasharray: 'none',
-          filter: strength && strength > 0.8 ? 'drop-shadow(0 0 4px rgba(34, 197, 94, 0.5))' : 'none'
+          filter: strength && strength > 0.8 ? 'drop-shadow(0 0 4px rgba(156, 163, 175, 0.5))' : 'none'
         };
       case 'contradiction':
         return {
@@ -1764,13 +1779,19 @@ const handleModalClose = useCallback(() => {
               <TooltipTrigger asChild>
                 <button
                   onClick={() => {
+                    console.log('🔗 [CONNECTION-FIX] Connect Nodes button clicked!', {
+                      currentState: interactionState.state,
+                      timestamp: new Date().toISOString()
+                    });
+                    
                     if (interactionState.state === 'CONNECTING') {
-                      transitionToIdle();
-                      setConnectionPreview(null);
+                      console.log('🔗 [CONNECTION-FIX] Cancelling connection mode...');
+                      cancelInteraction();
                       showNotification('Cancelled connection mode');
                     } else if (interactionState.state === 'IDLE') {
-                      transitionToConnecting();
-                      showNotification('Connection mode activated - Ctrl+click nodes to connect');
+                      console.log('🔗 [CONNECTION-FIX] ✅ FIXED: Using startConnecting() for drag-to-connect');
+                      startConnecting();
+                      showNotification('Connection mode activated - Click a node and drag to connect');
                     }
                   }}
                   className={`glass-pane px-4 py-2 text-sm font-medium transition-colors flex items-center space-x-2 ${
@@ -1784,7 +1805,7 @@ const handleModalClose = useCallback(() => {
                   <span>{interactionState.state === 'CONNECTING' ? 'Cancel Connection' : 'Connect Nodes'}</span>
                 </button>
               </TooltipTrigger>
-              <TooltipContent>Connect Nodes (C) - Ctrl+click to connect</TooltipContent>
+              <TooltipContent>Connect Nodes (C) - Click node and drag to connect</TooltipContent>
             </Tooltip>
 
 
@@ -1892,7 +1913,7 @@ const handleModalClose = useCallback(() => {
           {/* Connection creation hint */}
           {interactionState.state === 'CONNECTING' && (
             <div className="absolute top-36 left-1/2 transform -translate-x-1/2 glass-pane px-4 py-2 text-sm text-[#6B6B3A] z-40">
-              {interactionState.data.connectionStart ? 'Ctrl+click another node to create connection' : 'Ctrl+click a node to start connection'}
+              Click a node and drag to another node to create connection
             </div>
           )}
 
@@ -1928,7 +1949,7 @@ const handleModalClose = useCallback(() => {
               }}
             />
 
-            {/* SVG Layer for Edges - FIXED */}
+            {/* SVG Layer for Edges - OPTIMIZED with separate memoized component */}
             <svg
               className="absolute pointer-events-none"
               style={{
@@ -1939,59 +1960,181 @@ const handleModalClose = useCallback(() => {
                 zIndex: 10
               }}
             >
-              {/* Existing edges */}
-              {edges.map(edge => {
-                const fromNode = nodes.find(n => n.id === edge.from_node_id);
-                const toNode = nodes.find(n => n.id === edge.to_node_id);
-                if (!fromNode || !toNode) return null;
+              {/* Memoized SVG Edges Component for real-time updates */}
+              <SVGEdges
+                nodes={nodes}
+                edges={edges}
+                getEdgeStyle={getEdgeStyle}
+                onDeleteEdge={deleteEdge}
+                NODE_WIDTH={NODE_WIDTH}
+                NODE_HEIGHT={NODE_HEIGHT}
+                interactionState={interactionState}
+                screenToCanvas={screenToCanvas}
+              />
 
-                const style = getEdgeStyle(edge.type);
-                const fromX = fromNode.x + NODE_WIDTH / 2 + 2000;
-                const fromY = fromNode.y + NODE_HEIGHT / 2 + 2000;
-                const toX = toNode.x + NODE_WIDTH / 2 + 2000;
-                const toY = toNode.y + NODE_HEIGHT / 2 + 2000;
-
-                return (
-                  <g key={edge.id}>
-                    <line
-                      x1={fromX}
-                      y1={fromY}
-                      x2={toX}
-                      y2={toY}
-                      {...style}
-                      className="transition-all duration-200 cursor-pointer hover:stroke-opacity-80 pointer-events-auto"
-                      onClick={() => deleteEdge(edge.id)}
-                    />
-                    {/* Arrow marker */}
-                    <polygon
-                      points={`${toX-8},${toY-4} ${toX},${toY} ${toX-8},${toY+4}`}
-                      fill={style.stroke}
-                      opacity="0.7"
-                    />
-                  </g>
-                );
-              })}
-
-              {/* Connection preview line */}
-              {interactionState.state === 'CONNECTING' && interactionState.data.connectionStart && connectionPreview && (
+              {/* Connection drag preview line - kept in main component for interaction state access */}
+              {interactionState.state === 'DRAGGING_CONNECTION' && interactionState.data.connectionDragContext && (
                 (() => {
-                  const startNode = nodes.find(n => n.id === interactionState.data.connectionStart);
-                  if (!startNode) return null;
+                  const dragContext = interactionState.data.connectionDragContext;
+                  if (!dragContext.isActive) return null;
                   
-                  const fromX = startNode.x + NODE_WIDTH / 2 + 2000;
-                  const fromY = startNode.y + NODE_HEIGHT / 2 + 2000;
+                  // FIXED: Check for target node under cursor for snapping
+                  let targetNodeCenter = null;
+                  const allNodeElements = document.querySelectorAll('[id^="node-"]');
+                  for (const nodeEl of allNodeElements) {
+                    const rect = nodeEl.getBoundingClientRect();
+                    const isHovering = dragContext.currentPosition.x >= rect.left &&
+                                     dragContext.currentPosition.x <= rect.right &&
+                                     dragContext.currentPosition.y >= rect.top &&
+                                     dragContext.currentPosition.y <= rect.bottom;
+                    
+                    if (isHovering && nodeEl.id !== `node-${dragContext.startNodeId}`) {
+                      targetNodeCenter = {
+                        x: rect.left + rect.width / 2,
+                        y: rect.top + rect.height / 2
+                      };
+                      console.log('🔗 [CONNECTION-SNAP] Snapping to target node:', nodeEl.id);
+                      break;
+                    }
+                  }
+                  
+                  // DIAGNOSTIC: Enhanced coordinate transformation debugging
+                  console.log('🔗 [COORDINATE-DEBUG] Raw coordinate data:', {
+                    startPosition: dragContext.startPosition,
+                    currentPosition: dragContext.currentPosition,
+                    targetNodeCenter,
+                    canvasTransform: transform,
+                    svgOffset: 2000,
+                    canvasRect: canvasRef.current?.getBoundingClientRect()
+                  });
+                  
+                  // DIAGNOSTIC: Test different coordinate transformation approaches
+                  const approaches = {
+                    // Transform-aware approach (CORRECT)
+                    transformAware: (() => {
+                      const canvasRect = canvasRef.current?.getBoundingClientRect();
+                      if (!canvasRect) return null;
+                      
+                      // Convert screen coordinates to canvas coordinates, then to SVG space
+                      const startCanvasX = (dragContext.startPosition.x - canvasRect.left - transform.x) / transform.scale;
+                      const startCanvasY = (dragContext.startPosition.y - canvasRect.top - transform.y) / transform.scale;
+                      
+                      // Use target node center if snapping, otherwise use cursor position
+                      const endScreenPos = targetNodeCenter || dragContext.currentPosition;
+                      const endCanvasX = (endScreenPos.x - canvasRect.left - transform.x) / transform.scale;
+                      const endCanvasY = (endScreenPos.y - canvasRect.top - transform.y) / transform.scale;
+                      
+                      return {
+                        startX: startCanvasX + 2000,
+                        startY: startCanvasY + 2000,
+                        endX: endCanvasX + 2000,
+                        endY: endCanvasY + 2000
+                      };
+                    })(),
+                    // Canvas-relative approach (FALLBACK)
+                    canvasRelative: (() => {
+                      const canvasRect = canvasRef.current?.getBoundingClientRect();
+                      if (!canvasRect) return null;
+                      
+                      const startCanvasX = dragContext.startPosition.x - canvasRect.left;
+                      const startCanvasY = dragContext.startPosition.y - canvasRect.top;
+                      
+                      const endScreenPos = targetNodeCenter || dragContext.currentPosition;
+                      const endCanvasX = endScreenPos.x - canvasRect.left;
+                      const endCanvasY = endScreenPos.y - canvasRect.top;
+                      
+                      return {
+                        startX: startCanvasX + 2000,
+                        startY: startCanvasY + 2000,
+                        endX: endCanvasX + 2000,
+                        endY: endCanvasY + 2000
+                      };
+                    })(),
+                    // Current approach (LEGACY)
+                    current: {
+                      startX: dragContext.startPosition.x + 2000,
+                      startY: dragContext.startPosition.y + 2000,
+                      endX: (targetNodeCenter || dragContext.currentPosition).x + 2000,
+                      endY: (targetNodeCenter || dragContext.currentPosition).y + 2000
+                    }
+                  };
+                  
+                  console.log('🔗 [COORDINATE-DEBUG] Coordinate transformation approaches:', approaches);
+                  
+                  // FIXED: Use the correct coordinate transformation approach
+                  // The SVG coordinate system needs canvas coordinates + 2000px offset
+                  let startX, startY, endX, endY;
+                  
+                  if (approaches.transformAware) {
+                    // Use transform-aware approach for proper coordinate handling
+                    startX = approaches.transformAware.startX;
+                    startY = approaches.transformAware.startY;
+                    endX = approaches.transformAware.endX;
+                    endY = approaches.transformAware.endY;
+                    console.log('🔗 [CONNECTION-FIX] Using transform-aware coordinates');
+                  } else if (approaches.canvasRelative) {
+                    // Fallback to canvas-relative approach
+                    startX = approaches.canvasRelative.startX;
+                    startY = approaches.canvasRelative.startY;
+                    endX = approaches.canvasRelative.endX;
+                    endY = approaches.canvasRelative.endY;
+                    console.log('🔗 [CONNECTION-FIX] Using canvas-relative coordinates');
+                  } else {
+                    // Last resort: use current approach
+                    startX = approaches.current.startX;
+                    startY = approaches.current.startY;
+                    endX = approaches.current.endX;
+                    endY = approaches.current.endY;
+                    console.log('🔗 [CONNECTION-FIX] Using current approach (may be misaligned)');
+                  }
+                  
+                  console.log('🔗 [CONNECTION-FIX] Final corrected coordinates:', {
+                    startX, startY, endX, endY,
+                    lineLength: Math.sqrt((endX - startX) ** 2 + (endY - startY) ** 2),
+                    coordinateSystem: 'SVG space (canvas coords + 2000px offset)'
+                  });
                   
                   return (
-                    <line
-                      x1={fromX}
-                      y1={fromY}
-                      x2={connectionPreview.x + 2000}
-                      y2={connectionPreview.y + 2000}
-                      stroke="rgba(107, 107, 58, 0.6)"
-                      strokeWidth={2}
-                      strokeDasharray="4,4"
-                      className="pointer-events-none"
-                    />
+                    <g key="connection-drag-preview">
+                      {/* FIXED: Connection line with proper coordinates and snapping feedback */}
+                      <line
+                        x1={startX}
+                        y1={startY}
+                        x2={endX}
+                        y2={endY}
+                        stroke={targetNodeCenter ? "rgba(156, 163, 175, 1.0)" : "rgba(156, 163, 175, 0.8)"}
+                        strokeWidth={targetNodeCenter ? 3 : 2.5}
+                        strokeLinecap="round"
+                        className="pointer-events-none"
+                        style={{
+                          filter: targetNodeCenter
+                            ? 'drop-shadow(0 0 6px rgba(156, 163, 175, 0.6))'
+                            : 'drop-shadow(0 0 3px rgba(156, 163, 175, 0.4))',
+                          transition: 'all 0.1s ease-out'
+                        }}
+                      />
+                      {/* FIXED: Arrow marker with proper coordinates and snapping feedback */}
+                      <polygon
+                        points={`${endX-8},${endY-4} ${endX},${endY} ${endX-8},${endY+4}`}
+                        fill={targetNodeCenter ? "rgba(156, 163, 175, 1.0)" : "rgba(156, 163, 175, 0.9)"}
+                        className="pointer-events-none"
+                        style={{
+                          transition: 'all 0.1s ease-out'
+                        }}
+                      />
+                      {/* FIXED: Target node highlight when snapping */}
+                      {targetNodeCenter && (
+                        <circle
+                          cx={endX}
+                          cy={endY}
+                          r="12"
+                          fill="none"
+                          stroke="rgba(156, 163, 175, 0.6)"
+                          strokeWidth="2"
+                          className="pointer-events-none animate-pulse"
+                        />
+                      )}
+                    </g>
                   );
                 })()
               )}

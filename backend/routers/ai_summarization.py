@@ -201,7 +201,7 @@ async def generate_executive_summary(
         
         # Verify workspace access
         workspace_doc = await database.workspaces.find_one({
-            "_id": ObjectId(node_doc["workspace_id"]),
+            "_id": node_doc["workspace_id"],  # Use string format for consistency
             "owner_id": current_user.id
         })
         
@@ -228,11 +228,28 @@ async def generate_executive_summary(
         related_messages = []
         if request.include_related_messages:
             # Find messages related to this node
+            # Use simple find without cursor methods for in-memory database compatibility
+            messages_docs = []
             messages_cursor = database.messages.find({
-                "workspace_id": ObjectId(node_doc["workspace_id"])
-            }).sort("created_at", -1).limit(20)  # Last 20 messages
+                "workspace_id": node_doc["workspace_id"]  # Use string format for consistency
+            })
             
-            messages_docs = await messages_cursor.to_list(length=20)
+            # Convert cursor to list for in-memory database compatibility
+            if hasattr(messages_cursor, 'to_list'):
+                # MongoDB-style cursor
+                messages_docs = await messages_cursor.to_list(length=None)
+            else:
+                # In-memory database - iterate manually
+                try:
+                    async for msg_doc in messages_cursor:
+                        messages_docs.append(msg_doc)
+                except TypeError:
+                    # Fallback for non-async cursor
+                    for msg_doc in messages_cursor:
+                        messages_docs.append(msg_doc)
+            
+            # Sort by created_at (most recent first) and limit to 20
+            messages_docs = sorted(messages_docs, key=lambda x: x.get('created_at', ''), reverse=True)[:20]
             
             # Filter for related messages
             node_title_words = node_context['title'].lower().split()[:3]  # First 3 words

@@ -34,13 +34,21 @@ export interface NodeInteractionContext {
   isEditable: boolean;
 }
 
-export type InteractionMode = 'IDLE' | 'DRAGGING_NODE' | 'PANNING' | 'CONNECTING' | 'CREATING_NODE';
+export interface ConnectionDragContext {
+  startNodeId: string;
+  startPosition: Point;
+  currentPosition: Point;
+  isActive: boolean;
+}
+
+export type InteractionMode = 'IDLE' | 'DRAGGING_NODE' | 'PANNING' | 'CONNECTING' | 'DRAGGING_CONNECTION' | 'CREATING_NODE';
 
 export class InteractionManager {
   private mode: InteractionMode = 'IDLE';
   private dragContext: DragContext | null = null;
   private panContext: PanContext | null = null;
   private connectionStart: string | null = null;
+  private connectionDragContext: ConnectionDragContext | null = null;
   private currentTransform: Transform = { x: 0, y: 0, scale: 1 };
   
   // IMMEDIATE RESPONSE: Simplified timing and animation management
@@ -86,17 +94,20 @@ export class InteractionManager {
   private onTransformUpdate?: (transform: Transform) => void;
   private onStateChange?: (mode: InteractionMode, data: any) => void;
   private onNodeSelect?: (nodeId: string) => void;
+  private onConnectionCreate?: (fromNodeId: string, toNodeId: string) => void;
   
   constructor(
     onNodePositionUpdate?: (nodeId: string, position: Point) => void,
     onTransformUpdate?: (transform: Transform) => void,
     onStateChange?: (mode: InteractionMode, data: any) => void,
-    onNodeSelect?: (nodeId: string) => void
+    onNodeSelect?: (nodeId: string) => void,
+    onConnectionCreate?: (fromNodeId: string, toNodeId: string) => void
   ) {
     this.onNodePositionUpdate = onNodePositionUpdate;
     this.onTransformUpdate = onTransformUpdate;
     this.onStateChange = onStateChange;
     this.onNodeSelect = onNodeSelect;
+    this.onConnectionCreate = onConnectionCreate;
   }
   
   // Update current transform for coordinate calculations
@@ -151,10 +162,27 @@ export class InteractionManager {
         break;
         
       case 'CONNECTING':
+        console.log('🔗 [CONNECTION-DEBUG] CONNECTING mode - handling mouse down', {
+          target,
+          nodeId,
+          hasNodeId: !!nodeId,
+          eventType: event.type,
+          clientX: event.clientX,
+          clientY: event.clientY
+        });
+        
         if (target === 'node' && nodeId) {
           event.preventDefault();
           event.stopPropagation();
-          this.handleConnectionClick(nodeId);
+          console.log('🔗 [CONNECTION-DEBUG] Starting drag-to-connect from node:', nodeId);
+          // Start drag-to-connect from this node
+          this.startConnectionDrag(event, nodeId);
+        } else if (target === 'canvas') {
+          console.log('🔗 [CONNECTION-DEBUG] Canvas clicked in CONNECTING mode - cancelling');
+          // Cancel connection mode if clicking on canvas
+          this.cancelInteraction();
+        } else {
+          console.log('🔗 [CONNECTION-DEBUG] Unexpected target in CONNECTING mode:', { target, nodeId });
         }
         break;
         
@@ -206,6 +234,10 @@ export class InteractionManager {
         this.updateCanvasPanHybridSmooth(currentPos);
         break;
         
+      case 'DRAGGING_CONNECTION':
+        this.updateConnectionDrag(currentPos);
+        break;
+        
       default:
         // Clear any animation frames when not in active mode
         this.clearAnimationFrames();
@@ -230,6 +262,11 @@ export class InteractionManager {
       case 'PANNING':
         console.log('🔍 [InteractionManager] Processing PANNING mouse up');
         this.endCanvasPan();
+        break;
+        
+      case 'DRAGGING_CONNECTION':
+        console.log('🔍 [InteractionManager] Processing DRAGGING_CONNECTION mouse up');
+        this.endConnectionDrag(event);
         break;
         
       default:
@@ -430,8 +467,14 @@ export class InteractionManager {
     this.animationFrameId = requestAnimationFrame(() => {
       const nodeElement = document.getElementById(`node-${this.dragContext?.nodeId}`);
       if (nodeElement && this.dragContext) {
-        // Use transform translate for smooth visual movement during drag
-        nodeElement.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(1.05)`;
+        // CRITICAL FIX: Use the same coordinate system as React during drag
+        // Instead of transform translate, update left/top directly to match React's positioning
+        const newScreenX = this.dragContext.initialNodePosition.x * this.currentTransform.scale + this.currentTransform.x + deltaX;
+        const newScreenY = this.dragContext.initialNodePosition.y * this.currentTransform.scale + this.currentTransform.y + deltaY;
+        
+        nodeElement.style.left = `${newScreenX}px`;
+        nodeElement.style.top = `${newScreenY}px`;
+        nodeElement.style.transform = 'scale(1.05)'; // Only scale, no translate
         nodeElement.style.zIndex = '1000';
         nodeElement.style.opacity = '0.9';
         nodeElement.style.cursor = 'grabbing';
@@ -449,12 +492,30 @@ export class InteractionManager {
     if (timeSinceLastBackendUpdate >= this.backendUpdateInterval) {
       this.lastBackendUpdate = timestamp;
       
+      // DIAGNOSTIC: Log all backend update attempts to identify excessive calls
+      console.log('🔍 [PERFORMANCE-DEBUG] Backend update triggered:', {
+        nodeId: this.dragContext.nodeId,
+        newCanvasPosition,
+        updateInterval: `${timeSinceLastBackendUpdate.toFixed(2)}ms`,
+        mouseMoveCount: this.mouseMoveCount,
+        timestamp: new Date().toISOString()
+      });
+      
       // Only log every few backend updates to reduce console spam
       if (this.mouseMoveCount % 20 === 0) {
         console.log('⚡ [IMMEDIATE-RESPONSE] Backend update:', {
           nodeId: this.dragContext.nodeId,
           newCanvasPosition,
           updateInterval: `${timeSinceLastBackendUpdate.toFixed(2)}ms`
+        });
+      }
+    } else {
+      // DIAGNOSTIC: Log throttled updates to see if throttling is working
+      if (this.mouseMoveCount % 50 === 0) {
+        console.log('🚫 [THROTTLE-DEBUG] Backend update throttled:', {
+          nodeId: this.dragContext.nodeId,
+          timeSinceLastUpdate: `${timeSinceLastBackendUpdate.toFixed(2)}ms`,
+          throttleInterval: this.backendUpdateInterval
         });
       }
     }
@@ -466,12 +527,13 @@ export class InteractionManager {
     const dragEndTime = performance.now();
     const totalDragDuration = dragEndTime - this.dragStartTime;
     
-    console.log('🎯 [DIAGNOSTIC] Ending node drag with full analysis', {
+    console.log('🚨 [JUMP-DEBUG] 🎯 DRAG END - CRITICAL JUMP POINT', {
       nodeId: this.dragContext.nodeId,
       totalDragDuration: `${totalDragDuration.toFixed(2)}ms`,
       totalMouseMoves: this.mouseMoveCount,
       averageFrequency: this.mouseMoveCount > 0 ? `${(this.mouseMoveCount / (totalDragDuration / 1000)).toFixed(1)}Hz` : 'N/A',
-      coordinateHistory: this.coordinateHistory.slice(-3)
+      coordinateHistory: this.coordinateHistory.slice(-3),
+      timestamp: new Date().toISOString()
     });
     
     // Use the real-time canvas position for accuracy
@@ -486,21 +548,27 @@ export class InteractionManager {
       y: finalCanvasPosition.y * this.currentTransform.scale + this.currentTransform.y
     };
     
-    // Set the exact final position immediately to prevent jumping
+    // JUMP FIX: Set the exact final position immediately to prevent jumping
     const nodeElement = document.getElementById(`node-${this.dragContext.nodeId}`);
     if (nodeElement) {
-      console.log('🔧 [InteractionManager] Setting final position immediately', {
+      console.log('🚨 [JUMP-DEBUG] 🔧 SETTING FINAL DOM POSITION - CRITICAL MOMENT', {
         nodeId: this.dragContext.nodeId,
         finalCanvasPosition,
         finalScreenPosition,
-        currentTransform: this.currentTransform
+        currentTransform: this.currentTransform,
+        beforeDOMStyles: {
+          left: nodeElement.style.left,
+          top: nodeElement.style.top,
+          transform: nodeElement.style.transform
+        },
+        timestamp: new Date().toISOString()
       });
       
-      // Set final position immediately using the same formula as React
+      // JUMP FIX: Set final position immediately using the same formula as React
       nodeElement.style.left = `${finalScreenPosition.x}px`;
       nodeElement.style.top = `${finalScreenPosition.y}px`;
       
-      // Reset drag-specific styling
+      // JUMP FIX: Reset drag-specific styling immediately
       nodeElement.style.transform = '';
       nodeElement.style.transition = '';
       nodeElement.style.zIndex = '20';
@@ -514,7 +582,19 @@ export class InteractionManager {
       // Reset body cursor
       document.body.style.cursor = '';
       
-      console.log('✅ [InteractionManager] Final position set immediately to prevent jumping');
+      // CRITICAL FIX: Force a synchronous layout calculation to ensure DOM is updated
+      // This prevents SVGEdges from reading stale positions during the transition
+      nodeElement.offsetHeight; // Force reflow
+      
+      console.log('🚨 [JUMP-DEBUG] ✅ FINAL DOM POSITION SET WITH FORCED REFLOW', {
+        afterDOMStyles: {
+          left: nodeElement.style.left,
+          top: nodeElement.style.top,
+          transform: nodeElement.style.transform
+        },
+        boundingRect: nodeElement.getBoundingClientRect(),
+        timestamp: new Date().toISOString()
+      });
     }
     
     console.log('🎯 [InteractionManager] Node drag completed', {
@@ -545,11 +625,17 @@ export class InteractionManager {
     
     this.onStateChange?.(this.mode, null);
     
-    // Delay React state update to allow our DOM positioning to stick
-    setTimeout(() => {
-      console.log('🔧 [InteractionManager] Updating React state after DOM positioning is stable');
-      this.onNodePositionUpdate?.(nodeId, finalCanvasPosition);
-    }, 100);
+    // FLICKER FIX: Remove requestAnimationFrame delay that causes synchronization gap
+    console.log('🚨 [FLICKER-DEBUG] 🔧 TRIGGERING REACT STATE UPDATE - IMMEDIATE SYNC (NO DELAY)', {
+      nodeId,
+      finalCanvasPosition,
+      timestamp: new Date().toISOString(),
+      dragDuration: `${totalDragDuration.toFixed(2)}ms`,
+      syncMethod: 'immediate (no requestAnimationFrame delay)'
+    });
+    
+    // FLICKER FIX: Call immediately without requestAnimationFrame to prevent timing gap
+    this.onNodePositionUpdate?.(nodeId, finalCanvasPosition);
   }
   
   // Canvas panning methods
@@ -638,6 +724,279 @@ export class InteractionManager {
       this.onStateChange?.(this.mode, { connectionStart: nodeId });
     }
   }
+
+  // FIXED: New drag-to-connect methods with proper coordinate handling
+  private startConnectionDrag(event: MouseEvent, nodeId: string): void {
+    console.log('🔗 [CONNECTION-DRAG-FIX] Starting connection drag from node:', nodeId);
+    console.log('🔗 [CONNECTION-DRAG-FIX] Event details:', {
+      clientX: event.clientX,
+      clientY: event.clientY,
+      eventType: event.type,
+      currentMode: this.mode,
+      currentTransform: this.currentTransform
+    });
+    
+    // Find the node element to get its center position
+    const nodeElement = document.getElementById(`node-${nodeId}`);
+    if (!nodeElement) {
+      console.error('🔗 [CONNECTION-DRAG-FIX] CRITICAL: Node element not found for connection drag:', nodeId);
+      console.error('🔗 [CONNECTION-DRAG-FIX] Available node elements:',
+        Array.from(document.querySelectorAll('[id^="node-"]')).map(el => el.id)
+      );
+      return;
+    }
+    
+    const rect = nodeElement.getBoundingClientRect();
+    
+    // DIAGNOSTIC: Get canvas element for coordinate reference
+    const canvasElement = document.querySelector('[role="application"]') as HTMLElement;
+    const canvasRect = canvasElement?.getBoundingClientRect();
+    
+    // DIAGNOSTIC: Calculate multiple coordinate reference points
+    const nodeCenterScreen = {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2
+    };
+    
+    const nodeCenterRelativeToCanvas = canvasRect ? {
+      x: nodeCenterScreen.x - canvasRect.left,
+      y: nodeCenterScreen.y - canvasRect.top
+    } : null;
+    
+    const nodeCenterCanvasCoords = canvasRect ? {
+      x: (nodeCenterScreen.x - canvasRect.left - this.currentTransform.x) / this.currentTransform.scale,
+      y: (nodeCenterScreen.y - canvasRect.top - this.currentTransform.y) / this.currentTransform.scale
+    } : null;
+    
+    // DIAGNOSTIC: Test different start position approaches
+    const startPositionOptions = {
+      mousePosition: { x: event.clientX, y: event.clientY },
+      nodeCenter: nodeCenterScreen,
+      nodeCenterCanvasRelative: nodeCenterRelativeToCanvas,
+      nodeCenterCanvasCoords: nodeCenterCanvasCoords
+    };
+    
+    // DIAGNOSTIC: Use node center for more accurate connection start
+    const startPosition = nodeCenterScreen; // Changed from mouse position to node center
+    
+    console.log('🔗 [COORDINATE-DIAGNOSTIC] Comprehensive coordinate analysis:', {
+      nodeId,
+      elementId: nodeElement.id,
+      rect: {
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height
+      },
+      canvasRect,
+      transform: this.currentTransform,
+      startPositionOptions,
+      chosenStartPosition: startPosition,
+      coordinateSystemAnalysis: {
+        screenSpace: 'Absolute screen coordinates (clientX/Y)',
+        canvasRelative: 'Relative to canvas element bounds',
+        canvasCoords: 'Canvas coordinate system (accounting for pan/zoom)',
+        svgSpace: 'SVG coordinate system (canvas coords + 2000px offset)'
+      }
+    });
+    
+    // FIXED: Create connection drag context with proper coordinate handling
+    this.connectionDragContext = {
+      startNodeId: nodeId,
+      startPosition: startPosition, // Now using node center for accurate start point
+      currentPosition: { x: event.clientX, y: event.clientY },
+      isActive: true
+    };
+    
+    console.log('🔗 [CONNECTION-DRAG-FIX] Connection drag context created with corrected coordinates:', {
+      ...this.connectionDragContext,
+      coordinateAnalysis: {
+        startPositionType: 'Node center (screen coordinates)',
+        currentPositionType: 'Mouse position (screen coordinates)',
+        transformState: this.currentTransform,
+        canvasRect
+      }
+    });
+    
+    this.mode = 'DRAGGING_CONNECTION';
+    console.log('🔗 [CONNECTION-DRAG-FIX] Mode changed to DRAGGING_CONNECTION');
+    
+    this.onStateChange?.(this.mode, this.connectionDragContext);
+    
+    console.log('🔗 [CONNECTION-DRAG-FIX] Connection drag started successfully with fixed coordinates', {
+      startNodeId: nodeId,
+      startPosition: startPosition,
+      currentPosition: this.connectionDragContext.currentPosition,
+      newMode: this.mode,
+      coordinateSystemFix: 'Using node center as start point for accurate line positioning'
+    });
+  }
+
+  private updateConnectionDrag(currentPosition: Point): void {
+    if (!this.connectionDragContext) {
+      console.warn('🔗 [CONNECTION-DRAG-FIX] updateConnectionDrag called but no connectionDragContext');
+      return;
+    }
+    
+    // DEBUG: Log coordinate updates every 10th update to avoid spam
+    if (this.mouseMoveCount % 10 === 0) {
+      console.log('🔗 [CONNECTION-DRAG-FIX] Updating connection drag position:', {
+        from: this.connectionDragContext.currentPosition,
+        to: currentPosition,
+        startNodeId: this.connectionDragContext.startNodeId,
+        startPosition: this.connectionDragContext.startPosition,
+        deltaX: currentPosition.x - this.connectionDragContext.startPosition.x,
+        deltaY: currentPosition.y - this.connectionDragContext.startPosition.y,
+        distance: Math.sqrt(
+          (currentPosition.x - this.connectionDragContext.startPosition.x) ** 2 +
+          (currentPosition.y - this.connectionDragContext.startPosition.y) ** 2
+        ).toFixed(1)
+      });
+    }
+    
+    this.connectionDragContext.currentPosition = currentPosition;
+    this.onStateChange?.(this.mode, this.connectionDragContext);
+  }
+
+  private endConnectionDrag(event: MouseEvent): void {
+    if (!this.connectionDragContext) {
+      console.warn('🔗 [CONNECTION-DEBUG] endConnectionDrag called but no connectionDragContext');
+      return;
+    }
+    
+    console.log('🔗 [CONNECTION-DEBUG] Ending connection drag', {
+      startNodeId: this.connectionDragContext.startNodeId,
+      endPosition: { x: event.clientX, y: event.clientY },
+      eventType: event.type
+    });
+    
+    // Find what element we're over - improved detection
+    console.log('🔗 [CONNECTION-DEBUG] Attempting to find target node at position:', {
+      x: event.clientX,
+      y: event.clientY
+    });
+    
+    // First, try the standard approach
+    const elementUnderMouse = document.elementFromPoint(event.clientX, event.clientY);
+    console.log('🔗 [CONNECTION-DEBUG] Element under mouse:', {
+      element: elementUnderMouse,
+      tagName: elementUnderMouse?.tagName,
+      id: elementUnderMouse?.id,
+      className: elementUnderMouse?.className
+    });
+    
+    let targetNodeElement = elementUnderMouse?.closest('[id^="node-"]') as HTMLElement;
+    console.log('🔗 [CONNECTION-DEBUG] Initial target node search result:', {
+      found: !!targetNodeElement,
+      elementId: targetNodeElement?.id,
+      elementTagName: targetNodeElement?.tagName
+    });
+    
+    // If no target found, try alternative detection methods
+    if (!targetNodeElement) {
+      console.log('🔗 [CONNECTION-DEBUG] No target found with standard method, trying alternatives...');
+      
+      // Method 1: Hide SVG elements temporarily and try again
+      const svgElements = document.querySelectorAll('svg');
+      const originalPointerEvents: string[] = [];
+      
+      svgElements.forEach((svg, index) => {
+        originalPointerEvents[index] = svg.style.pointerEvents;
+        svg.style.pointerEvents = 'none';
+      });
+      
+      const elementUnderMouseNoSVG = document.elementFromPoint(event.clientX, event.clientY);
+      targetNodeElement = elementUnderMouseNoSVG?.closest('[id^="node-"]') as HTMLElement;
+      
+      // Restore SVG pointer events
+      svgElements.forEach((svg, index) => {
+        svg.style.pointerEvents = originalPointerEvents[index] || '';
+      });
+      
+      console.log('🔗 [CONNECTION-DEBUG] Alternative method 1 (no SVG) result:', {
+        found: !!targetNodeElement,
+        elementId: targetNodeElement?.id,
+        element: elementUnderMouseNoSVG
+      });
+      
+      // Method 2: Check all node elements and see which one contains the mouse position
+      if (!targetNodeElement) {
+        console.log('🔗 [CONNECTION-DEBUG] Trying method 2: checking all node bounding boxes...');
+        
+        const allNodeElements = document.querySelectorAll('[id^="node-"]');
+        console.log('🔗 [CONNECTION-DEBUG] Found', allNodeElements.length, 'node elements to check');
+        
+        for (const nodeEl of allNodeElements) {
+          const rect = nodeEl.getBoundingClientRect();
+          const isInside = event.clientX >= rect.left &&
+                          event.clientX <= rect.right &&
+                          event.clientY >= rect.top &&
+                          event.clientY <= rect.bottom;
+          
+          console.log('🔗 [CONNECTION-DEBUG] Checking node', nodeEl.id, {
+            rect: {
+              left: rect.left,
+              right: rect.right,
+              top: rect.top,
+              bottom: rect.bottom
+            },
+            mousePos: { x: event.clientX, y: event.clientY },
+            isInside
+          });
+          
+          if (isInside) {
+            targetNodeElement = nodeEl as HTMLElement;
+            console.log('🔗 [CONNECTION-DEBUG] Found target node via bounding box method:', nodeEl.id);
+            break;
+          }
+        }
+      }
+    }
+    
+    console.log('🔗 [CONNECTION-DEBUG] Final target node detection result:', {
+      found: !!targetNodeElement,
+      elementId: targetNodeElement?.id,
+      elementTagName: targetNodeElement?.tagName
+    });
+    
+    if (targetNodeElement) {
+      const targetNodeId = targetNodeElement.id.replace('node-', '');
+      console.log('🔗 [CONNECTION-DEBUG] Target node identified:', {
+        targetNodeId,
+        startNodeId: this.connectionDragContext.startNodeId,
+        isSameNode: targetNodeId === this.connectionDragContext.startNodeId
+      });
+      
+      if (targetNodeId !== this.connectionDragContext.startNodeId) {
+        console.log('🔗 [CONNECTION-DEBUG] ✅ Valid connection target found - creating connection', {
+          from: this.connectionDragContext.startNodeId,
+          to: targetNodeId
+        });
+        
+        // Trigger connection creation through the callback system
+        console.log('🔗 [CONNECTION-DEBUG] Calling onConnectionCreate callback...');
+        this.onConnectionCreate?.(this.connectionDragContext.startNodeId, targetNodeId);
+        console.log('🔗 [CONNECTION-DEBUG] onConnectionCreate callback called');
+      } else {
+        console.log('🔗 [CONNECTION-DEBUG] ❌ Cannot connect node to itself');
+      }
+    } else {
+      console.log('🔗 [CONNECTION-DEBUG] ❌ Connection drag cancelled - no target node found');
+      console.log('🔗 [CONNECTION-DEBUG] Available node elements at end:',
+        Array.from(document.querySelectorAll('[id^="node-"]')).map(el => ({
+          id: el.id,
+          rect: el.getBoundingClientRect()
+        }))
+      );
+    }
+    
+    // Clean up
+    console.log('🔗 [CONNECTION-DEBUG] Cleaning up connection drag context');
+    this.connectionDragContext = null;
+    this.mode = 'IDLE';
+    this.onStateChange?.(this.mode, null);
+    console.log('🔗 [CONNECTION-DEBUG] Connection drag ended, mode reset to IDLE');
+  }
   
   // Coordinate conversion helpers
   private screenToCanvas(screenX: number, screenY: number): Point {
@@ -672,9 +1031,18 @@ export class InteractionManager {
   }
   
   public startConnecting(): void {
+    console.log('🔗 [CONNECTION-DEBUG] startConnecting() called');
+    console.log('🔗 [CONNECTION-DEBUG] Current mode before:', this.mode);
+    
     this.mode = 'CONNECTING';
     this.connectionStart = null;
+    
+    console.log('🔗 [CONNECTION-DEBUG] Mode changed to CONNECTING, connectionStart reset to null');
+    console.log('🔗 [CONNECTION-DEBUG] Calling onStateChange with CONNECTING mode...');
+    
     this.onStateChange?.(this.mode, null);
+    
+    console.log('🔗 [CONNECTION-DEBUG] startConnecting() completed successfully');
   }
   
   public cancelInteraction(): void {
@@ -702,6 +1070,7 @@ export class InteractionManager {
     this.dragContext = null;
     this.panContext = null;
     this.connectionStart = null;
+    this.connectionDragContext = null;
     
     // Reset animation frame and timing state
     if (this.animationFrameId) {
