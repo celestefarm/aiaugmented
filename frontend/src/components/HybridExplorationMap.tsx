@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Plus, ChevronLeft, ChevronRight, X, User, Target, Trash2, ZoomIn, ZoomOut, Link, RefreshCw } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, X, User, Target, Trash2, ZoomIn, ZoomOut, Link, RefreshCw, Check, Info, HelpCircle } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useMap } from '@/contexts/MapContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
@@ -12,7 +12,6 @@ import SparringSession from './SparringSession';
 import { NodeWithTooltip } from './NodeWithTooltip';
 import { FullContextModal } from './FullContextModal';
 import { ProcessedContent } from '@/utils/tooltipContentUtils';
-import { SimpleNode } from './ExplorationMap';
 
 // Import the original SimpleNode component from ExplorationMap
 const SimpleNodeComponent: React.FC<any> = ({ node, transform, isSelected, isDragging, agents, onMouseDown, onSelect, onTooltipClick }) => {
@@ -667,3 +666,71 @@ const HybridExplorationMap: React.FC = () => {
                                target.closest('.tooltip') ||
                                target.closest('[data-tooltip]');
             
+            if (!isUIElement) {
+              handleCanvasMouseDown(e as any);
+            }
+          }}
+          onWheel={handleWheel}
+        >
+          {/* Canvas content would go here */}
+          <div className="absolute inset-0">
+            {/* Render nodes */}
+            {nodes.map(node => (
+              <SimpleNodeComponent
+                key={node.id}
+                node={node}
+                transform={transform}
+                isSelected={selectedNode === node.id}
+                isDragging={interactionState.state === 'DRAGGING_NODE'}
+                agents={agents}
+                onMouseDown={handleNodeMouseDown}
+                onSelect={() => setSelectedNode(node.id)}
+                onTooltipClick={(e) => {
+                  // Handle tooltip click if needed
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Right Sidebar - Sparring Session */}
+        <div
+          className="flex-shrink-0 h-screen glass-pane border-l border-gray-800/50 overflow-hidden relative"
+          style={{
+            width: `${rightSidebarWidth}px`,
+            minWidth: '280px',
+            maxWidth: '600px',
+            zIndex: 30,
+            paddingTop: '4rem',
+          }}
+        >
+          <div className="relative p-3 h-full overflow-hidden" style={{ height: 'calc(100vh - 4rem)' }}>
+            <ErrorBoundary context="Sparring Session" fallback={
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center p-6">
+                  <X className="w-6 h-6 text-red-600 mx-auto mb-2" />
+                  <p className="text-red-300">Chat Error</p>
+                </div>
+              </div>
+            }>
+              <SparringSession onAddToMap={addIdeaToMapLocal} />
+            </ErrorBoundary>
+          </div>
+        </div>
+
+        {/* Modal for tooltips */}
+        {modalState.isOpen && modalState.node && (
+          <FullContextModal
+            isOpen={modalState.isOpen}
+            node={modalState.node}
+            edges={modalState.edges}
+            processedContent={modalState.processedContent}
+            onClose={handleModalClose}
+          />
+        )}
+      </div>
+    </TooltipProvider>
+  );
+};
+
+export default HybridExplorationMap;
