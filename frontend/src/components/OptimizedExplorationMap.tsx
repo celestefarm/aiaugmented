@@ -657,30 +657,40 @@ const OptimizedExplorationMap: React.FC = () => {
     }
     
     animationFrameRef.current = requestAnimationFrame(() => {
-      setCanvasState(prev => ({
-        ...prev,
-        transform: {
-          x: prev.panStartTransform!.x + deltaX,
-          y: prev.panStartTransform!.y + deltaY,
-          scale: prev.panStartTransform!.scale
-        }
-      }));
+      setCanvasState(prev => {
+        if (!prev || !prev.panStartTransform) return prev;
+        return {
+          ...prev,
+          transform: {
+            x: prev.panStartTransform.x + deltaX,
+            y: prev.panStartTransform.y + deltaY,
+            scale: prev.panStartTransform.scale
+          }
+        };
+      });
     });
   }, [canvasState.isPanning, canvasState.panStart, canvasState.panStartTransform]);
 
   // Handle mouse up to end panning
   const handleCanvasMouseUp = useCallback((e: React.MouseEvent) => {
-    if (canvasState.isPanning) {
-      setCanvasState(prev => ({
-        ...prev,
-        isPanning: false,
-        panStart: null,
-        panStartTransform: null
-      }));
-      
-      if (canvasRef.current) {
-        canvasRef.current.style.cursor = 'grab';
+    try {
+      if (canvasState.isPanning) {
+        setCanvasState(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            isPanning: false,
+            panStart: null,
+            panStartTransform: null
+          };
+        });
+        
+        if (canvasRef.current) {
+          canvasRef.current.style.cursor = 'grab';
+        }
       }
+    } catch (error) {
+      console.error('Error in handleCanvasMouseUp:', error);
     }
   }, [canvasState.isPanning]);
 
@@ -698,29 +708,39 @@ const OptimizedExplorationMap: React.FC = () => {
     }
     
     animationFrameRef.current = requestAnimationFrame(() => {
-      setCanvasState(prev => ({
-        ...prev,
-        transform: {
-          x: prev.panStartTransform!.x + deltaX,
-          y: prev.panStartTransform!.y + deltaY,
-          scale: prev.panStartTransform!.scale
-        }
-      }));
+      setCanvasState(prev => {
+        if (!prev || !prev.panStartTransform) return prev;
+        return {
+          ...prev,
+          transform: {
+            x: prev.panStartTransform.x + deltaX,
+            y: prev.panStartTransform.y + deltaY,
+            scale: prev.panStartTransform.scale
+          }
+        };
+      });
     });
   }, [canvasState.isPanning, canvasState.panStart, canvasState.panStartTransform]);
 
   const handleGlobalMouseUp = useCallback((e: MouseEvent) => {
-    if (canvasState.isPanning) {
-      setCanvasState(prev => ({
-        ...prev,
-        isPanning: false,
-        panStart: null,
-        panStartTransform: null
-      }));
-      
-      if (canvasRef.current) {
-        canvasRef.current.style.cursor = 'grab';
+    try {
+      if (canvasState.isPanning) {
+        setCanvasState(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            isPanning: false,
+            panStart: null,
+            panStartTransform: null
+          };
+        });
+        
+        if (canvasRef.current) {
+          canvasRef.current.style.cursor = 'grab';
+        }
       }
+    } catch (error) {
+      console.error('Error in handleGlobalMouseUp:', error);
     }
   }, [canvasState.isPanning]);
 
@@ -817,8 +837,8 @@ const OptimizedExplorationMap: React.FC = () => {
   // Global event listeners for smooth panning
   useEffect(() => {
     if (canvasState.isPanning) {
-      document.addEventListener('mousemove', handleGlobalMouseMove);
-      document.addEventListener('mouseup', handleGlobalMouseUp);
+      document.addEventListener('mousemove', handleGlobalMouseMove, { passive: false });
+      document.addEventListener('mouseup', handleGlobalMouseUp, { passive: false });
       
       return () => {
         document.removeEventListener('mousemove', handleGlobalMouseMove);
@@ -827,14 +847,18 @@ const OptimizedExplorationMap: React.FC = () => {
     }
   }, [canvasState.isPanning, handleGlobalMouseMove, handleGlobalMouseUp]);
 
-  // Cleanup animation frames
+  // Cleanup animation frames and event listeners
   useEffect(() => {
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
       }
+      // Cleanup any remaining event listeners
+      document.removeEventListener('mousemove', handleGlobalMouseMove);
+      document.removeEventListener('mouseup', handleGlobalMouseUp);
     };
-  }, []);
+  }, [handleGlobalMouseMove, handleGlobalMouseUp]);
 
   // Handle context menu
   useEffect(() => {
@@ -996,6 +1020,13 @@ const OptimizedExplorationMap: React.FC = () => {
                 title="Reset View"
               >
                 <RefreshCw className="w-4 h-4 text-white" />
+              </button>
+              <button
+                onClick={() => showNotification('Connect Nodes functionality coming soon!')}
+                className="p-2 glass-pane hover:bg-white/10 transition-colors rounded"
+                title="Connect Nodes"
+              >
+                <Link className="w-4 h-4 text-white" />
               </button>
             </div>
 
