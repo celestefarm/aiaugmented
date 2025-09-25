@@ -10,6 +10,7 @@ import { useMap } from '@/contexts/MapContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useAgentChat, Agent, ChatMessage } from '@/contexts/AgentChatContext';
 import { useInteraction } from '@/contexts/InteractionContext';
+import { useMessageMapStatus } from '@/contexts/MessageMapStatusContext';
 import { Node, Edge, NodeCreateRequest, NodeUpdateRequest, EdgeCreateRequest, RelationshipSuggestion, summarizeConversation, clearAllNodes, removeMessageFromMap } from '@/lib/api';
 import { ErrorBoundary } from './ErrorBoundary';
 import SparringSession from './SparringSession';
@@ -220,7 +221,11 @@ const SimpleNode: React.FC<SimpleNodeProps> = ({
   );
 };
 
-const ExplorationMap: React.FC = () => {
+interface ExplorationMapProps {
+  onNodeDeleted?: (messageId: string) => void;
+}
+
+const ExplorationMap: React.FC<ExplorationMapProps> = ({ onNodeDeleted }) => {
   
   // Use MapContext for nodes and edges
   const {
@@ -238,6 +243,7 @@ const ExplorationMap: React.FC = () => {
   } = useMap();
   
   const { currentWorkspace } = useWorkspace();
+  const { setMessageStatus } = useMessageMapStatus();
   
   // Use AgentChatContext for agents and messages
   const {
@@ -249,7 +255,8 @@ const ExplorationMap: React.FC = () => {
     deactivateAgent,
     addMessageToMap,
     removeMessageFromMap: removeMessageFromMapContext,
-    loadMessages
+    loadMessages,
+    refreshMessages
   } = useAgentChat();
   
   // Use enhanced InteractionContext with new InteractionManager
@@ -726,40 +733,36 @@ const ExplorationMap: React.FC = () => {
     try {
       const node = nodes.find(n => n.id === nodeId);
       if (!node) return;
+  
+      console.log('🗑️ [DELETE-NODE] Starting node deletion process for node:', nodeId);
+  
+      // Immediately update the local state for instant UI feedback
+      const associatedMessage = await removeMessageFromMapContext(nodeId);
       
-      console.log('🗑️ [DELETE-NODE] Starting node deletion process:', { nodeId, nodeTitle: node.title });
-      
-      saveToHistory();
-      
-      // CRITICAL FIX: Use the correct deleteNodeAPI function from useMap context
-      // This calls the proper DELETE /workspaces/{workspace_id}/nodes/{node_id} endpoint
-      console.log('🗑️ [DELETE-NODE] Calling correct deleteNodeAPI endpoint');
-      
-      // Delete the node from the canvas - backend handles message state reversion automatically
+      if (associatedMessage) {
+        setMessageStatus(associatedMessage.id, false);
+      }
+  
+      // Proceed with API calls in the background
       await deleteNodeAPI(nodeId);
+  
       setSelectedNode(null);
       setFocusedNode(null);
       showNotification(`Deleted node: ${node.title}`);
-      
-      // ENHANCED FIX: Refresh both chat messages and map data to ensure UI consistency
-      // This ensures both the chat sidebar and canvas are properly synchronized
-      try {
-        console.log('🗑️ [DELETE-NODE] Refreshing chat messages and map data...');
-        await Promise.all([
-          loadMessages(),
-          refreshMapData()
-        ]);
-        console.log('🗑️ [DELETE-NODE] ✅ Successfully refreshed chat and map data');
-        
-      } catch (refreshError) {
-        console.warn('🗑️ [DELETE-NODE] ⚠️ Failed to refresh chat messages after node deletion:', refreshError);
-        // Don't fail the whole operation if message refresh fails
-      }
+  
+      // Refresh map data to ensure consistency
+      await refreshMapData();
+  
+      console.log('🗑️ [DELETE-NODE] Successfully deleted node and updated message state.');
+  
     } catch (error) {
       console.error('🗑️ [DELETE-NODE] ❌ Failed to delete node:', error);
       showNotification('Failed to delete node');
+      // If the operation fails, refresh everything to be safe
+      await refreshMessages();
+      await refreshMapData();
     }
-  }, [nodes, saveToHistory, showNotification, deleteNodeAPI, loadMessages, refreshMapData]);
+  }, [nodes, showNotification, deleteNodeAPI, removeMessageFromMapContext, refreshMapData, refreshMessages, setMessageStatus]);
 
   // Delete edge
   const deleteEdge = useCallback(async (edgeId: string) => {

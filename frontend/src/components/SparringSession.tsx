@@ -1,20 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Mic, Upload, Check, MessageSquare, Bot, User, Loader2, Zap, Shield, Target, Eye } from 'lucide-react';
 import { useAgentChat, ChatMessage } from '@/contexts/AgentChatContext';
+import { useMessageMapStatus } from '@/contexts/MessageMapStatusContext';
 import LightningBriefDisplay from './LightningBriefDisplay';
 import RedTeamInterface from './RedTeamInterface';
 import EvidenceQualityDashboard from './EvidenceQualityDashboard';
 
 interface SparringSessionProps {
   onAddToMap?: (messageId: string) => void;
+  onNodeDeleted?: (messageId: string) => void;
 }
 
-const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
+const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDeleted }) => {
   const [chatMessage, setChatMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [addingToMap, setAddingToMap] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<'chat' | 'lightning' | 'redteam' | 'evidence'>('chat');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { messageMapStatus, initializeStatus } = useMessageMapStatus();
   
   const {
     messages,
@@ -25,6 +28,7 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
     sendMessage,
     addMessageToMap,
     clearMessages,
+    refreshMessages,
     // Strategic functionality
     isStrategicMode,
     currentStrategicSession,
@@ -39,6 +43,12 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
     toggleStrategicMode,
     resetStrategicSession
   } = useAgentChat();
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      initializeStatus(messages);
+    }
+  }, [messages, initializeStatus]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -278,6 +288,13 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
           >
             Clear
           </button>
+          <button
+            onClick={() => refreshMessages()}
+            className="text-xs px-2 py-1 bg-[#6B6B3A]/20 text-[#E5E7EB] rounded hover:bg-[#6B6B3A]/30 transition-colors border border-[#6B6B3A]/30"
+            aria-label="Refresh chat messages"
+          >
+            Refresh
+          </button>
         </div>
       </div>
 
@@ -402,7 +419,7 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
                 
                 {/* Enhanced Add to Map Button Implementation - Now supports both AI and Human messages */}
                 {(message.type === 'ai' || message.type === 'human') && (
-                  message.added_to_map ? (
+                  messageMapStatus[message.id] ? (
                     <div className={`flex items-center space-x-1 text-[10px] px-2 py-1 rounded border ${
                       message.type === 'human'
                         ? 'bg-green-500/20 text-green-300 border-green-500/30'

@@ -83,8 +83,9 @@ interface AgentChatContextType {
   loadMessages: () => Promise<void>;
   sendMessage: (content: string) => Promise<ChatMessage[]>;
   addMessageToMap: (messageId: string, nodeTitle?: string, nodeType?: string) => Promise<boolean>;
-  removeMessageFromMap: (nodeId: string) => Promise<boolean>;
+  removeMessageFromMap: (nodeId: string) => Promise<ChatMessage | null>;
   clearMessages: () => void;
+  refreshMessages: () => Promise<void>;
   
   // Strategic interaction actions
   startStrategicSession: (agentId: string) => Promise<void>;
@@ -145,7 +146,7 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
       
       // Get active agents from workspace settings or default to strategist
       if (currentWorkspace) {
-        const activeAgentIds = currentWorkspace.settings?.active_agents || ['strategist'];
+        const activeAgentIds = currentWorkspace.settings?.active_agents as string[] || ['strategist'];
         setActiveAgents(activeAgentIds);
       } else {
         setActiveAgents([]);
@@ -338,42 +339,54 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
   }, [currentWorkspace, messages, loadMessages, refreshMapData, addToMapLoading]);
 
   // Remove message from map - reverts "Added to map" state
-  const removeMessageFromMap = useCallback(async (nodeId: string): Promise<boolean> => {
-    console.log('🗑️ [REMOVE-FROM-MAP] Starting process for node:', nodeId);
-    
-    if (!currentWorkspace?.id) {
-      console.error('🗑️ [REMOVE-FROM-MAP] No workspace selected');
-      setChatError('No workspace selected');
-      return false;
+  const refreshMessages = useCallback(async (): Promise<void> => {
+    if (currentWorkspace?.id) {
+      try {
+        console.log('🔄 [AGENT CHAT CONTEXT] Refreshing messages for workspace:', currentWorkspace.id);
+        const response = await apiClient.getMessages(currentWorkspace.id);
+        setMessages(response.messages);
+      } catch (error) {
+        console.error('Failed to refresh messages:', error);
+        setChatError(error instanceof Error ? error.message : 'Failed to refresh messages');
+      }
     }
+  }, [currentWorkspace]);
 
+  const removeMessageFromMap = useCallback(async (nodeId: string): Promise<ChatMessage | null> => {
+    if (!currentWorkspace?.id) {
+      setChatError('No workspace selected');
+      return null;
+    }
+  
     try {
       setChatError(null);
-      console.log('🗑️ [REMOVE-FROM-MAP] Calling API to remove node from map:', nodeId);
-      
-      const response = await apiClient.removeMessageFromMap(currentWorkspace.id, {
-        node_id: nodeId
-      });
-      
-      if (response.success) {
-        console.log('🗑️ [REMOVE-FROM-MAP] ✅ Success! Message reverted:', response.message_id);
-        
-        // Refresh messages to update the "Added to map" state
-        await loadMessages();
-        
-        return true;
+  
+      const response = await apiClient.removeMessageFromMap(currentWorkspace.id, { node_id: nodeId });
+  
+      if (response.success && response.message_id) {
+        let updatedMessage: ChatMessage | null = null;
+        setMessages(prevMessages =>
+          prevMessages.map(msg => {
+            if (msg.id === response.message_id) {
+              updatedMessage = { ...msg, added_to_map: false };
+              return updatedMessage;
+            }
+            return msg;
+          })
+        );
+        return updatedMessage;
       } else {
-        console.error('🗑️ [REMOVE-FROM-MAP] ❌ API failed:', response.message);
         setChatError(response.message || 'Failed to remove message from map');
-        return false;
+        await refreshMessages();
+        return null;
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to remove message from map';
-      console.error('🗑️ [REMOVE-FROM-MAP] ❌ Error:', errorMessage);
       setChatError(errorMessage);
-      return false;
+      await refreshMessages();
+      return null;
     }
-  }, [currentWorkspace, loadMessages]);
+  }, [currentWorkspace, refreshMessages]);
 
   // Clear chat messages
   const clearMessages = useCallback((): void => {
@@ -613,6 +626,7 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
     addMessageToMap,
     removeMessageFromMap,
     clearMessages,
+    refreshMessages,
     
     // Strategic interaction actions
     startStrategicSession,

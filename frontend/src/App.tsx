@@ -6,6 +6,7 @@ import { MapProvider } from './contexts/MapContext';
 import { AgentChatProvider } from './contexts/AgentChatContext';
 import { DocumentProvider } from './contexts/DocumentContext';
 import { InteractionProvider } from './contexts/InteractionContext';
+import { MessageMapStatusProvider } from './contexts/MessageMapStatusContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import ScrollToTop from './components/ScrollToTop';
@@ -50,55 +51,57 @@ function App() {
                 <MapProvider>
                   <ErrorBoundary context="Agent Chat Provider">
                     <AgentChatProvider>
-                      <ErrorBoundary context="Document Provider">
-                        <DocumentProvider>
-                          <ErrorBoundary context="Interaction Provider">
-                            <InteractionProvider>
-                              <ErrorBoundary context="Router">
-                                <Router>
-                                  <ScrollToTop />
-                                  <Routes>
-                                    <Route path="/auth" element={
-                                      <ErrorBoundary context="Auth Page">
-                                        <Auth />
-                                      </ErrorBoundary>
-                                    } />
-                                    <Route path="/" element={
-                                      <ErrorBoundary context="Landing Page">
-                                        <LandingPage />
-                                      </ErrorBoundary>
-                                    } />
-                                    <Route path="/about" element={
-                                      <ErrorBoundary context="About Page">
-                                        <AboutPage />
-                                      </ErrorBoundary>
-                                    } />
-                                    <Route path="/ai-agent" element={
-                                      <ErrorBoundary context="AI Agent Page">
-                                        <AIAgentPage />
-                                      </ErrorBoundary>
-                                    } />
-                                    <Route path="/workspace" element={
-                                      <ErrorBoundary context="Workspace Page">
-                                        <ProtectedRoute>
-                                          <Index />
-                                        </ProtectedRoute>
-                                      </ErrorBoundary>
-                                    } />
-                                    <Route path="/dashboard" element={
-                                      <ErrorBoundary context="Dashboard Page">
-                                        <ProtectedRoute>
-                                          <Dashboard />
-                                        </ProtectedRoute>
-                                      </ErrorBoundary>
-                                    } />
-                                  </Routes>
-                                </Router>
-                              </ErrorBoundary>
-                            </InteractionProvider>
-                          </ErrorBoundary>
-                        </DocumentProvider>
-                      </ErrorBoundary>
+                      <MessageMapStatusProvider>
+                        <ErrorBoundary context="Document Provider">
+                          <DocumentProvider>
+                            <ErrorBoundary context="Interaction Provider">
+                              <InteractionProvider>
+                                <ErrorBoundary context="Router">
+                                  <Router>
+                                    <ScrollToTop />
+                                    <Routes>
+                                      <Route path="/auth" element={
+                                        <ErrorBoundary context="Auth Page">
+                                          <Auth />
+                                        </ErrorBoundary>
+                                      } />
+                                      <Route path="/" element={
+                                        <ErrorBoundary context="Landing Page">
+                                          <LandingPage />
+                                        </ErrorBoundary>
+                                      } />
+                                      <Route path="/about" element={
+                                        <ErrorBoundary context="About Page">
+                                          <AboutPage />
+                                        </ErrorBoundary>
+                                      } />
+                                      <Route path="/ai-agent" element={
+                                        <ErrorBoundary context="AI Agent Page">
+                                          <AIAgentPage />
+                                        </ErrorBoundary>
+                                      } />
+                                      <Route path="/workspace" element={
+                                        <ErrorBoundary context="Workspace Page">
+                                          <ProtectedRoute>
+                                            <Index />
+                                          </ProtectedRoute>
+                                        </ErrorBoundary>
+                                      } />
+                                      <Route path="/dashboard" element={
+                                        <ErrorBoundary context="Dashboard Page">
+                                          <ProtectedRoute>
+                                            <Dashboard />
+                                          </ProtectedRoute>
+                                        </ErrorBoundary>
+                                      } />
+                                    </Routes>
+                                  </Router>
+                                </ErrorBoundary>
+                              </InteractionProvider>
+                            </ErrorBoundary>
+                          </DocumentProvider>
+                        </ErrorBoundary>
+                      </MessageMapStatusProvider>
                     </AgentChatProvider>
                   </ErrorBoundary>
                 </MapProvider>
