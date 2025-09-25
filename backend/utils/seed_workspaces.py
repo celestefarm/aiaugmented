@@ -42,7 +42,7 @@ DEFAULT_WORKSPACES = [
 # Sample messages for testing Add to Map functionality
 SAMPLE_MESSAGES = [
     {
-        "author": "Celeste Test User",
+        "author": "Celeste Farm",
         "type": "human",
         "content": "I need help developing a strategic plan for expanding our business into the European market. We have £25M in quarterly revenue targets and a discretionary budget of £2M."
     },
@@ -52,7 +52,7 @@ SAMPLE_MESSAGES = [
         "content": "Given your expansion goals and budget constraints, I recommend a phased approach to European market entry. First, conduct thorough market research in 2-3 target countries to identify the most promising opportunities. This should consume approximately £200K of your budget. Second, establish strategic partnerships with local distributors or resellers to minimize initial infrastructure costs. Third, develop localized marketing campaigns that resonate with European consumers while maintaining your brand identity."
     },
     {
-        "author": "Celeste Test User",
+        "author": "Celeste Farm",
         "type": "human",
         "content": "What are the key risks we should consider for this European expansion?"
     },

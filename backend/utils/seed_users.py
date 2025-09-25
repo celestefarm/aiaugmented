@@ -11,7 +11,7 @@ DEFAULT_USERS = [
     {
         "email": "celeste.fcp@gmail.com",
         "password": "celeste060291",
-        "name": "Celeste Test User",
+        "name": "Celeste Farm",
         "is_active": True
     },
     {
