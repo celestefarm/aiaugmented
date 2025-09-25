@@ -482,35 +482,37 @@ const OptimizedExplorationMap: React.FC = () => {
       const node = nodes.find(n => n.id === nodeId);
       if (!node) return;
       
-      console.log('🗑️ [DELETE NODE] Starting deletion process for node:', nodeId);
-      console.log('🗑️ [DELETE NODE] Node details:', { title: node.title, type: node.type });
+      console.log('🗑️ [DELETE NODE] Starting node deletion process:', { nodeId, nodeTitle: node.title });
+
+      // CRITICAL FIX: Use the correct deleteNodeAPI function from useMap context
+      // This calls the proper DELETE /workspaces/{workspace_id}/nodes/{node_id} endpoint
+      console.log('🗑️ [DELETE NODE] Calling correct deleteNodeAPI endpoint');
       
-      // RACE CONDITION FIX: removeMessageFromMap already deletes the node
-      // So we only need to call removeMessageFromMap, not deleteNodeAPI
-      try {
-        console.log('🔄 [DELETE NODE] Calling removeMessageFromMap (handles both message reversion and node deletion)...');
-        await removeMessageFromMap(nodeId);
-        console.log('✅ [DELETE NODE] Node deleted and message state reverted successfully');
-      } catch (removeError) {
-        console.warn('⚠️ [DELETE NODE] removeMessageFromMap failed, trying direct node deletion:', removeError);
-        // Fallback: if removeMessageFromMap fails, try direct node deletion
-        try {
-          await deleteNodeAPI(nodeId);
-          console.log('✅ [DELETE NODE] Direct node deletion successful');
-        } catch (deleteError) {
-          console.error('❌ [DELETE NODE] Both removeMessageFromMap and deleteNodeAPI failed:', deleteError);
-          throw deleteError;
-        }
-      }
-      
+      // Delete the node from the canvas - backend handles message state reversion automatically
+      await deleteNodeAPI(nodeId);
       setSelectedNode(null);
       showNotification(`Deleted node: ${node.title}`);
       
+      // ENHANCED FIX: Refresh both chat messages and map data to ensure UI consistency
+      // This ensures both the chat sidebar and canvas are properly synchronized
+      try {
+        console.log('🗑️ [DELETE NODE] Refreshing chat messages and map data...');
+        await Promise.all([
+          loadMessages(),
+          refreshMapData()
+        ]);
+        console.log('🗑️ [DELETE NODE] ✅ Successfully refreshed chat and map data');
+        
+      } catch (refreshError) {
+        console.warn('🗑️ [DELETE NODE] ⚠️ Failed to refresh chat messages after node deletion:', refreshError);
+        // Don't fail the whole operation if message refresh fails
+      }
+      
     } catch (error) {
-      console.error('❌ [DELETE NODE] Failed to delete node:', error);
+      console.error('🗑️ [DELETE NODE] ❌ Failed to delete node:', error);
       showNotification('Failed to delete node');
     }
-  }, [nodes, showNotification, deleteNodeAPI, removeMessageFromMap]);
+  }, [nodes, showNotification, deleteNodeAPI, loadMessages, refreshMapData]);
 
   // Handle manual conversation summarization
   const handleSummarizeConversation = useCallback(async (nodeId: string) => {
@@ -772,22 +774,15 @@ const OptimizedExplorationMap: React.FC = () => {
       for (const nodeId of selectedNodesList) {
         console.log('🗑️ [DELETE SELECTED] Deleting node:', nodeId);
         
-        // RACE CONDITION FIX: removeMessageFromMap already deletes the node
-        // So we only need to call removeMessageFromMap, not deleteNodeAPI
+        // CRITICAL FIX: Use the correct deleteNodeAPI function from useMap context
+        // This calls the proper DELETE /workspaces/{workspace_id}/nodes/{node_id} endpoint
         try {
-          console.log('🔄 [DELETE SELECTED] Calling removeMessageFromMap (handles both message reversion and node deletion)...');
-          await removeMessageFromMap(nodeId);
+          console.log('🔄 [DELETE SELECTED] Calling correct deleteNodeAPI endpoint for node:', nodeId);
+          await deleteNodeAPI(nodeId);
           console.log('✅ [DELETE SELECTED] Node deleted and message state reverted for node:', nodeId);
-        } catch (removeError) {
-          console.warn('⚠️ [DELETE SELECTED] removeMessageFromMap failed for node:', nodeId, removeError);
-          // Fallback: if removeMessageFromMap fails, try direct node deletion
-          try {
-            await deleteNodeAPI(nodeId);
-            console.log('✅ [DELETE SELECTED] Direct node deletion successful for node:', nodeId);
-          } catch (deleteError) {
-            console.error('❌ [DELETE SELECTED] Both removeMessageFromMap and deleteNodeAPI failed for node:', nodeId, deleteError);
-            // Continue with other nodes even if this one fails
-          }
+        } catch (deleteError) {
+          console.error('❌ [DELETE SELECTED] deleteNodeAPI failed for node:', nodeId, deleteError);
+          // Continue with other nodes even if this one fails
         }
       }
 
