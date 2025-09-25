@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWorkspace } from '../contexts/WorkspaceContext';
 import Header from '../components/Header';
-import ExplorationMap from '../components/ExplorationMap';
-import UnifiedExplorationMap from '../components/UnifiedExplorationMap';
+import OptimizedExplorationMap from '../components/OptimizedExplorationMap';
 import LastMileBrief from '../components/LastMileBrief';
 
 const Index: React.FC = () => {
@@ -79,7 +78,7 @@ const Index: React.FC = () => {
   }
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-[#0A0A0A] text-[#E5E7EB] overflow-hidden fixed inset-0">
+    <div className="h-screen w-screen flex flex-col bg-[#0A0A0A] text-[#E5E7EB] overflow-hidden">
       <Header
         currentView={currentView}
         onViewChange={(view) => {
@@ -92,8 +91,8 @@ const Index: React.FC = () => {
       <main className="flex-1 overflow-hidden relative">
         {(() => {
           if (currentView === 'exploration') {
-            // Use the new unified canvas implementation
-            return <UnifiedExplorationMap key="exploration" />;
+            // Use the new optimized canvas implementation
+            return <OptimizedExplorationMap key="exploration" />;
           } else {
             return <LastMileBrief key="brief" />;
           }
