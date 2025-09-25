@@ -627,21 +627,47 @@ class ApiClient {
           let errorMessage = errorData.detail;
           
           // Special handling for different error types
-          if (response.status === 401) {
-            console.log('🔐 [ApiClient] Authentication failed - clearing token');
-            errorMessage = `Authentication failed: ${errorData.detail}`;
+          if (response.status === 401 || (response.status === 403 && errorData.detail === 'Not authenticated') || errorData.detail === 'Not authenticated') {
+            console.log('🔐 [ApiClient] Authentication failed - clearing token and redirecting to login');
+            console.log('🔐 [ApiClient] Token appears to be expired or invalid');
+            errorMessage = `Authentication expired - please log in again: ${errorData.detail}`;
+            
+            // Clear the invalid token
             this.clearAuth();
             
-            // Trigger page reload for re-authentication
+            // Clear any workspace data that might be stale
+            localStorage.removeItem('currentWorkspace');
+            
+            // Force redirect to login immediately
             if (typeof window !== 'undefined') {
-              setTimeout(() => window.location.reload(), 1000);
+              console.log('🔐 [ApiClient] Forcing immediate redirect to login');
+              window.location.href = '/auth';
             }
           } else if (response.status === 403) {
             console.log('🚫 [ApiClient] Access forbidden');
             errorMessage = `Access denied: ${errorData.detail}`;
           } else if (response.status === 404) {
             console.log('❌ [ApiClient] Resource not found');
-            errorMessage = `Resource not found: ${errorData.detail} (${endpoint})`;
+            
+            // Special handling for workspace not found errors
+            if (endpoint.includes('/workspaces/') && errorData.detail === 'Workspace not found or access denied') {
+              console.log('🗑️ [ApiClient] Workspace not found - clearing stale workspace data');
+              
+              // Clear the invalid workspace from localStorage
+              localStorage.removeItem('currentWorkspace');
+              
+              // Redirect to dashboard to select a valid workspace
+              if (typeof window !== 'undefined') {
+                console.log('🧭 [ApiClient] Redirecting to dashboard due to invalid workspace');
+                setTimeout(() => {
+                  window.location.href = '/dashboard';
+                }, 1000);
+              }
+              
+              errorMessage = `Workspace not found - redirecting to dashboard to select a valid workspace`;
+            } else {
+              errorMessage = `Resource not found: ${errorData.detail} (${endpoint})`;
+            }
           } else if (response.status >= 500) {
             console.log('🔥 [ApiClient] Server error');
             errorMessage = `Server error: ${errorData.detail}`;

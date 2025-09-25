@@ -88,15 +88,47 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
       return;
     }
 
+    // Enhanced token validation with detailed logging
+    const token = localStorage.getItem('auth_token');
     const hasValidToken = apiClient.isAuthenticated();
-    if (!hasValidToken) {
-      console.log('🚫 [MapContext] No valid authentication token');
-      const authError = ErrorStateManager.setError(new Error('Authentication required'), 'MapContext');
+    
+    console.log('🔐 [MapContext] Enhanced authentication check:', {
+      hasToken: !!token,
+      tokenLength: token ? token.length : 0,
+      tokenPreview: token ? `${token.substring(0, 20)}...` : 'none',
+      apiClientAuthenticated: hasValidToken,
+      isAuthenticatedFlag: isAuthenticated,
+      authLoadingFlag: authLoading
+    });
+    
+    // Check multiple authentication indicators
+    if (!hasValidToken || !token || !isAuthenticated) {
+      console.log('🚫 [MapContext] Authentication validation failed:', {
+        hasValidToken,
+        hasToken: !!token,
+        isAuthenticated,
+        reason: !hasValidToken ? 'apiClient.isAuthenticated() failed' :
+                !token ? 'no token in localStorage' :
+                !isAuthenticated ? 'isAuthenticated flag is false' : 'unknown'
+      });
+      
+      const authError = ErrorStateManager.setError(new Error('Authentication expired - please log in again'), 'MapContext');
       setErrorState(authError);
-      setError('Not authenticated');
+      setError('Authentication expired - please log in again');
       clearMapData();
+      
+      // Clear any stale workspace data
+      localStorage.removeItem('currentWorkspace');
+      
+      // Force redirect to login for expired authentication
+      console.log('🔐 [MapContext] Forcing redirect to login due to authentication failure');
+      if (typeof window !== 'undefined') {
+        window.location.href = '/auth';
+      }
       return;
     }
+    
+    console.log('✅ [MapContext] Authentication validation passed');
 
     const operation = async () => {
       setIsLoadingRef(true);
@@ -111,6 +143,23 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
         owner_id: currentWorkspace.owner_id
       });
       
+      // ENHANCED DIAGNOSTIC: Check authentication status
+      const hasToken = apiClient.isAuthenticated();
+      const token = localStorage.getItem('auth_token');
+      console.log('🔍 [MapContext DIAGNOSTIC] Authentication status:', {
+        hasToken,
+        tokenExists: !!token,
+        tokenLength: token ? token.length : 0,
+        tokenPreview: token ? `${token.substring(0, 20)}...` : 'none'
+      });
+      
+      // ENHANCED DIAGNOSTIC: Test API base URL and connectivity
+      console.log('🔍 [MapContext DIAGNOSTIC] API Configuration:', {
+        baseUrl: (apiClient as any).baseUrl || 'unknown',
+        workspaceEndpoint: `/workspaces/${currentWorkspace.id}/nodes`,
+        fullUrl: `${(apiClient as any).baseUrl || 'http://localhost:8000/api/v1'}/workspaces/${currentWorkspace.id}/nodes`
+      });
+      
       // DIAGNOSTIC LOGGING: Test individual API calls to identify which one fails
       console.log('🔍 [MapContext DIAGNOSTIC] Starting nodes API call...');
       let nodesResponse;
@@ -119,6 +168,12 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
         console.log('✅ [MapContext DIAGNOSTIC] Nodes API call successful:', nodesResponse.nodes.length, 'nodes');
       } catch (nodesError) {
         console.error('❌ [MapContext DIAGNOSTIC] Nodes API call failed:', nodesError);
+        console.error('❌ [MapContext DIAGNOSTIC] Error details:', {
+          message: nodesError instanceof Error ? nodesError.message : 'Unknown error',
+          stack: nodesError instanceof Error ? nodesError.stack : 'No stack trace',
+          type: typeof nodesError,
+          errorObject: nodesError
+        });
         throw nodesError;
       }
       
@@ -129,6 +184,12 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
         console.log('✅ [MapContext DIAGNOSTIC] Edges API call successful:', edgesResponse.edges.length, 'edges');
       } catch (edgesError) {
         console.error('❌ [MapContext DIAGNOSTIC] Edges API call failed:', edgesError);
+        console.error('❌ [MapContext DIAGNOSTIC] Error details:', {
+          message: edgesError instanceof Error ? edgesError.message : 'Unknown error',
+          stack: edgesError instanceof Error ? edgesError.stack : 'No stack trace',
+          type: typeof edgesError,
+          errorObject: edgesError
+        });
         throw edgesError;
       }
       
@@ -391,12 +452,29 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
     const currentWorkspaceId = currentWorkspace?.id || null;
     const currentAuthState = { loading: authLoading, authenticated: isAuthenticated };
     
+    console.log('🔄 [MapContext] Effect triggered with state:', {
+      currentWorkspaceId,
+      currentWorkspaceTitle: currentWorkspace?.title,
+      authLoading,
+      isAuthenticated,
+      previousWorkspaceId: lastWorkspaceIdRef.current,
+      previousAuthState: lastAuthStateRef.current,
+      timestamp: new Date().toISOString()
+    });
+    
     // Only proceed if there's an actual change
     const workspaceChanged = lastWorkspaceIdRef.current !== currentWorkspaceId;
     const authChanged = lastAuthStateRef.current.loading !== currentAuthState.loading ||
                        lastAuthStateRef.current.authenticated !== currentAuthState.authenticated;
     
+    console.log('🔍 [MapContext] Change detection:', {
+      workspaceChanged,
+      authChanged,
+      shouldProceed: workspaceChanged || authChanged
+    });
+    
     if (!workspaceChanged && !authChanged) {
+      console.log('⏭️ [MapContext] No changes detected, skipping execution');
       return; // No changes, skip execution
     }
     
@@ -405,11 +483,22 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
     lastAuthStateRef.current = currentAuthState;
     
     if (currentWorkspace && !authLoading && isAuthenticated) {
+      console.log('✅ [MapContext] Conditions met for loading map data:', {
+        hasWorkspace: !!currentWorkspace,
+        authNotLoading: !authLoading,
+        isAuthenticated
+      });
       console.log('🔄 [MapContext] Workspace or auth state changed, loading map data');
       loadMapData();
     } else if (!currentWorkspace) {
       console.log('🏠 [MapContext] No workspace, clearing map data');
       clearMapData();
+    } else {
+      console.log('⏳ [MapContext] Conditions not met for loading map data:', {
+        hasWorkspace: !!currentWorkspace,
+        authNotLoading: !authLoading,
+        isAuthenticated
+      });
     }
   }, [currentWorkspace?.id, authLoading, isAuthenticated, loadMapData, clearMapData]);
 

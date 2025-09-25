@@ -215,16 +215,49 @@ const Dashboard: React.FC = () => {
   };
 
   // Handle workspace selection
-  const handleSelectWorkspace = (workspace: any) => {
+  const handleSelectWorkspace = async (workspace: any) => {
+    console.log('🏠 [DASHBOARD] Workspace selection initiated:', {
+      workspaceId: workspace.id,
+      workspaceTitle: workspace.title,
+      timestamp: new Date().toISOString()
+    });
+    
     // Check if workspace is active before allowing access
     const isActive = workspaceStatuses[workspace.id] !== false;
     
     if (!isActive) {
+      console.warn('🚫 [DASHBOARD] Workspace is inactive, blocking selection:', workspace.id);
       return;
     }
     
-    selectWorkspace(workspace);
-    navigate('/workspace');
+    console.log('✅ [DASHBOARD] Workspace is active, proceeding with selection');
+    
+    try {
+      console.log('🔄 [DASHBOARD] Calling selectWorkspace...');
+      selectWorkspace(workspace);
+      
+      // Add a small delay to ensure workspace selection is processed
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      console.log('🧭 [DASHBOARD] Navigating to /workspace...');
+      navigate('/workspace');
+      
+      console.log('✅ [DASHBOARD] Workspace selection and navigation completed');
+    } catch (error) {
+      console.error('❌ [DASHBOARD] Error during workspace selection:', error);
+      
+      // Show user-friendly error message
+      const errorMessage = error instanceof Error ? error.message : 'Failed to select workspace';
+      
+      // You could add a toast notification here or set a local error state
+      alert(`Error: ${errorMessage}`);
+      
+      // If authentication error, redirect to login
+      if (errorMessage.includes('Authentication required')) {
+        console.log('🔐 [DASHBOARD] Authentication error, redirecting to login');
+        navigate('/auth');
+      }
+    }
   };
 
   // Handle delete workspace

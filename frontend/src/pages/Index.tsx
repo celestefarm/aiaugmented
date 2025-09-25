@@ -13,25 +13,38 @@ const Index: React.FC = () => {
 
   // Handle workspace initialization
   useEffect(() => {
+    console.log('🏠 [INDEX PAGE] Workspace initialization effect triggered:', {
+      currentWorkspaceId: currentWorkspace?.id,
+      currentWorkspaceTitle: currentWorkspace?.title,
+      workspacesCount: workspaces.length,
+      isLoading,
+      isCreatingDefaultWorkspace,
+      timestamp: new Date().toISOString()
+    });
+
     const initializeWorkspace = async () => {
       // If we have a current workspace, we're good
       if (currentWorkspace?.id) {
+        console.log('✅ [INDEX PAGE] Current workspace exists, initialization complete:', currentWorkspace.id);
         return;
       }
 
       // If we're still loading, wait
       if (isLoading) {
+        console.log('⏳ [INDEX PAGE] Still loading workspaces, waiting...');
         return;
       }
 
       // If we have existing workspaces but no current one selected, select the first one
       if (workspaces.length > 0) {
+        console.log('🔄 [INDEX PAGE] No current workspace but workspaces exist, selecting first one:', workspaces[0].id);
         selectWorkspace(workspaces[0]);
         return;
       }
 
       // If no workspaces exist, create a default one
       if (workspaces.length === 0 && !isCreatingDefaultWorkspace) {
+        console.log('🆕 [INDEX PAGE] No workspaces exist, creating default workspace...');
         setIsCreatingDefaultWorkspace(true);
         try {
           const defaultWorkspace = await createWorkspace({
@@ -39,9 +52,11 @@ const Index: React.FC = () => {
             settings: { active_agents: ['strategist'] },
             transform: { x: 0, y: 0, scale: 1 }
           });
+          console.log('✅ [INDEX PAGE] Default workspace created:', defaultWorkspace.id);
           selectWorkspace(defaultWorkspace);
         } catch (error) {
-          console.error('Failed to create default workspace:', error);
+          console.error('❌ [INDEX PAGE] Failed to create default workspace:', error);
+          console.log('🧭 [INDEX PAGE] Redirecting to dashboard due to workspace creation failure');
           navigate('/dashboard');
         } finally {
           setIsCreatingDefaultWorkspace(false);
@@ -65,6 +80,7 @@ const Index: React.FC = () => {
 
   // Show loading or redirect if no workspace
   if (!currentWorkspace) {
+    console.log('⏳ [INDEX PAGE] No current workspace, showing loading screen');
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-[#0A0A0A] text-[#E5E7EB]">
         <div className="text-center">
@@ -76,6 +92,8 @@ const Index: React.FC = () => {
       </div>
     );
   }
+
+  console.log('🎯 [INDEX PAGE] Rendering workspace interface for:', currentWorkspace.id);
 
   return (
     <div className="h-screen w-screen flex flex-col bg-[#0A0A0A] text-[#E5E7EB] overflow-hidden">

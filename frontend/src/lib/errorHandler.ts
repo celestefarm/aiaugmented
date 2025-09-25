@@ -58,8 +58,9 @@ export class ApiErrorClassifier {
     if (error.message && typeof error.message === 'string') {
       const message = error.message;
 
-      // Authentication errors
-      if (message.includes('401') || message.includes('Unauthorized')) {
+      // Authentication errors - handle both 401 and 403 with "Not authenticated"
+      if (message.includes('401') || message.includes('Unauthorized') ||
+          (message.includes('403') && message.includes('Not authenticated'))) {
         return {
           code: 'AUTH_ERROR',
           message,
@@ -70,7 +71,7 @@ export class ApiErrorClassifier {
         };
       }
 
-      // Permission errors
+      // Permission errors (403 but not "Not authenticated")
       if (message.includes('403') || message.includes('Forbidden') || message.includes('Access denied')) {
         return {
           code: 'PERMISSION_ERROR',

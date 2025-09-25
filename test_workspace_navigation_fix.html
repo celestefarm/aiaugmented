@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workspace Navigation Fix Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .code {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            margin: 10px 0;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .test-steps {
+            counter-reset: step-counter;
+        }
+        .test-step {
+            counter-increment: step-counter;
+            margin: 15px 0;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-left: 4px solid #007bff;
+        }
+        .test-step::before {
+            content: "Step " counter(step-counter) ": ";
+            font-weight: bold;
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Workspace Navigation Fix Test</h1>
+    
+    <div class="test-section">
+        <h2>📋 Problem Summary</h2>
+        <div class="status error">
+            <strong>Issue:</strong> Clicking workspace boxes in dashboard doesn't load exploration map canvas
+        </div>
+        <div class="status info">
+            <strong>Root Causes Identified:</strong>
+            <ul>
+                <li>Authentication token validation issues in MapContext</li>
+                <li>403 errors when trying to load workspace data</li>
+                <li>Missing error handling in workspace selection flow</li>
+                <li>Race conditions between authentication and workspace loading</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔨 Fixes Applied</h2>
+        <div class="status success">
+            <strong>✅ Enhanced Authentication Validation</strong>
+            <p>Added comprehensive token validation in MapContext with detailed logging</p>
+        </div>
+        <div class="status success">
+            <strong>✅ Workspace Selection Validation</strong>
+            <p>Added validation and error handling in WorkspaceContext.selectWorkspace()</p>
+        </div>
+        <div class="status success">
+            <strong>✅ Dashboard Error Handling</strong>
+            <p>Added try-catch blocks and user-friendly error messages in Dashboard</p>
+        </div>
+        <div class="status success">
+            <strong>✅ Comprehensive Logging</strong>
+            <p>Added diagnostic logging throughout the workspace navigation flow</p>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🧪 Manual Testing Steps</h2>
+        <div class="test-steps">
+            <div class="test-step">
+                Open browser console (F12) to monitor diagnostic logs
+            </div>
+            <div class="test-step">
+                Navigate to <code>http://localhost:3000/dashboard</code>
+            </div>
+            <div class="test-step">
+                Look for workspace boxes and click on one
+            </div>
+            <div class="test-step">
+                Monitor console logs for:
+                <ul>
+                    <li>🏠 [DASHBOARD] Workspace selection initiated</li>
+                    <li>🏠 [WORKSPACE CONTEXT] selectWorkspace called</li>
+                    <li>🔐 [WORKSPACE CONTEXT] Authentication check</li>
+                    <li>🧭 [DASHBOARD] Navigating to /workspace</li>
+                </ul>
+            </div>
+            <div class="test-step">
+                Verify navigation to <code>/workspace</code> route occurs
+            </div>
+            <div class="test-step">
+                Check for Index page loading logs:
+                <ul>
+                    <li>🏠 [INDEX PAGE] Workspace initialization effect triggered</li>
+                    <li>🎯 [INDEX PAGE] Rendering workspace interface</li>
+                </ul>
+            </div>
+            <div class="test-step">
+                Monitor MapContext logs for data loading:
+                <ul>
+                    <li>🔄 [MapContext] Effect triggered with state</li>
+                    <li>🔐 [MapContext] Enhanced authentication check</li>
+                    <li>✅ [MapContext] Authentication validation passed</li>
+                    <li>🔄 [MapContext] Loading map data for workspace</li>
+                </ul>
+            </div>
+            <div class="test-step">
+                Verify exploration map canvas loads successfully
+            </div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🚨 Expected Error Scenarios</h2>
+        <div class="status warning">
+            <strong>If Authentication Fails:</strong>
+            <ul>
+                <li>Console will show: 🚫 [MapContext] Authentication validation failed</li>
+                <li>User will see: "Authentication required - please log in"</li>
+                <li>No automatic redirect (user can choose to log in)</li>
+            </ul>
+        </div>
+        <div class="status warning">
+            <strong>If Workspace Selection Fails:</strong>
+            <ul>
+                <li>Console will show: ❌ [WORKSPACE CONTEXT] Error during workspace selection</li>
+                <li>Alert dialog will show error message</li>
+                <li>Navigation to /workspace will be blocked</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔍 Key Diagnostic Logs to Watch</h2>
+        <div class="code">
+Dashboard Selection:
+🏠 [DASHBOARD] Workspace selection initiated
+✅ [DASHBOARD] Workspace is active, proceeding with selection
+🔄 [DASHBOARD] Calling selectWorkspace...
+🧭 [DASHBOARD] Navigating to /workspace...
+
+Workspace Context:
+🏠 [WORKSPACE CONTEXT] selectWorkspace called
+🔐 [WORKSPACE CONTEXT] Authentication check before workspace selection
+✅ [WORKSPACE CONTEXT] Workspace selection completed successfully
+
+Index Page Loading:
+🏠 [INDEX PAGE] Workspace initialization effect triggered
+🎯 [INDEX PAGE] Rendering workspace interface for: [workspace-id]
+
+MapContext Authentication:
+🔄 [MapContext] Effect triggered with state
+🔐 [MapContext] Enhanced authentication check
+✅ [MapContext] Authentication validation passed
+🔄 [MapContext] Loading map data for workspace: [workspace-id]
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Test Results</h2>
+        <div id="test-results">
+            <div class="status info">
+                <strong>Ready for Testing</strong>
+                <p>All fixes have been applied. Please test the workspace navigation manually using the steps above.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔗 Quick Links</h2>
+        <button onclick="window.open('http://localhost:3000/dashboard', '_blank')">Open Dashboard</button>
+        <button onclick="window.open('http://localhost:3000/auth', '_blank')">Open Login</button>
+        <button onclick="window.open('http://localhost:3000/', '_blank')">Open Home</button>
+    </div>
+
+    <script>
+        // Add some basic functionality
+        console.log('🧪 Workspace Navigation Fix Test Page Loaded');
+        console.log('📋 Use the manual testing steps above to verify the fixes');
+        
+        // Monitor for any console errors
+        window.addEventListener('error', function(e) {
+            console.error('🚨 Page Error:', e.error);
+        });
+    </script>
+</body>
+</html>

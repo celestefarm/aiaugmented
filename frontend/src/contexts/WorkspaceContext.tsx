@@ -129,9 +129,51 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
 
   // Select a workspace as current
   const selectWorkspace = (workspace: Workspace): void => {
-    setCurrentWorkspace(workspace);
-    // Persist to localStorage
-    localStorage.setItem('currentWorkspace', JSON.stringify(workspace));
+    console.log('🏠 [WORKSPACE CONTEXT] selectWorkspace called:', {
+      workspaceId: workspace.id,
+      workspaceTitle: workspace.title,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Validate workspace object
+    if (!workspace || !workspace.id || !workspace.title) {
+      console.error('❌ [WORKSPACE CONTEXT] Invalid workspace object:', workspace);
+      setError('Invalid workspace data - please try again');
+      throw new Error('Invalid workspace object provided');
+    }
+    
+    // Check authentication before selecting workspace
+    const token = localStorage.getItem('auth_token');
+    const isAuth = isAuthenticated();
+    
+    console.log('🔐 [WORKSPACE CONTEXT] Authentication check before workspace selection:', {
+      hasToken: !!token,
+      isAuthenticated: isAuth,
+      tokenLength: token ? token.length : 0
+    });
+    
+    if (!token || !isAuth) {
+      console.error('❌ [WORKSPACE CONTEXT] Authentication required for workspace selection');
+      setError('Authentication required - please log in');
+      throw new Error('Authentication required for workspace selection');
+    }
+    
+    try {
+      console.log('🔄 [WORKSPACE CONTEXT] Setting current workspace...');
+      setCurrentWorkspace(workspace);
+      
+      console.log('💾 [WORKSPACE CONTEXT] Persisting to localStorage...');
+      localStorage.setItem('currentWorkspace', JSON.stringify(workspace));
+      
+      // Clear any existing errors
+      setError(null);
+      
+      console.log('✅ [WORKSPACE CONTEXT] Workspace selection completed successfully');
+    } catch (error) {
+      console.error('❌ [WORKSPACE CONTEXT] Error during workspace selection:', error);
+      setError('Failed to select workspace - please try again');
+      throw error;
+    }
   };
 
   // Clear current workspace
