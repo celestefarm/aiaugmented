@@ -83,14 +83,11 @@ async def verify_workspace_access(workspace_id: str, current_user: UserResponse)
             detail="Workspace not found or access denied"
         )
     
-    # Try multiple owner_id formats to handle data type inconsistencies
+    # CRITICAL FIX: Simplified workspace access check
+    # The logs show user IDs match but the complex $or query is failing
     workspace = await database.workspaces.find_one({
         "_id": ObjectId(workspace_id),
-        "$or": [
-            {"owner_id": current_user.id},  # Direct match
-            {"owner_id": str(current_user.id)},  # String version
-            {"owner_id": ObjectId(current_user.id) if ObjectId.is_valid(str(current_user.id)) else None}  # ObjectId version
-        ]
+        "owner_id": current_user.id  # Direct string match - this is how owner_id is stored
     })
     
     if not workspace:
