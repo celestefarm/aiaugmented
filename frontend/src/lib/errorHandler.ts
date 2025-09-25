@@ -12,7 +12,7 @@ export interface ApiErrorDetails {
   userMessage: string;
   retryable: boolean;
   severity: 'low' | 'medium' | 'high' | 'critical';
-  context?: Record<string, any>;
+  context?: Record<string, unknown>;
 }
 
 export interface RetryConfig {
@@ -41,7 +41,7 @@ const DEFAULT_RETRY_CONFIG: RetryConfig = {
 
 // Error classification system
 export class ApiErrorClassifier {
-  static classify(error: any, context?: string): ApiErrorDetails {
+  static classify(error: Error | unknown, context?: string): ApiErrorDetails {
     // Network errors
     if (error instanceof TypeError && error.message.includes('fetch')) {
       return {
@@ -55,8 +55,8 @@ export class ApiErrorClassifier {
     }
 
     // HTTP errors
-    if (error.message && typeof error.message === 'string') {
-      const message = error.message;
+    if (error && typeof error === 'object' && 'message' in error && typeof (error as Error).message === 'string') {
+      const message = (error as Error).message;
 
       // Authentication errors - handle both 401 and 403 with "Not authenticated"
       if (message.includes('401') || message.includes('Unauthorized') ||
@@ -166,9 +166,13 @@ export class ApiErrorClassifier {
     }
 
     // Generic error fallback
+    const errorMessage = error && typeof error === 'object' && 'message' in error
+      ? (error as Error).message
+      : 'Unknown error occurred';
+    
     return {
       code: 'UNKNOWN_ERROR',
-      message: error.message || 'Unknown error occurred',
+      message: errorMessage,
       userMessage: 'An unexpected error occurred. Please try again.',
       retryable: true,
       severity: 'medium',
@@ -184,7 +188,7 @@ export class RetryHandler {
     config: RetryConfig = DEFAULT_RETRY_CONFIG,
     context?: string
   ): Promise<T> {
-    let lastError: any;
+    let lastError: Error | unknown;
     let delay = config.baseDelay;
 
     for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
@@ -227,7 +231,7 @@ export class RetryHandler {
 
 // Error boundary helper
 export class ErrorBoundaryHandler {
-  static handleError(error: Error, errorInfo: any, context?: string): void {
+  static handleError(error: Error, errorInfo: Record<string, unknown>, context?: string): void {
     const errorDetails = ApiErrorClassifier.classify(error, context);
     
     console.error('🚨 [ErrorBoundary] Component error caught:', {
@@ -280,9 +284,9 @@ export class ContextualErrorHandler {
 
       // Re-throw with enhanced error information
       const enhancedError = new Error(errorDetails.userMessage);
-      (enhancedError as any).details = errorDetails;
-      (enhancedError as any).context = context;
-      (enhancedError as any).operation = options.operation;
+      (enhancedError as Error & { details?: ApiErrorDetails; context?: string; operation?: string }).details = errorDetails;
+      (enhancedError as Error & { details?: ApiErrorDetails; context?: string; operation?: string }).context = context;
+      (enhancedError as Error & { details?: ApiErrorDetails; context?: string; operation?: string }).operation = options.operation;
       
       throw enhancedError;
     }
@@ -322,7 +326,7 @@ export class ErrorStateManager {
     };
   }
 
-  static setError(error: any, context?: string): ErrorState {
+  static setError(error: Error | unknown, context?: string): ErrorState {
     const errorDetails = ApiErrorClassifier.classify(error, context);
     return {
       error: errorDetails.userMessage,
@@ -355,7 +359,7 @@ export class ErrorStateManager {
 export const createErrorHandler = (context: string, retryConfig?: Partial<RetryConfig>) => 
   new ContextualErrorHandler(context, retryConfig);
 
-export const classifyError = (error: any, context?: string) => 
+export const classifyError = (error: Error | unknown, context?: string) =>
   ApiErrorClassifier.classify(error, context);
 
 export const withRetry = <T>(

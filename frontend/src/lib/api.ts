@@ -1,13 +1,20 @@
 // API client for backend communication
 import { createErrorHandler, withRetry, ErrorStateManager } from './errorHandler';
 
-const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+interface ViteImportMeta {
+  env: {
+    VITE_API_BASE_URL?: string;
+    MODE?: string;
+  };
+}
+
+const API_BASE_URL = (import.meta as unknown as ViteImportMeta).env?.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
 
 // DIAGNOSTIC LOGGING: Log API configuration on startup
 console.log('🔧 [API CLIENT DIAGNOSTIC] Configuration loaded:');
 console.log('  - API Base URL:', API_BASE_URL);
-console.log('  - Environment:', (import.meta as any).env?.MODE || 'unknown');
-console.log('  - VITE_API_BASE_URL:', (import.meta as any).env?.VITE_API_BASE_URL || 'not set');
+console.log('  - Environment:', (import.meta as unknown as ViteImportMeta).env?.MODE || 'unknown');
+console.log('  - VITE_API_BASE_URL:', (import.meta as unknown as ViteImportMeta).env?.VITE_API_BASE_URL || 'not set');
 
 // DIAGNOSTIC LOGGING: Test API connectivity on startup
 const testApiConnectivity = async () => {
@@ -78,7 +85,7 @@ export interface Workspace {
   owner_id: string;
   created_at: string;
   updated_at: string;
-  settings: Record<string, any>;
+  settings: Record<string, unknown>;
   transform: {
     x: number;
     y: number;
@@ -88,7 +95,7 @@ export interface Workspace {
 
 export interface WorkspaceCreateRequest {
   title: string;
-  settings?: Record<string, any>;
+  settings?: Record<string, unknown>;
   transform?: {
     x: number;
     y: number;
@@ -98,7 +105,7 @@ export interface WorkspaceCreateRequest {
 
 export interface WorkspaceUpdateRequest {
   title?: string;
-  settings?: Record<string, any>;
+  settings?: Record<string, unknown>;
   transform?: {
     x: number;
     y: number;
@@ -173,7 +180,7 @@ export interface Edge {
   tags?: string[];
   user_edited?: boolean;
   last_ai_update?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface EdgeCreateRequest {
@@ -202,7 +209,7 @@ export interface EdgeUpdateRequest {
 export interface RelationshipSummarizationRequest {
   from_node_id: string;
   to_node_id: string;
-  context?: Record<string, any>;
+  context?: Record<string, unknown>;
 }
 
 export interface RelationshipSummarizationResponse {
@@ -245,7 +252,7 @@ export interface Agent {
   human_role: string;
   is_custom: boolean;
   is_active: boolean;
-  full_description: Record<string, any>;
+  full_description: Record<string, unknown>;
 }
 
 export interface AgentListResponse {
@@ -298,7 +305,7 @@ export interface RemoveFromMapResponse {
 export interface AgentInteractionRequest {
   agent_id: string;
   prompt: string;
-  context?: Record<string, any>;
+  context?: Record<string, unknown>;
 }
 
 export interface AgentInteractionResponse {
@@ -312,7 +319,7 @@ export interface AgentInteractionResponse {
 export interface StrategicInteractionRequest {
   agent_id: string;
   prompt: string;
-  context?: Record<string, any>;
+  context?: Record<string, unknown>;
   session_id?: string;
   force_phase?: string;
   enable_red_team?: boolean;
@@ -352,10 +359,10 @@ export interface StrategicInteractionResponse {
   response: string;
   session_id: string;
   current_phase: string;
-  strategic_data: Record<string, any>;
+  strategic_data: Record<string, unknown>;
   lightning_brief?: LightningBrief;
   red_team_challenge?: RedTeamChallenge;
-  phase_transition?: Record<string, any>;
+  phase_transition?: Record<string, unknown>;
   model_used?: string;
 }
 
@@ -429,7 +436,7 @@ export interface AgentInfoResponse {
   model_name?: string;
   is_active: boolean;
   is_custom: boolean;
-  full_description: Record<string, any>;
+  full_description: Record<string, unknown>;
   capabilities: {
     can_interact: boolean;
     supported_models: string[];
@@ -492,9 +499,9 @@ export interface GenerateBriefResponse {
 }
 
 export interface WorkspaceExportResponse {
-  workspace: Record<string, any>;
-  nodes: Record<string, any>[];
-  edges: Record<string, any>[];
+  workspace: Record<string, unknown>;
+  nodes: Record<string, unknown>[];
+  edges: Record<string, unknown>[];
   exported_at: string;
 }
 
@@ -762,8 +769,8 @@ class ApiClient {
     if (response.user && response.user._id) {
       console.log('Fixing user ID field from _id to id');
       console.log('Original user._id:', response.user._id);
-      (response.user as any).id = response.user._id;
-      console.log('Fixed user.id:', (response.user as any).id);
+      (response.user as User).id = response.user._id;
+      console.log('Fixed user.id:', (response.user as User).id);
     }
     
     console.log('Final response user:', response.user);
@@ -789,7 +796,7 @@ class ApiClient {
     
     // Fix user data structure mismatch: backend returns "_id" but frontend expects "id"
     if (user && user._id && !user.id) {
-      (user as any).id = user._id;
+      (user as User).id = user._id;
     }
     
     return user;
