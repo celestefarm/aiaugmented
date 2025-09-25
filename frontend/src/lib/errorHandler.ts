@@ -82,15 +82,24 @@ export class ApiErrorClassifier {
         };
       }
 
-      // Not found errors
+      // Not found errors - Enhanced for node deletion context
       if (message.includes('404') || message.includes('Not found')) {
+        // Special handling for node deletion 404s - these are often expected
+        let userMessage = 'The requested resource was not found.';
+        let severity: 'low' | 'medium' | 'high' | 'critical' = 'medium';
+        
+        if (context === 'MapContext' && message.includes('Node not found')) {
+          userMessage = 'Node has already been deleted or does not exist.';
+          severity = 'low'; // Lower severity for expected node deletion scenarios
+        }
+        
         return {
           code: 'NOT_FOUND_ERROR',
           message,
-          userMessage: 'The requested resource was not found.',
-          retryable: false,
-          severity: 'medium',
-          context: { context }
+          userMessage,
+          retryable: false, // 404s should never be retried
+          severity,
+          context: { context, isNodeDeletion: context === 'MapContext' }
         };
       }
 

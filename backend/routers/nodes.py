@@ -67,16 +67,41 @@ async def verify_workspace_access(workspace_id: str, current_user: UserResponse)
         )
     
     database = get_database()
-    workspace = await database.workspaces.find_one({
-        "_id": ObjectId(workspace_id),
-        "owner_id": current_user.id
-    })
     
-    if not workspace:
+    print(f"🔍 [WORKSPACE ACCESS] Verifying access for workspace: {workspace_id}")
+    print(f"🔍 [WORKSPACE ACCESS] Current user ID: {current_user.id} (type: {type(current_user.id)})")
+    
+    # First, check if workspace exists at all
+    workspace_any = await database.workspaces.find_one({"_id": ObjectId(workspace_id)})
+    if workspace_any:
+        print(f"🔍 [WORKSPACE ACCESS] Workspace found with owner_id: {workspace_any.get('owner_id')} (type: {type(workspace_any.get('owner_id'))})")
+        print(f"🔍 [WORKSPACE ACCESS] Direct comparison: {workspace_any.get('owner_id') == current_user.id}")
+    else:
+        print(f"🔍 [WORKSPACE ACCESS] ❌ Workspace {workspace_id} does not exist at all")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Workspace not found or access denied"
         )
+    
+    # Try multiple owner_id formats to handle data type inconsistencies
+    workspace = await database.workspaces.find_one({
+        "_id": ObjectId(workspace_id),
+        "$or": [
+            {"owner_id": current_user.id},  # Direct match
+            {"owner_id": str(current_user.id)},  # String version
+            {"owner_id": ObjectId(current_user.id) if ObjectId.is_valid(str(current_user.id)) else None}  # ObjectId version
+        ]
+    })
+    
+    if not workspace:
+        print(f"🔍 [WORKSPACE ACCESS] ❌ Access denied - user {current_user.id} is not owner of workspace {workspace_id}")
+        print(f"🔍 [WORKSPACE ACCESS] ❌ Actual owner: {workspace_any.get('owner_id')}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Workspace not found or access denied"
+        )
+    
+    print(f"🔍 [WORKSPACE ACCESS] ✅ Access granted for user {current_user.id} to workspace {workspace_id}")
 
 
 @router.get("/workspaces/{workspace_id}/nodes", response_model=NodeListResponse)
@@ -380,8 +405,9 @@ async def delete_node(
             print(f"Match score: {best_score:.2f}")
     
     # Delete all edges connected to this node (cascade deletion)
+    # CONSISTENCY FIX: Use string workspace_id to match how nodes are stored
     await database.edges.delete_many({
-        "workspace_id": ObjectId(workspace_id),
+        "workspace_id": workspace_id,  # Use string format consistently
         "$or": [
             {"from_node_id": ObjectId(node_id)},
             {"to_node_id": ObjectId(node_id)}
@@ -434,6 +460,7 @@ async def clear_all_nodes(
     edge_count = await database.edges.count_documents({"workspace_id": workspace_id})
     
     # Delete all edges in the workspace first
+    # CONSISTENCY FIX: Use string workspace_id consistently
     await database.edges.delete_many({"workspace_id": workspace_id})
     
     # Delete all nodes in the workspace

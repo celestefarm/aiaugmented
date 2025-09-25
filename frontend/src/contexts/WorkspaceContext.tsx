@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { Workspace, WorkspaceCreateRequest, WorkspaceUpdateRequest, apiClient } from '../lib/api';
+import { Workspace, WorkspaceCreateRequest, WorkspaceUpdateRequest, apiClient, isAuthenticated } from '../lib/api';
 
 // Workspace context types
 interface WorkspaceContextType {
@@ -165,22 +165,32 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
 
   // Initialize workspace state on mount
   useEffect(() => {
-    // Load workspaces from API first
-    loadWorkspaces().then(() => {
-      // Try to restore current workspace from localStorage after workspaces are loaded
-      const savedWorkspace = localStorage.getItem('currentWorkspace');
-      if (savedWorkspace) {
-        try {
-          const workspace = JSON.parse(savedWorkspace);
-          // Validate that the saved workspace still exists and belongs to the user
-          // This will be validated when workspaces are loaded
-          setCurrentWorkspace(workspace);
-        } catch (error) {
-          console.error('Failed to parse saved workspace:', error);
-          localStorage.removeItem('currentWorkspace');
+    // Only load workspaces if user is authenticated
+    if (isAuthenticated()) {
+      console.log('🔐 [WORKSPACE CONTEXT] User is authenticated, loading workspaces...');
+      // Load workspaces from API first
+      loadWorkspaces().then(() => {
+        // Try to restore current workspace from localStorage after workspaces are loaded
+        const savedWorkspace = localStorage.getItem('currentWorkspace');
+        if (savedWorkspace) {
+          try {
+            const workspace = JSON.parse(savedWorkspace);
+            // Validate that the saved workspace still exists and belongs to the user
+            // This will be validated when workspaces are loaded
+            setCurrentWorkspace(workspace);
+          } catch (error) {
+            console.error('Failed to parse saved workspace:', error);
+            localStorage.removeItem('currentWorkspace');
+          }
         }
-      }
-    });
+      });
+    } else {
+      console.log('🔐 [WORKSPACE CONTEXT] User not authenticated, skipping workspace loading');
+      // Clear any existing data when not authenticated
+      setWorkspaces([]);
+      setCurrentWorkspace(null);
+      setError(null);
+    }
   }, []);
 
   // Validate current workspace when workspaces are loaded

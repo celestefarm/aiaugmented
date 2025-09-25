@@ -47,6 +47,18 @@ class AddToMapResponse(BaseModel):
     message: str
 
 
+class RemoveFromMapRequest(BaseModel):
+    """Request model for removing node from map"""
+    node_id: str = Field(..., description="Node ID to remove from map")
+
+
+class RemoveFromMapResponse(BaseModel):
+    """Response model for remove from map operation"""
+    success: bool
+    message_id: Optional[str] = None
+    message: str
+
+
 # Database Models
 class MessageInDB(BaseModel):
     """Message model for database operations"""

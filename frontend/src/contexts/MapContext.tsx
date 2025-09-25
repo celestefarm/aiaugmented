@@ -222,29 +222,68 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
     }
   }, [currentWorkspace]);
 
-  // Delete a node
+  // Delete a node with race condition protection
   const deleteNode = useCallback(async (nodeId: string): Promise<void> => {
     if (!currentWorkspace?.id) {
       setError('No workspace selected');
       return;
     }
 
+    // RACE CONDITION FIX: Check if node exists in local state before attempting deletion
+    const nodeExists = nodes.find(node => node.id === nodeId);
+    if (!nodeExists) {
+      console.warn(`🚫 [MapContext] Node ${nodeId} not found in local state, skipping deletion`);
+      return;
+    }
+
+    console.log(`🗑️ [MapContext] Starting deletion of node: ${nodeId}`);
+    console.log(`   Workspace: ${currentWorkspace.id}`);
+    console.log(`   Node title: "${nodeExists.title}"`);
+
     try {
       setError(null);
-      await apiClient.deleteNode(currentWorkspace.id, nodeId);
       
-      // Remove from local state
+      // RACE CONDITION FIX: Remove from local state BEFORE API call to prevent multiple attempts
       setNodes(prev => prev.filter(node => node.id !== nodeId));
       setEdges(prev => prev.filter(edge =>
         edge.from_node_id !== nodeId && edge.to_node_id !== nodeId
       ));
+      
+      console.log(`📡 [MapContext] Making DELETE API call for node: ${nodeId}`);
+      await apiClient.deleteNode(currentWorkspace.id, nodeId);
+      console.log(`✅ [MapContext] Node deletion successful: ${nodeId}`);
+      
     } catch (err) {
+      console.error(`❌ [MapContext] Node deletion failed for ${nodeId}:`, err);
+      
+      // RACE CONDITION FIX: Restore node to local state if API call failed
+      console.log(`🔄 [MapContext] Restoring node to local state due to deletion failure`);
+      setNodes(prev => {
+        // Only restore if not already present
+        const alreadyExists = prev.find(node => node.id === nodeId);
+        if (!alreadyExists) {
+          return [...prev, nodeExists];
+        }
+        return prev;
+      });
+      
+      // Also restore connected edges
+      const connectedEdges = edges.filter(edge =>
+        edge.from_node_id === nodeId || edge.to_node_id === nodeId
+      );
+      if (connectedEdges.length > 0) {
+        setEdges(prev => {
+          const existingEdgeIds = new Set(prev.map(e => e.id));
+          const edgesToRestore = connectedEdges.filter(e => !existingEdgeIds.has(e.id));
+          return [...prev, ...edgesToRestore];
+        });
+      }
+      
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete node';
       setError(errorMessage);
-      console.error('Failed to delete node:', err);
       throw err;
     }
-  }, [currentWorkspace]);
+  }, [currentWorkspace, nodes, edges]);
 
   // Create a new edge
   const createEdge = useCallback(async (data: EdgeCreateRequest): Promise<Edge | null> => {
@@ -266,7 +305,7 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
     }
   }, [currentWorkspace]);
 
-  // Delete an edge
+  // Delete an edge with real-time AI summary updates
   const deleteEdge = useCallback(async (edgeId: string): Promise<void> => {
     if (!currentWorkspace?.id) {
       setError('No workspace selected');
@@ -275,15 +314,39 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
 
     try {
       setError(null);
+      
+      // Find the edge before deletion for AI summary updates
+      const edgeToDelete = edges.find(e => e.id === edgeId);
+      console.log('🔗 [DELETE EDGE] Starting deletion process for edge:', edgeId);
+      
       await apiClient.deleteEdge(currentWorkspace.id, edgeId);
       setEdges(prev => prev.filter(edge => edge.id !== edgeId));
+      
+      // CRITICAL: Trigger real-time AI summary updates for connected nodes
+      if (edgeToDelete) {
+        console.log('🤖 [DELETE EDGE] Triggering AI summary updates for connected nodes...');
+        try {
+          // Find connected nodes
+          const fromNode = nodes.find(n => n.id === edgeToDelete.from_node_id);
+          const toNode = nodes.find(n => n.id === edgeToDelete.to_node_id);
+          
+          if (fromNode || toNode) {
+            console.log('🔄 [DELETE EDGE] Refreshing map data to update AI summaries...');
+            // Refresh map data to get updated AI summaries
+            await loadMapData(true);
+            console.log('✅ [DELETE EDGE] AI summaries updated successfully');
+          }
+        } catch (summaryError) {
+          console.warn('⚠️ [DELETE EDGE] Failed to update AI summaries:', summaryError);
+        }
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete edge';
       setError(errorMessage);
-      console.error('Failed to delete edge:', err);
+      console.error('❌ [DELETE EDGE] Failed to delete edge:', err);
       throw err;
     }
-  }, [currentWorkspace]);
+  }, [currentWorkspace, edges, nodes, loadMapData]);
 
   // Refresh map data with force refresh
   const refreshMapData = useCallback(async (): Promise<void> => {

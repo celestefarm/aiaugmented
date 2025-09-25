@@ -6,7 +6,9 @@ from models.message import (
     MessageInDB,
     MessageCreate,
     AddToMapRequest,
-    AddToMapResponse
+    AddToMapResponse,
+    RemoveFromMapRequest,
+    RemoveFromMapResponse
 )
 from models.node import NodeCreate, NodeInDB
 from models.user import UserResponse
@@ -693,4 +695,157 @@ async def add_message_to_map(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred while adding message to map"
+        )
+
+
+@router.post("/workspaces/{workspace_id}/messages/remove-from-map", response_model=RemoveFromMapResponse)
+async def remove_message_from_map(
+    workspace_id: str,
+    request_data: RemoveFromMapRequest,
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Remove a node from the map and revert the corresponding message's added_to_map status.
+    
+    Args:
+        workspace_id: Workspace ID
+        request_data: Contains node_id to remove
+        current_user: Current authenticated user (from dependency)
+        
+    Returns:
+        Success status and reverted message ID
+        
+    Raises:
+        HTTPException: If workspace/node not found or access denied
+    """
+    print(f"🗑️ [REMOVE-FROM-MAP] API called with workspace_id: {workspace_id}, node_id: {request_data.node_id}")
+    
+    # Validate ObjectId formats
+    if not ObjectId.is_valid(workspace_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid workspace ID format"
+        )
+    
+    if not ObjectId.is_valid(request_data.node_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid node ID format"
+        )
+    
+    # Get database instance
+    database = get_database()
+    
+    # Verify workspace exists and user owns it
+    workspace_doc = await database.workspaces.find_one({
+        "_id": ObjectId(workspace_id),
+        "owner_id": current_user.id
+    })
+    
+    if not workspace_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Workspace not found"
+        )
+    
+    try:
+        # Find the node to get its details - use $or query to handle both string and ObjectId formats
+        node_doc = await database.nodes.find_one({
+            "_id": ObjectId(request_data.node_id),
+            "$or": [
+                {"workspace_id": workspace_id},  # String format
+                {"workspace_id": ObjectId(workspace_id)}  # ObjectId format
+            ]
+        })
+        
+        if not node_doc:
+            print(f"🗑️ [REMOVE-FROM-MAP] ❌ Node not found with ID: {request_data.node_id}")
+            print(f"🗑️ [REMOVE-FROM-MAP] ❌ Workspace ID: {workspace_id}")
+            
+            # Debug: Check if node exists at all
+            any_node = await database.nodes.find_one({"_id": ObjectId(request_data.node_id)})
+            if any_node:
+                print(f"🗑️ [REMOVE-FROM-MAP] ❌ Node exists but in different workspace: {any_node.get('workspace_id')}")
+            else:
+                print(f"🗑️ [REMOVE-FROM-MAP] ❌ Node does not exist at all")
+            
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Node not found"
+            )
+        
+        print(f"🗑️ [REMOVE-FROM-MAP] Found node: {node_doc.get('title', 'No title')}")
+        
+        # Find the corresponding message by matching content and author
+        # This is a reverse lookup since we don't store message_id in nodes
+        message_query = {
+            "workspace_id": workspace_id,
+            "content": node_doc.get("description", ""),
+            "added_to_map": True
+        }
+        
+        # If the node has a source_agent, it came from an AI message
+        if node_doc.get("source_agent"):
+            message_query["author"] = node_doc["source_agent"]
+            message_query["type"] = "ai"
+        else:
+            # Otherwise it's a human message
+            message_query["type"] = "human"
+        
+        print(f"🗑️ [REMOVE-FROM-MAP] Searching for message with query: {message_query}")
+        
+        # Find the message
+        message_doc = await database.messages.find_one(message_query)
+        
+        if not message_doc:
+            print(f"🗑️ [REMOVE-FROM-MAP] ⚠️ No matching message found, but continuing with node deletion")
+            # Continue with node deletion even if we can't find the message
+            message_id = None
+        else:
+            message_id = str(message_doc["_id"])
+            print(f"🗑️ [REMOVE-FROM-MAP] Found matching message: {message_id}")
+            
+            # Revert the message's added_to_map status
+            update_result = await database.messages.update_one(
+                {"_id": ObjectId(message_id)},
+                {"$set": {"added_to_map": False}}
+            )
+            
+            modified_count = getattr(update_result, 'modified_count', getattr(update_result, 'modified', 0))
+            print(f"🗑️ [REMOVE-FROM-MAP] Message update result: modified={modified_count}")
+        
+        # Delete the node from the canvas - use $or query to handle both string and ObjectId formats
+        delete_result = await database.nodes.delete_one({
+            "_id": ObjectId(request_data.node_id),
+            "$or": [
+                {"workspace_id": workspace_id},  # String format
+                {"workspace_id": ObjectId(workspace_id)}  # ObjectId format
+            ]
+        })
+        
+        deleted_count = getattr(delete_result, 'deleted_count', getattr(delete_result, 'deleted', 0))
+        print(f"🗑️ [REMOVE-FROM-MAP] Node deletion result: deleted={deleted_count}")
+        
+        if deleted_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Node not found or already deleted"
+            )
+        
+        print(f"🗑️ [REMOVE-FROM-MAP] ✅ Successfully removed node and reverted message state")
+        
+        return RemoveFromMapResponse(
+            success=True,
+            message_id=message_id,
+            message="Node removed from map and message state reverted successfully"
+        )
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        print(f"🗑️ [REMOVE-FROM-MAP] ❌ Unexpected error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while removing node from map"
         )

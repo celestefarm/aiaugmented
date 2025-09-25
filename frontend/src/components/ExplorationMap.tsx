@@ -10,7 +10,7 @@ import { useMap } from '@/contexts/MapContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useAgentChat, Agent, ChatMessage } from '@/contexts/AgentChatContext';
 import { useInteraction } from '@/contexts/InteractionContext';
-import { Node, Edge, NodeCreateRequest, NodeUpdateRequest, EdgeCreateRequest, RelationshipSuggestion, summarizeConversation, clearAllNodes } from '@/lib/api';
+import { Node, Edge, NodeCreateRequest, NodeUpdateRequest, EdgeCreateRequest, RelationshipSuggestion, summarizeConversation, clearAllNodes, removeMessageFromMap } from '@/lib/api';
 import { ErrorBoundary } from './ErrorBoundary';
 import SparringSession from './SparringSession';
 import { CognitiveAnalysis } from './CognitiveAnalysis';
@@ -248,6 +248,7 @@ const ExplorationMap: React.FC = () => {
     activateAgent,
     deactivateAgent,
     addMessageToMap,
+    removeMessageFromMap: removeMessageFromMapContext,
     loadMessages
   } = useAgentChat();
   
@@ -726,27 +727,52 @@ const ExplorationMap: React.FC = () => {
       const node = nodes.find(n => n.id === nodeId);
       if (!node) return;
       
+      console.log('🗑️ [DELETE-NODE] Starting node deletion process:', { nodeId, nodeTitle: node.title });
+      
       saveToHistory();
+      
+      // CRITICAL FIX: Call removeMessageFromMap API to properly revert chat message state
+      // This ensures the "Added to map" button reverts to "Add to map" for both AI and human messages
+      try {
+        console.log('🗑️ [DELETE-NODE] Calling removeMessageFromMap API for node:', nodeId);
+        const removeResult = await removeMessageFromMapContext(nodeId);
+        console.log('🗑️ [DELETE-NODE] removeMessageFromMap result:', removeResult);
+        
+        if (removeResult) {
+          console.log('🗑️ [DELETE-NODE] ✅ Successfully reverted message state for node:', nodeId);
+        } else {
+          console.warn('🗑️ [DELETE-NODE] ⚠️ removeMessageFromMap returned false, but continuing with node deletion');
+        }
+      } catch (removeError) {
+        console.warn('🗑️ [DELETE-NODE] ⚠️ Failed to revert message state, but continuing with node deletion:', removeError);
+        // Don't fail the whole operation if message revert fails - the node deletion is more important
+      }
+      
+      // Delete the node from the canvas
       await deleteNodeAPI(nodeId);
       setSelectedNode(null);
       setFocusedNode(null);
       showNotification(`Deleted node: ${node.title}`);
       
-      // CRITICAL FIX: Refresh chat messages to update "Added to map" labels
-      // The backend automatically resets the message's added_to_map status when a node is deleted
-      // We need to refresh the frontend chat state to reflect this change
+      // ENHANCED FIX: Refresh both chat messages and map data to ensure UI consistency
+      // This ensures both the chat sidebar and canvas are properly synchronized
       try {
-        await loadMessages();
+        console.log('🗑️ [DELETE-NODE] Refreshing chat messages and map data...');
+        await Promise.all([
+          loadMessages(),
+          refreshMapData()
+        ]);
+        console.log('🗑️ [DELETE-NODE] ✅ Successfully refreshed chat and map data');
         
       } catch (refreshError) {
-        console.warn('Failed to refresh chat messages after node deletion:', refreshError);
+        console.warn('🗑️ [DELETE-NODE] ⚠️ Failed to refresh chat messages after node deletion:', refreshError);
         // Don't fail the whole operation if message refresh fails
       }
     } catch (error) {
-      console.error('Failed to delete node:', error);
+      console.error('🗑️ [DELETE-NODE] ❌ Failed to delete node:', error);
       showNotification('Failed to delete node');
     }
-  }, [nodes, saveToHistory, showNotification, deleteNodeAPI, loadMessages]);
+  }, [nodes, saveToHistory, showNotification, deleteNodeAPI, loadMessages, refreshMapData, removeMessageFromMapContext]);
 
   // Delete edge
   const deleteEdge = useCallback(async (edgeId: string) => {

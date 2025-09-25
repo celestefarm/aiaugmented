@@ -18,7 +18,7 @@ async def health_check():
     Health check endpoint that verifies system status and database connectivity.
     Returns JSON with status, timestamp, database connectivity, and version info.
     """
-    from database import db_client
+    from database_memory import memory_client as db_client
     
     health_data = {
         "status": "healthy",

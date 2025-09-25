@@ -342,3 +342,59 @@ async def update_current_user_profile(
     user_in_db = UserInDB(**user_doc)
     
     return user_in_db.to_response()
+
+
+@router.get("/auth/dev/seed-status")
+async def get_seed_status():
+    """
+    Development endpoint to check seeding status.
+    """
+    database = get_database()
+    if not database:
+        return {"error": "Database not available"}
+    
+    try:
+        user_count = await database.users.count_documents({})
+        agent_count = await database.agents.count_documents({})
+        workspace_count = await database.workspaces.count_documents({})
+        
+        return {
+            "database_connected": True,
+            "users": user_count,
+            "agents": agent_count,
+            "workspaces": workspace_count,
+            "seeding_needed": user_count == 0
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@router.post("/auth/dev/force-seed")
+async def force_seed():
+    """
+    Development endpoint to force database seeding.
+    """
+    try:
+        # Import seeding functions
+        from utils.seed_users import seed_users
+        from utils.seed_agents import seed_agents
+        from utils.seed_workspaces import seed_workspaces
+        
+        # Force seed all collections
+        users_result = await seed_users()
+        agents_result = await seed_agents()
+        workspaces_result = await seed_workspaces()
+        
+        return {
+            "success": True,
+            "users_seeded": users_result,
+            "agents_seeded": agents_result,
+            "workspaces_seeded": workspaces_result,
+            "message": "Database seeding completed"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Database seeding failed"
+        }

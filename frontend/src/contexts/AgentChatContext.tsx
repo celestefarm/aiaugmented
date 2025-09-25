@@ -10,7 +10,8 @@ import {
   RedTeamChallengeRequest,
   RedTeamResponseRequest,
   RedTeamEvaluationResponse,
-  StrategicSessionStatus
+  StrategicSessionStatus,
+  isAuthenticated
 } from '../lib/api';
 import { useWorkspace } from './WorkspaceContext';
 import { useMap } from './MapContext';
@@ -82,6 +83,7 @@ interface AgentChatContextType {
   loadMessages: () => Promise<void>;
   sendMessage: (content: string) => Promise<ChatMessage[]>;
   addMessageToMap: (messageId: string, nodeTitle?: string, nodeType?: string) => Promise<boolean>;
+  removeMessageFromMap: (nodeId: string) => Promise<boolean>;
   clearMessages: () => void;
   
   // Strategic interaction actions
@@ -335,6 +337,44 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
     }
   }, [currentWorkspace, messages, loadMessages, refreshMapData, addToMapLoading]);
 
+  // Remove message from map - reverts "Added to map" state
+  const removeMessageFromMap = useCallback(async (nodeId: string): Promise<boolean> => {
+    console.log('🗑️ [REMOVE-FROM-MAP] Starting process for node:', nodeId);
+    
+    if (!currentWorkspace?.id) {
+      console.error('🗑️ [REMOVE-FROM-MAP] No workspace selected');
+      setChatError('No workspace selected');
+      return false;
+    }
+
+    try {
+      setChatError(null);
+      console.log('🗑️ [REMOVE-FROM-MAP] Calling API to remove node from map:', nodeId);
+      
+      const response = await apiClient.removeMessageFromMap(currentWorkspace.id, {
+        node_id: nodeId
+      });
+      
+      if (response.success) {
+        console.log('🗑️ [REMOVE-FROM-MAP] ✅ Success! Message reverted:', response.message_id);
+        
+        // Refresh messages to update the "Added to map" state
+        await loadMessages();
+        
+        return true;
+      } else {
+        console.error('🗑️ [REMOVE-FROM-MAP] ❌ API failed:', response.message);
+        setChatError(response.message || 'Failed to remove message from map');
+        return false;
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to remove message from map';
+      console.error('🗑️ [REMOVE-FROM-MAP] ❌ Error:', errorMessage);
+      setChatError(errorMessage);
+      return false;
+    }
+  }, [currentWorkspace, loadMessages]);
+
   // Clear chat messages
   const clearMessages = useCallback((): void => {
     setMessages([]);
@@ -513,14 +553,27 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
 
   // Load data when workspace changes
   useEffect(() => {
-    // Always load agents (they're global)
-    loadAgents();
-    
-    if (currentWorkspace) {
-      loadMessages();
+    // Only load data if user is authenticated
+    if (isAuthenticated()) {
+      console.log('🔐 [AGENT CHAT CONTEXT] User is authenticated, loading agents...');
+      // Always load agents (they're global)
+      loadAgents();
+      
+      if (currentWorkspace) {
+        console.log('🔐 [AGENT CHAT CONTEXT] Loading messages for workspace:', currentWorkspace.id);
+        loadMessages();
+      } else {
+        // Clear workspace-specific data when no workspace is selected
+        setMessages([]);
+        setChatError(null);
+      }
     } else {
-      // Clear workspace-specific data when no workspace is selected
+      console.log('🔐 [AGENT CHAT CONTEXT] User not authenticated, clearing data');
+      // Clear all data when not authenticated
+      setAgents([]);
+      setActiveAgents([]);
       setMessages([]);
+      setAgentError(null);
       setChatError(null);
     }
   }, [currentWorkspace, loadAgents, loadMessages]);
@@ -558,6 +611,7 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
     loadMessages,
     sendMessage,
     addMessageToMap,
+    removeMessageFromMap,
     clearMessages,
     
     // Strategic interaction actions

@@ -7,7 +7,7 @@ import { useMap } from '@/contexts/MapContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useAgentChat } from '@/contexts/AgentChatContext';
 import { useInteraction } from '@/contexts/InteractionContext';
-import { Node, Edge, NodeCreateRequest, NodeUpdateRequest, EdgeCreateRequest, clearAllNodes } from '@/lib/api';
+import { Node, Edge, NodeCreateRequest, NodeUpdateRequest, EdgeCreateRequest, clearAllNodes, removeMessageFromMap } from '@/lib/api';
 import { ErrorBoundary } from './ErrorBoundary';
 import SparringSession from './SparringSession';
 import { NodeWithTooltip } from './NodeWithTooltip';
@@ -204,6 +204,7 @@ const HybridExplorationMap: React.FC = () => {
     activateAgent,
     deactivateAgent,
     addMessageToMap,
+    removeMessageFromMap: removeMessageFromMapContext,
     loadMessages
   } = useAgentChat();
   
@@ -571,20 +572,49 @@ const HybridExplorationMap: React.FC = () => {
       const node = nodes.find(n => n.id === nodeId);
       if (!node) return;
       
+      console.log('🗑️ [HYBRID-DELETE-NODE] Starting node deletion process:', { nodeId, nodeTitle: node.title });
+      
+      // CRITICAL FIX: Call removeMessageFromMap API to properly revert chat message state
+      // This ensures the "Added to map" button reverts to "Add to map" for both AI and human messages
+      try {
+        console.log('🗑️ [HYBRID-DELETE-NODE] Calling removeMessageFromMap API for node:', nodeId);
+        const removeResult = await removeMessageFromMapContext(nodeId);
+        console.log('🗑️ [HYBRID-DELETE-NODE] removeMessageFromMap result:', removeResult);
+        
+        if (removeResult) {
+          console.log('🗑️ [HYBRID-DELETE-NODE] ✅ Successfully reverted message state for node:', nodeId);
+        } else {
+          console.warn('🗑️ [HYBRID-DELETE-NODE] ⚠️ removeMessageFromMap returned false, but continuing with node deletion');
+        }
+      } catch (removeError) {
+        console.warn('🗑️ [HYBRID-DELETE-NODE] ⚠️ Failed to revert message state, but continuing with node deletion:', removeError);
+        // Don't fail the whole operation if message revert fails - the node deletion is more important
+      }
+      
+      // Delete the node from the canvas
       await deleteNodeAPI(nodeId);
       setSelectedNode(null);
       showNotification(`Deleted node: ${node.title}`);
       
+      // ENHANCED FIX: Refresh both chat messages and map data to ensure UI consistency
+      // This ensures both the chat sidebar and canvas are properly synchronized
       try {
-        await loadMessages();
+        console.log('🗑️ [HYBRID-DELETE-NODE] Refreshing chat messages and map data...');
+        await Promise.all([
+          loadMessages(),
+          refreshMapData()
+        ]);
+        console.log('🗑️ [HYBRID-DELETE-NODE] ✅ Successfully refreshed chat and map data');
+        
       } catch (refreshError) {
-        console.warn('Failed to refresh chat messages after node deletion:', refreshError);
+        console.warn('🗑️ [HYBRID-DELETE-NODE] ⚠️ Failed to refresh chat messages after node deletion:', refreshError);
+        // Don't fail the whole operation if message refresh fails
       }
     } catch (error) {
-      console.error('Failed to delete node:', error);
+      console.error('🗑️ [HYBRID-DELETE-NODE] ❌ Failed to delete node:', error);
       showNotification('Failed to delete node');
     }
-  }, [nodes, showNotification, deleteNodeAPI, loadMessages]);
+  }, [nodes, showNotification, deleteNodeAPI, loadMessages, refreshMapData, removeMessageFromMapContext]);
 
   // Handle zoom using TransformManager
   const handleZoom = useCallback((delta: number, centerX?: number, centerY?: number) => {

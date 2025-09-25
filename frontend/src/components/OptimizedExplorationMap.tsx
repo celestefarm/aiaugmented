@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { Plus, ChevronLeft, ChevronRight, X, User, Target, Trash2, ZoomIn, ZoomOut, Link, RefreshCw, Info, Users, Briefcase, Check, HelpCircle } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, X, User, Target, Trash2, ZoomIn, ZoomOut, Link, RefreshCw, Info, Users, Briefcase, Check, HelpCircle, Undo2 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useMap } from '@/contexts/MapContext';
@@ -23,10 +23,21 @@ interface CanvasState {
   transform: Transform;
   isDragging: boolean;
   isPanning: boolean;
+  isConnecting: boolean;
   draggedNodeId: string | null;
   dragOffset: { x: number; y: number } | null;
   panStart: { x: number; y: number } | null;
   panStartTransform: Transform | null;
+  connectionStart: string | null;
+  connectionPreview: { x: number; y: number } | null;
+}
+
+// Undo operation interface
+interface UndoOperation {
+  id: string;
+  type: 'delete_node' | 'delete_edge' | 'delete_multiple';
+  data: any;
+  timestamp: number;
 }
 
 // Optimized Node Component with minimal re-renders
@@ -64,11 +75,7 @@ const OptimizedNode: React.FC<{
     
     const nodeType: 'ai' | 'human' = node.source_agent ? 'ai' : 'human';
     
-    try {
-      e.preventDefault();
-    } catch (error) {
-      console.debug('Cannot preventDefault on passive mouse event');
-    }
+    // Remove preventDefault to avoid passive event listener errors
     
     onMouseDown(e, node.id, nodeType);
     onSelect();
@@ -124,12 +131,9 @@ const OptimizedNode: React.FC<{
       style={style}
       onMouseDown={handleMouseDown}
       onContextMenu={(e) => {
+        // Remove preventDefault to avoid passive event listener errors
         if (isDragging) {
-          try {
-            e.preventDefault();
-          } catch (error) {
-            console.debug('Cannot preventDefault on passive context menu event');
-          }
+          // Just handle the dragging state without preventDefault
         }
       }}
     >
@@ -208,6 +212,7 @@ const OptimizedNode: React.FC<{
     prevProps.node.title === nextProps.node.title &&
     prevProps.isSelected === nextProps.isSelected &&
     prevProps.isDragging === nextProps.isDragging &&
+    prevProps.onTooltipClick === nextProps.onTooltipClick &&
     JSON.stringify(prevProps.style) === JSON.stringify(nextProps.style)
   );
 });
@@ -219,7 +224,9 @@ const OptimizedEdges: React.FC<{
   canvasState: CanvasState;
   getEdgeStyle: (type: string, strength?: number) => any;
   onDeleteEdge: (edgeId: string) => void;
-}> = React.memo(({ nodes, edges, canvasState, getEdgeStyle, onDeleteEdge }) => {
+  selectedEdges?: Set<string>;
+  onEdgeSelect?: (edgeId: string, isMultiSelect: boolean) => void;
+}> = React.memo(({ nodes, edges, canvasState, getEdgeStyle, onDeleteEdge, selectedEdges, onEdgeSelect }) => {
   const nodePositions = useMemo(() => {
     const positions: Record<string, { x: number; y: number }> = {};
     nodes.forEach(node => {
@@ -278,6 +285,7 @@ const OptimizedEdges: React.FC<{
         const toCenterY = toPos.y + 60 + 2000;
 
         const style = getEdgeStyle(edge.type);
+        const isSelected = selectedEdges?.has(edge.id) || false;
 
         return (
           <g key={edge.id}>
@@ -286,16 +294,30 @@ const OptimizedEdges: React.FC<{
               y1={fromCenterY}
               x2={toCenterX}
               y2={toCenterY}
-              stroke={style.stroke}
-              strokeWidth={style.strokeWidth}
+              stroke={isSelected ? '#60A5FA' : style.stroke}
+              strokeWidth={isSelected ? style.strokeWidth + 2 : style.strokeWidth}
               strokeDasharray={style.strokeDasharray}
-              className="transition-all duration-200 cursor-pointer hover:stroke-opacity-80 pointer-events-auto"
-              onClick={() => onDeleteEdge(edge.id)}
+              className={`transition-all duration-200 cursor-pointer hover:stroke-opacity-80 pointer-events-auto ${
+                isSelected ? 'drop-shadow-lg' : ''
+              }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (e.ctrlKey || e.metaKey) {
+                  // Multi-select mode - add to selection
+                  onEdgeSelect?.(edge.id, true);
+                } else if (e.shiftKey) {
+                  // Delete on shift-click
+                  onDeleteEdge(edge.id);
+                } else {
+                  // Single select
+                  onEdgeSelect?.(edge.id, false);
+                }
+              }}
             />
             <polygon
               points={`${toCenterX-8},${toCenterY-4} ${toCenterX},${toCenterY} ${toCenterX-8},${toCenterY+4}`}
-              fill={style.stroke}
-              opacity="0.7"
+              fill={isSelected ? '#60A5FA' : style.stroke}
+              opacity={isSelected ? "1.0" : "0.7"}
             />
           </g>
         );
@@ -336,6 +358,7 @@ const OptimizedExplorationMap: React.FC = () => {
     activateAgent,
     deactivateAgent,
     addMessageToMap,
+    removeMessageFromMap,
     loadMessages
   } = useAgentChat();
 
@@ -344,10 +367,13 @@ const OptimizedExplorationMap: React.FC = () => {
     transform: { x: 0, y: 0, scale: 1 },
     isDragging: false,
     isPanning: false,
+    isConnecting: false,
     draggedNodeId: null,
     dragOffset: null,
     panStart: null,
-    panStartTransform: null
+    panStartTransform: null,
+    connectionStart: null,
+    connectionPreview: null
   });
 
   const [hasInitializedView, setHasInitializedView] = useState(false);
@@ -356,10 +382,15 @@ const OptimizedExplorationMap: React.FC = () => {
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
   const [rightSidebarWidth, setRightSidebarWidth] = useState(320);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  const [selectedNodes, setSelectedNodes] = useState<Set<string>>(new Set());
+  const [selectedEdges, setSelectedEdges] = useState<Set<string>>(new Set());
   const [notification, setNotification] = useState<string | null>(null);
   const [showAgentDetailsModal, setShowAgentDetailsModal] = useState<string | null>(null);
   const [showContextMenu, setShowContextMenu] = useState<{ x: number; y: number; nodeId?: string } | null>(null);
   const [summarizingNodes, setSummarizingNodes] = useState<Set<string>>(new Set());
+  const [isDragToTrash, setIsDragToTrash] = useState(false);
+  const [undoOperations, setUndoOperations] = useState<UndoOperation[]>([]);
+  const [showUndoNotification, setShowUndoNotification] = useState<UndoOperation | null>(null);
   
   // Modal state management
   const [modalState, setModalState] = useState<{
@@ -378,6 +409,7 @@ const OptimizedExplorationMap: React.FC = () => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Constants
   const NODE_WIDTH = 240;
@@ -444,26 +476,41 @@ const OptimizedExplorationMap: React.FC = () => {
     }
   }, [currentWorkspace, snapToGrid, showNotification, createNodeAPI]);
 
-  // Delete node
+  // Delete node with proper message state reversion
   const deleteNode = useCallback(async (nodeId: string) => {
     try {
       const node = nodes.find(n => n.id === nodeId);
       if (!node) return;
       
-      await deleteNodeAPI(nodeId);
+      console.log('🗑️ [DELETE NODE] Starting deletion process for node:', nodeId);
+      console.log('🗑️ [DELETE NODE] Node details:', { title: node.title, type: node.type });
+      
+      // RACE CONDITION FIX: removeMessageFromMap already deletes the node
+      // So we only need to call removeMessageFromMap, not deleteNodeAPI
+      try {
+        console.log('🔄 [DELETE NODE] Calling removeMessageFromMap (handles both message reversion and node deletion)...');
+        await removeMessageFromMap(nodeId);
+        console.log('✅ [DELETE NODE] Node deleted and message state reverted successfully');
+      } catch (removeError) {
+        console.warn('⚠️ [DELETE NODE] removeMessageFromMap failed, trying direct node deletion:', removeError);
+        // Fallback: if removeMessageFromMap fails, try direct node deletion
+        try {
+          await deleteNodeAPI(nodeId);
+          console.log('✅ [DELETE NODE] Direct node deletion successful');
+        } catch (deleteError) {
+          console.error('❌ [DELETE NODE] Both removeMessageFromMap and deleteNodeAPI failed:', deleteError);
+          throw deleteError;
+        }
+      }
+      
       setSelectedNode(null);
       showNotification(`Deleted node: ${node.title}`);
       
-      try {
-        await loadMessages();
-      } catch (refreshError) {
-        console.warn('Failed to refresh chat messages after node deletion:', refreshError);
-      }
     } catch (error) {
-      console.error('Failed to delete node:', error);
+      console.error('❌ [DELETE NODE] Failed to delete node:', error);
       showNotification('Failed to delete node');
     }
-  }, [nodes, showNotification, deleteNodeAPI, loadMessages]);
+  }, [nodes, showNotification, deleteNodeAPI, removeMessageFromMap]);
 
   // Handle manual conversation summarization
   const handleSummarizeConversation = useCallback(async (nodeId: string) => {
@@ -560,6 +607,245 @@ const OptimizedExplorationMap: React.FC = () => {
     }
   }, [nodes, edges, showNotification, createEdgeAPI]);
 
+  // Handle selection management
+  const handleNodeSelection = useCallback((nodeId: string, isMultiSelect: boolean = false) => {
+    if (isMultiSelect) {
+      setSelectedNodes(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(nodeId)) {
+          newSet.delete(nodeId);
+        } else {
+          newSet.add(nodeId);
+        }
+        return newSet;
+      });
+    } else {
+      setSelectedNodes(new Set([nodeId]));
+      setSelectedNode(nodeId);
+    }
+  }, []);
+
+  // Handle edge selection
+  const handleEdgeSelection = useCallback((edgeId: string, isMultiSelect: boolean = false) => {
+    if (isMultiSelect) {
+      setSelectedEdges(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(edgeId)) {
+          newSet.delete(edgeId);
+        } else {
+          newSet.add(edgeId);
+        }
+        return newSet;
+      });
+    } else {
+      setSelectedEdges(new Set([edgeId]));
+    }
+  }, []);
+
+  // Clear all selections
+  const clearSelections = useCallback(() => {
+    setSelectedNodes(new Set());
+    setSelectedEdges(new Set());
+    setSelectedNode(null);
+  }, []);
+
+  // Add undo operation
+  const addUndoOperation = useCallback((operation: Omit<UndoOperation, 'id' | 'timestamp'>) => {
+    const undoOp: UndoOperation = {
+      ...operation,
+      id: `undo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: Date.now()
+    };
+    
+    setUndoOperations(prev => [...prev.slice(-4), undoOp]); // Keep last 5 operations
+    setShowUndoNotification(undoOp);
+    
+    // Clear undo notification after 5 seconds
+    if (undoTimeoutRef.current) {
+      clearTimeout(undoTimeoutRef.current);
+    }
+    
+    undoTimeoutRef.current = setTimeout(() => {
+      setShowUndoNotification(null);
+    }, 5000);
+  }, []);
+
+  // Handle undo operation
+  const handleUndo = useCallback(async (operation: UndoOperation) => {
+    try {
+      if (operation.type === 'delete_node') {
+        const nodeData = operation.data;
+        await createNodeAPI(nodeData);
+        showNotification(`Restored node: ${nodeData.title}`);
+      } else if (operation.type === 'delete_edge') {
+        const edgeData = operation.data;
+        await createEdgeAPI(edgeData);
+        showNotification('Restored connection');
+      } else if (operation.type === 'delete_multiple') {
+        const { nodes: deletedNodes, edges: deletedEdges } = operation.data;
+        
+        // Restore nodes first
+        for (const nodeData of deletedNodes) {
+          await createNodeAPI(nodeData);
+        }
+        
+        // Then restore edges
+        for (const edgeData of deletedEdges) {
+          await createEdgeAPI(edgeData);
+        }
+        
+        showNotification(`Restored ${deletedNodes.length} nodes and ${deletedEdges.length} connections`);
+      }
+      
+      // Remove the operation from undo list
+      setUndoOperations(prev => prev.filter(op => op.id !== operation.id));
+      setShowUndoNotification(null);
+      
+    } catch (error) {
+      console.error('Failed to undo operation:', error);
+      showNotification('Failed to undo operation');
+    }
+  }, [createNodeAPI, createEdgeAPI, showNotification]);
+
+  // Handle delete selected items with proper state management
+  const handleDeleteSelected = useCallback(async () => {
+    const selectedNodesList = Array.from(selectedNodes);
+    const selectedEdgesList = Array.from(selectedEdges);
+    
+    if (selectedNodesList.length === 0 && selectedEdgesList.length === 0) {
+      showNotification('No items selected for deletion');
+      return;
+    }
+
+    // Confirm multi-delete
+    if (selectedNodesList.length + selectedEdgesList.length > 1) {
+      const confirmed = window.confirm(
+        `Are you sure you want to delete ${selectedNodesList.length} node(s) and ${selectedEdgesList.length} connection(s)?`
+      );
+      if (!confirmed) return;
+    }
+
+    try {
+      console.log('🗑️ [DELETE SELECTED] Starting deletion process...');
+      console.log('🗑️ [DELETE SELECTED] Nodes to delete:', selectedNodesList.length);
+      console.log('🗑️ [DELETE SELECTED] Edges to delete:', selectedEdgesList.length);
+      
+      const deletedNodes: any[] = [];
+      const deletedEdges: any[] = [];
+
+      // Store data for undo before deletion
+      for (const nodeId of selectedNodesList) {
+        const node = nodes.find(n => n.id === nodeId);
+        if (node) {
+          deletedNodes.push({
+            title: node.title,
+            description: node.description,
+            type: node.type,
+            x: node.x,
+            y: node.y,
+            source_agent: node.source_agent,
+            confidence: node.confidence,
+            feasibility: node.feasibility
+          });
+        }
+      }
+
+      for (const edgeId of selectedEdgesList) {
+        const edge = edges.find(e => e.id === edgeId);
+        if (edge) {
+          deletedEdges.push({
+            from_node_id: edge.from_node_id,
+            to_node_id: edge.to_node_id,
+            type: edge.type,
+            description: edge.description
+          });
+        }
+      }
+
+      // Delete edges first to avoid foreign key constraints and trigger AI updates
+      for (const edgeId of selectedEdgesList) {
+        console.log('🔗 [DELETE SELECTED] Deleting edge:', edgeId);
+        await deleteEdgeAPI(edgeId);
+      }
+
+      // Then delete nodes and update chat message states
+      for (const nodeId of selectedNodesList) {
+        console.log('🗑️ [DELETE SELECTED] Deleting node:', nodeId);
+        
+        // RACE CONDITION FIX: removeMessageFromMap already deletes the node
+        // So we only need to call removeMessageFromMap, not deleteNodeAPI
+        try {
+          console.log('🔄 [DELETE SELECTED] Calling removeMessageFromMap (handles both message reversion and node deletion)...');
+          await removeMessageFromMap(nodeId);
+          console.log('✅ [DELETE SELECTED] Node deleted and message state reverted for node:', nodeId);
+        } catch (removeError) {
+          console.warn('⚠️ [DELETE SELECTED] removeMessageFromMap failed for node:', nodeId, removeError);
+          // Fallback: if removeMessageFromMap fails, try direct node deletion
+          try {
+            await deleteNodeAPI(nodeId);
+            console.log('✅ [DELETE SELECTED] Direct node deletion successful for node:', nodeId);
+          } catch (deleteError) {
+            console.error('❌ [DELETE SELECTED] Both removeMessageFromMap and deleteNodeAPI failed for node:', nodeId, deleteError);
+            // Continue with other nodes even if this one fails
+          }
+        }
+      }
+
+      // CRITICAL: Refresh map data for AI summary updates if edges were deleted
+      if (selectedEdgesList.length > 0) {
+        try {
+          console.log('🤖 [DELETE SELECTED] Refreshing map data for AI summary updates...');
+          await refreshMapData();
+          console.log('✅ [DELETE SELECTED] AI summaries updated successfully');
+        } catch (refreshError) {
+          console.warn('⚠️ [DELETE SELECTED] Failed to refresh AI summaries:', refreshError);
+        }
+      }
+
+      // Add undo operation
+      if (selectedNodesList.length + selectedEdgesList.length === 1) {
+        if (selectedNodesList.length === 1) {
+          addUndoOperation({
+            type: 'delete_node',
+            data: deletedNodes[0]
+          });
+        } else {
+          addUndoOperation({
+            type: 'delete_edge',
+            data: deletedEdges[0]
+          });
+        }
+      } else {
+        addUndoOperation({
+          type: 'delete_multiple',
+          data: { nodes: deletedNodes, edges: deletedEdges }
+        });
+      }
+
+      clearSelections();
+      showNotification(`Deleted ${selectedNodesList.length} node(s) and ${selectedEdgesList.length} connection(s)`);
+      console.log('✅ [DELETE SELECTED] Deletion process completed successfully');
+
+    } catch (error) {
+      console.error('❌ [DELETE SELECTED] Failed to delete selected items:', error);
+      showNotification('Failed to delete selected items');
+    }
+  }, [selectedNodes, selectedEdges, nodes, edges, deleteNodeAPI, deleteEdgeAPI, addUndoOperation, clearSelections, showNotification, loadMessages, refreshMapData]);
+
+  // Handle drag to trash
+  const handleDragToTrash = useCallback((nodeId: string) => {
+    setIsDragToTrash(true);
+    setSelectedNodes(new Set([nodeId]));
+  }, []);
+
+  // Handle drop on trash
+  const handleDropOnTrash = useCallback(() => {
+    if (isDragToTrash && selectedNodes.size > 0) {
+      handleDeleteSelected();
+    }
+    setIsDragToTrash(false);
+  }, [isDragToTrash, selectedNodes, handleDeleteSelected]);
+
   // Handle zoom
   const handleZoom = useCallback((delta: number, centerX?: number, centerY?: number) => {
     const zoomFactor = delta > 0 ? 1.2 : 0.8;
@@ -642,8 +928,16 @@ const OptimizedExplorationMap: React.FC = () => {
     }
   }, []);
 
-  // Handle mouse move for panning with requestAnimationFrame optimization
+  // Handle mouse move for panning and connection preview with requestAnimationFrame optimization
   const handleCanvasMouseMove = useCallback((e: React.MouseEvent) => {
+    // Handle connection preview
+    if (canvasState.isConnecting && canvasState.connectionStart) {
+      setCanvasState(prev => ({
+        ...prev,
+        connectionPreview: { x: e.clientX, y: e.clientY }
+      }));
+    }
+
     if (!canvasState.isPanning || !canvasState.panStart || !canvasState.panStartTransform) {
       return;
     }
@@ -669,7 +963,7 @@ const OptimizedExplorationMap: React.FC = () => {
         };
       });
     });
-  }, [canvasState.isPanning, canvasState.panStart, canvasState.panStartTransform]);
+  }, [canvasState.isPanning, canvasState.panStart, canvasState.panStartTransform, canvasState.isConnecting, canvasState.connectionStart]);
 
   // Handle mouse up to end panning
   const handleCanvasMouseUp = useCallback((e: React.MouseEvent) => {
@@ -696,6 +990,14 @@ const OptimizedExplorationMap: React.FC = () => {
 
   // Global mouse event handlers
   const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
+    // Handle connection preview
+    if (canvasState.isConnecting && canvasState.connectionStart) {
+      setCanvasState(prev => ({
+        ...prev,
+        connectionPreview: { x: e.clientX, y: e.clientY }
+      }));
+    }
+
     if (!canvasState.isPanning || !canvasState.panStart || !canvasState.panStartTransform) {
       return;
     }
@@ -720,7 +1022,7 @@ const OptimizedExplorationMap: React.FC = () => {
         };
       });
     });
-  }, [canvasState.isPanning, canvasState.panStart, canvasState.panStartTransform]);
+  }, [canvasState.isPanning, canvasState.panStart, canvasState.panStartTransform, canvasState.isConnecting, canvasState.connectionStart]);
 
   const handleGlobalMouseUp = useCallback((e: MouseEvent) => {
     try {
@@ -757,13 +1059,42 @@ const OptimizedExplorationMap: React.FC = () => {
       return;
     }
     
-    try {
-      e.preventDefault();
-    } catch (error) {
-      console.debug('Cannot preventDefault on passive node mouse event');
+    // Remove preventDefault to avoid passive event listener errors
+
+    // Handle connection mode
+    if (canvasState.isConnecting) {
+      if (!canvasState.connectionStart) {
+        // Start connection from this node
+        setCanvasState(prev => ({
+          ...prev,
+          connectionStart: nodeId,
+          connectionPreview: { x: e.clientX, y: e.clientY }
+        }));
+        showNotification(`Connection started from ${nodes.find(n => n.id === nodeId)?.title || 'node'}`);
+      } else if (canvasState.connectionStart !== nodeId) {
+        // Complete connection to this node
+        createConnection(canvasState.connectionStart, nodeId);
+        setCanvasState(prev => ({
+          ...prev,
+          isConnecting: false,
+          connectionStart: null,
+          connectionPreview: null
+        }));
+      } else {
+        // Cancel connection if clicking the same node
+        setCanvasState(prev => ({
+          ...prev,
+          connectionStart: null,
+          connectionPreview: null
+        }));
+        showNotification('Connection cancelled');
+      }
+      return;
     }
-    setSelectedNode(nodeId);
-  }, []);
+
+    // Normal selection behavior
+    handleNodeSelection(nodeId, e.ctrlKey || e.metaKey);
+  }, [handleNodeSelection, canvasState.isConnecting, canvasState.connectionStart, createConnection, nodes, showNotification]);
 
   // Get edge style for SVG rendering
   const getEdgeStyle = (type: string, strength?: number) => {
@@ -859,6 +1190,24 @@ const OptimizedExplorationMap: React.FC = () => {
       document.removeEventListener('mouseup', handleGlobalMouseUp);
     };
   }, [handleGlobalMouseMove, handleGlobalMouseUp]);
+
+  // Wheel event listener for zooming - using useEffect to avoid passive listener issues
+  useEffect(() => {
+    const canvasElement = canvasRef.current;
+    if (!canvasElement) return;
+
+    const handleWheelEvent = (e: WheelEvent) => {
+      e.preventDefault();
+      handleZoom(-e.deltaY, e.clientX, e.clientY);
+    };
+
+    // Add non-passive wheel event listener
+    canvasElement.addEventListener('wheel', handleWheelEvent, { passive: false });
+
+    return () => {
+      canvasElement.removeEventListener('wheel', handleWheelEvent);
+    };
+  }, [handleZoom]);
 
   // Handle context menu
   useEffect(() => {
@@ -1028,12 +1377,36 @@ const OptimizedExplorationMap: React.FC = () => {
               >
                 <Link className="w-4 h-4 text-white" />
               </button>
+              <button
+                onClick={handleDeleteSelected}
+                onDrop={handleDropOnTrash}
+                onDragOver={(e) => e.preventDefault()}
+                className={`p-2 glass-pane hover:bg-red-500/20 transition-colors rounded ${
+                  selectedNodes.size > 0 || selectedEdges.size > 0
+                    ? 'bg-red-500/10 text-red-300'
+                    : 'text-white'
+                } ${isDragToTrash ? 'bg-red-500/30 scale-110' : ''}`}
+                title={`Delete Selected (${selectedNodes.size + selectedEdges.size} items)`}
+                disabled={selectedNodes.size === 0 && selectedEdges.size === 0}
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
             </div>
+
+            {/* Connection mode hint */}
+            {canvasState.isConnecting && (
+              <div className="absolute top-20 left-1/2 transform -translate-x-1/2 glass-pane px-4 py-2 text-sm text-[#6B6B3A] z-40 border border-[#6B6B3A]/30">
+                🔗 {canvasState.connectionStart ? 'Click another node to complete connection' : 'Click a node and drag to another node to create connection'}
+              </div>
+            )}
 
             {/* Canvas */}
             <div
               ref={canvasRef}
-              className="w-full h-full cursor-grab active:cursor-grabbing relative"
+              className={`w-full h-full relative ${
+                canvasState.isConnecting ? 'cursor-crosshair' :
+                canvasState.isPanning ? 'cursor-grabbing' : 'cursor-grab'
+              }`}
               style={{
                 backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.1) 1px, transparent 0)`,
                 backgroundSize: `${GRID_SIZE * canvasState.transform.scale}px ${GRID_SIZE * canvasState.transform.scale}px`,
@@ -1042,7 +1415,6 @@ const OptimizedExplorationMap: React.FC = () => {
               onMouseDown={handleCanvasMouseDown}
               onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}
-              onWheel={handleWheel}
               role="application"
               aria-label="Exploration Map Canvas"
             >
@@ -1061,24 +1433,71 @@ const OptimizedExplorationMap: React.FC = () => {
                   canvasState={canvasState}
                   getEdgeStyle={getEdgeStyle}
                   onDeleteEdge={deleteEdgeAPI}
+                  selectedEdges={selectedEdges}
+                  onEdgeSelect={handleEdgeSelection}
                 />
 
-                {/* Nodes */}
+                {/* Connection Preview Line */}
+                {canvasState.isConnecting && canvasState.connectionStart && canvasState.connectionPreview && (
+                  <svg
+                    className="absolute pointer-events-none"
+                    style={{
+                      left: -2000,
+                      top: -2000,
+                      width: 4000,
+                      height: 4000,
+                      zIndex: 15
+                    }}
+                  >
+                    {(() => {
+                      const startNode = nodes.find(n => n.id === canvasState.connectionStart);
+                      if (!startNode || !canvasRef.current) return null;
+
+                      const canvasRect = canvasRef.current.getBoundingClientRect();
+                      const startX = (startNode.x + 120) * canvasState.transform.scale + canvasState.transform.x + 2000;
+                      const startY = (startNode.y + 60) * canvasState.transform.scale + canvasState.transform.y + 2000;
+                      const endX = (canvasState.connectionPreview.x - canvasRect.left - canvasState.transform.x) / canvasState.transform.scale + 120 + 2000;
+                      const endY = (canvasState.connectionPreview.y - canvasRect.top - canvasState.transform.y) / canvasState.transform.scale + 60 + 2000;
+
+                      return (
+                        <line
+                          x1={startX}
+                          y1={startY}
+                          x2={endX}
+                          y2={endY}
+                          stroke="#6B6B3A"
+                          strokeWidth="2"
+                          strokeDasharray="5,5"
+                          opacity="0.8"
+                        />
+                      );
+                    })()}
+                  </svg>
+                )}
+
+                {/* Nodes with Tooltip Functionality */}
                 {nodes.map(node => (
-                  <OptimizedNode
+                  <NodeWithTooltip
                     key={node.id}
                     node={node}
+                    edges={edges}
+                    transform={canvasState.transform}
                     isSelected={selectedNode === node.id}
                     isDragging={canvasState.isDragging && canvasState.draggedNodeId === node.id}
-                    agents={agents}
                     onMouseDown={handleNodeMouseDown}
                     onSelect={() => setSelectedNode(node.id)}
-                    onTooltipClick={(e) => {
-                      e.stopPropagation();
-                      // Handle tooltip click - could open modal or show details
-                    }}
-                    style={nodeStyles[node.id]}
-                  />
+                    onModalOpen={handleModalOpen}
+                  >
+                    <OptimizedNode
+                      node={node}
+                      isSelected={selectedNode === node.id}
+                      isDragging={canvasState.isDragging && canvasState.draggedNodeId === node.id}
+                      agents={agents}
+                      onMouseDown={handleNodeMouseDown}
+                      onSelect={() => setSelectedNode(node.id)}
+                      style={nodeStyles[node.id]}
+                    />
+                  </NodeWithTooltip>
                 ))}
               </div>
             </div>
@@ -1155,6 +1574,61 @@ const OptimizedExplorationMap: React.FC = () => {
           {notification && (
             <div className="fixed top-4 right-4 z-50 glass-pane border border-[#6B6B3A]/50 px-4 py-2 rounded-lg shadow-xl">
               <p className="text-white text-sm">{notification}</p>
+            </div>
+          )}
+
+          {/* Undo Notification */}
+          {showUndoNotification && (
+            <div className="fixed top-16 right-4 z-50 glass-pane border border-yellow-500/50 px-4 py-3 rounded-lg shadow-xl">
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <p className="text-white text-sm font-medium">
+                    {showUndoNotification.type === 'delete_multiple'
+                      ? 'Multiple items deleted'
+                      : showUndoNotification.type === 'delete_node'
+                      ? 'Node deleted'
+                      : 'Connection deleted'
+                    }
+                  </p>
+                  <p className="text-gray-300 text-xs">Action will be permanent in 5 seconds</p>
+                </div>
+                <button
+                  onClick={() => handleUndo(showUndoNotification)}
+                  className="flex items-center gap-1 px-3 py-1 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 rounded text-sm transition-colors"
+                >
+                  <Undo2 className="w-3 h-3" />
+                  Undo
+                </button>
+                <button
+                  onClick={() => setShowUndoNotification(null)}
+                  className="p-1 hover:bg-gray-500/20 text-gray-400 hover:text-white rounded transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Selection Info */}
+          {(selectedNodes.size > 0 || selectedEdges.size > 0) && (
+            <div className="fixed bottom-4 right-4 z-50 glass-pane border border-blue-500/50 px-4 py-2 rounded-lg shadow-xl">
+              <p className="text-white text-sm">
+                Selected: {selectedNodes.size} node(s), {selectedEdges.size} connection(s)
+              </p>
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={handleDeleteSelected}
+                  className="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded text-xs transition-colors"
+                >
+                  Delete
+                </button>
+                <button
+                  onClick={clearSelections}
+                  className="px-3 py-1 bg-gray-500/20 hover:bg-gray-500/30 text-gray-300 rounded text-xs transition-colors"
+                >
+                  Clear
+                </button>
+              </div>
             </div>
           )}
 

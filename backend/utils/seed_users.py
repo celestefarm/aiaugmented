@@ -45,6 +45,8 @@ async def seed_users():
         if existing_count > 0:
             print(f"ℹ️  Found {existing_count} existing users. Clearing and re-seeding...")
             await users_collection.delete_many({})
+        else:
+            print("ℹ️  No existing users found. Proceeding with fresh seeding...")
         
         # Create user documents
         user_docs = []

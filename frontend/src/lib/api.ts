@@ -284,6 +284,16 @@ export interface AddToMapResponse {
   message: string;
 }
 
+export interface RemoveFromMapRequest {
+  node_id: string;
+}
+
+export interface RemoveFromMapResponse {
+  success: boolean;
+  message_id?: string;
+  message: string;
+}
+
 // Agent interaction types
 export interface AgentInteractionRequest {
   agent_id: string;
@@ -1252,6 +1262,14 @@ class ApiClient {
     });
   }
 
+  async removeMessageFromMap(workspaceId: string, data: RemoveFromMapRequest): Promise<RemoveFromMapResponse> {
+    console.log('🗑️ [REMOVE FROM MAP] API call:', { workspaceId, nodeId: data.node_id });
+    return await this.request<RemoveFromMapResponse>(`/workspaces/${workspaceId}/messages/remove-from-map`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   // Document generation methods
   async generateBrief(workspaceId: string): Promise<GenerateBriefResponse> {
     console.log('=== GENERATE BRIEF API CALL ===');
@@ -1441,3 +1459,4 @@ export const strategicInteractWithAgent = apiClient.strategicInteractWithAgent.b
 export const generateRedTeamChallenge = apiClient.generateRedTeamChallenge.bind(apiClient);
 export const evaluateRedTeamResponse = apiClient.evaluateRedTeamResponse.bind(apiClient);
 export const getStrategicSessionStatus = apiClient.getStrategicSessionStatus.bind(apiClient);
+export const removeMessageFromMap = apiClient.removeMessageFromMap.bind(apiClient);
