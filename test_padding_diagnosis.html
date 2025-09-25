@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Padding Diagnosis - Header Height Measurement</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background: #0A0A0A;
+            color: #E5E7EB;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* Replicate the exact header from Header.tsx */
+        .header-replica {
+            background: rgba(10, 10, 10, 0.4);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 0;
+            border-left: 0;
+            border-right: 0;
+            border-top: 0;
+            border-bottom: 1px solid rgba(55, 65, 81, 0.5);
+            padding: 4px 24px; /* py-1 = 4px top/bottom */
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            width: 100%;
+        }
+        
+        .container {
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(135deg, #111827, #1f2937, #111827);
+            overflow: hidden;
+        }
+        
+        .main-content {
+            flex: 1;
+            display: flex;
+            background: linear-gradient(135deg, #1e40af, #3b82f6, #60a5fa);
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .sidebar {
+            width: 320px;
+            background: rgba(31, 41, 55, 0.8);
+            border-right: 1px solid rgba(55, 65, 81, 0.5);
+            backdrop-filter: blur(8px);
+            flex-shrink: 0;
+            padding-top: 1px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .sidebar-content {
+            padding: 16px;
+            flex: 1;
+        }
+        
+        .canvas-area {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(135deg, #1e40af, #3b82f6, #60a5fa);
+            /* CURRENT PROBLEMATIC PADDING */
+            padding-top: 80px;
+        }
+        
+        .measurement-overlay {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            padding: 12px 16px;
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            font-size: 12px;
+            backdrop-filter: blur(8px);
+            max-width: 400px;
+            z-index: 100;
+        }
+        
+        .measurement-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+        
+        .measurement-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .measurement-label {
+            color: #9CA3AF;
+        }
+        
+        .measurement-value {
+            color: #60a5fa;
+            font-weight: 500;
+        }
+        
+        .measurement-value.error {
+            color: #ef4444;
+        }
+        
+        .measurement-value.success {
+            color: #22c55e;
+        }
+        
+        .fix-recommendation {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            padding: 12px 16px;
+            background: rgba(34, 197, 94, 0.2);
+            border: 1px solid rgba(34, 197, 94, 0.4);
+            border-radius: 8px;
+            font-size: 12px;
+            backdrop-filter: blur(8px);
+            max-width: 350px;
+            color: #22c55e;
+            z-index: 100;
+        }
+        
+        .fix-item {
+            margin-bottom: 4px;
+        }
+        
+        .fix-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .cut-off-indicator {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 80px;
+            background: rgba(239, 68, 68, 0.2);
+            border: 2px dashed #ef4444;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ef4444;
+            font-weight: bold;
+            font-size: 14px;
+            z-index: 10;
+        }
+        
+        .sidebar-title {
+            color: white;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .sidebar-description {
+            font-size: 14px;
+            color: #9CA3AF;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header-replica" id="header">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="width: 24px; height: 24px; background: #6B6B3A; border-radius: 4px;"></div>
+                <h1 style="font-size: 18px; font-weight: 600;">Agentic Boardroom</h1>
+                <span style="background: rgba(107, 107, 58, 0.2); padding: 2px 8px; border-radius: 12px; font-size: 10px;">PREMIUM</span>
+            </div>
+            
+            <div style="display: flex; gap: 8px;">
+                <button style="background: rgba(107, 107, 58, 0.3); border: 1px solid rgba(107, 107, 58, 0.5); padding: 8px 16px; border-radius: 20px; color: white; font-size: 14px;">Exploration Map</button>
+                <button style="background: transparent; border: 1px solid rgba(156, 163, 175, 0.3); padding: 8px 16px; border-radius: 20px; color: #9CA3AF; font-size: 14px;">Last-Mile Brief</button>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <select style="background: transparent; border: 1px solid rgba(107, 107, 58, 0.3); padding: 6px 12px; border-radius: 6px; color: white; font-size: 12px;">
+                    <option>Gemini 2.5 Pro</option>
+                </select>
+                <div style="width: 32px; height: 32px; background: rgba(107, 107, 58, 0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                    <div style="width: 16px; height: 16px; background: #6B6B3A; border-radius: 50%;"></div>
+                </div>
+            </div>
+        </header>
+        
+        <main class="main-content" id="main-content">
+            <div class="sidebar">
+                <div class="cut-off-indicator">
+                    ❌ CONTENT CUT OFF - 80px padding pushes content down
+                </div>
+                <div class="sidebar-content">
+                    <h3 class="sidebar-title">Left Sidebar</h3>
+                    <p class="sidebar-description">
+                        This title and content should be visible immediately below the header, 
+                        but the 80px canvas padding creates a visual misalignment.
+                    </p>
+                </div>
+            </div>
+            
+            <div class="canvas-area" id="canvas">
+                <div class="measurement-overlay" id="measurements">
+                    <div class="measurement-item">
+                        <span class="measurement-label">Header Height:</span>
+                        <span class="measurement-value" id="header-height">Loading...</span>
+                    </div>
+                    <div class="measurement-item">
+                        <span class="measurement-label">Canvas Padding Top:</span>
+                        <span class="measurement-value error" id="canvas-padding">80px</span>
+                    </div>
+                    <div class="measurement-item">
+                        <span class="measurement-label">Sidebar Padding Top:</span>
+                        <span class="measurement-value" id="sidebar-padding">1px</span>
+                    </div>
+                    <div class="measurement-item">
+                        <span class="measurement-label">Misalignment Gap:</span>
+                        <span class="measurement-value error" id="misalignment">79px</span>
+                    </div>
+                    <div class="measurement-item">
+                        <span class="measurement-label">Recommended Canvas Padding:</span>
+                        <span class="measurement-value success" id="recommended-padding">Loading...</span>
+                    </div>
+                </div>
+                
+                <div class="fix-recommendation">
+                    <div class="fix-item"><strong>🔍 DIAGNOSIS:</strong> Canvas paddingTop (80px) >> Sidebar paddingTop (1px)</div>
+                    <div class="fix-item"><strong>📏 MEASUREMENT:</strong> Header height = <span id="header-height-2">Loading...</span></div>
+                    <div class="fix-item"><strong>💡 SOLUTION:</strong> Reduce canvas paddingTop to <span id="recommended-padding-2">Loading...</span></div>
+                    <div class="fix-item"><strong>✅ RESULT:</strong> Perfect alignment + eliminate bottom gap</div>
+                </div>
+            </div>
+            
+            <div class="sidebar" style="border-left: 1px solid rgba(55, 65, 81, 0.5); border-right: none;">
+                <div class="cut-off-indicator">
+                    ❌ CONTENT CUT OFF - Same alignment issue
+                </div>
+                <div class="sidebar-content">
+                    <h3 class="sidebar-title">Right Sidebar</h3>
+                    <p class="sidebar-description">
+                        This sidebar also suffers from the same misalignment issue 
+                        caused by the excessive canvas padding.
+                    </p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        function measureAndDiagnose() {
+            const header = document.getElementById('header');
+            const canvas = document.getElementById('canvas');
+            
+            // Get actual measurements
+            const headerRect = header.getBoundingClientRect();
+            const headerHeight = headerRect.height;
+            
+            // Calculate recommended padding (header height + small buffer)
+            const recommendedPadding = Math.ceil(headerHeight) + 4; // 4px buffer
+            
+            // Update measurements
+            document.getElementById('header-height').textContent = `${headerHeight}px`;
+            document.getElementById('header-height-2').textContent = `${headerHeight}px`;
+            document.getElementById('recommended-padding').textContent = `${recommendedPadding}px`;
+            document.getElementById('recommended-padding-2').textContent = `${recommendedPadding}px`;
+            
+            // Log diagnosis
+            console.log('PADDING DIAGNOSIS RESULTS:');
+            console.log('Current header height:', headerHeight + 'px');
+            console.log('Current canvas padding:', '80px');
+            console.log('Recommended canvas padding:', recommendedPadding + 'px');
+            console.log('Padding reduction needed:', (80 - recommendedPadding) + 'px');
+            console.log('This will eliminate the cut-off issue and bottom gap');
+        }
+        
+        // Measure on load and resize
+        window.addEventListener('load', measureAndDiagnose);
+        window.addEventListener('resize', measureAndDiagnose);
+    </script>
+</body>
+</html>

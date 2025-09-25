@@ -105,12 +105,32 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
       setErrorState(ErrorStateManager.clearError());
       
       console.log('🔄 [MapContext] Loading map data for workspace:', currentWorkspace.id);
+      console.log('🔍 [MapContext DIAGNOSTIC] Workspace details:', {
+        id: currentWorkspace.id,
+        title: currentWorkspace.title,
+        owner_id: currentWorkspace.owner_id
+      });
       
-      // Load nodes and edges from API with error handling
-      const [nodesResponse, edgesResponse] = await Promise.all([
-        apiClient.getNodes(currentWorkspace.id),
-        apiClient.getEdges(currentWorkspace.id)
-      ]);
+      // DIAGNOSTIC LOGGING: Test individual API calls to identify which one fails
+      console.log('🔍 [MapContext DIAGNOSTIC] Starting nodes API call...');
+      let nodesResponse;
+      try {
+        nodesResponse = await apiClient.getNodes(currentWorkspace.id);
+        console.log('✅ [MapContext DIAGNOSTIC] Nodes API call successful:', nodesResponse.nodes.length, 'nodes');
+      } catch (nodesError) {
+        console.error('❌ [MapContext DIAGNOSTIC] Nodes API call failed:', nodesError);
+        throw nodesError;
+      }
+      
+      console.log('🔍 [MapContext DIAGNOSTIC] Starting edges API call...');
+      let edgesResponse;
+      try {
+        edgesResponse = await apiClient.getEdges(currentWorkspace.id);
+        console.log('✅ [MapContext DIAGNOSTIC] Edges API call successful:', edgesResponse.edges.length, 'edges');
+      } catch (edgesError) {
+        console.error('❌ [MapContext DIAGNOSTIC] Edges API call failed:', edgesError);
+        throw edgesError;
+      }
       
       console.log('✅ [MapContext] Map data loaded successfully:', {
         nodes: nodesResponse.nodes.length,

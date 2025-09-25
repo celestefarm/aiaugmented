@@ -97,7 +97,7 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
   const handleAddToMap = async (messageId: string) => {
     try {
       // Enhanced debug logging for new implementation
-      console.log('=== NEW ADD TO MAP IMPLEMENTATION ===');
+      console.log('=== ENHANCED ADD TO MAP IMPLEMENTATION ===');
       console.log('Message ID:', messageId);
       console.log('Message ID type:', typeof messageId);
       console.log('Is valid ObjectId format?', /^[0-9a-fA-F]{24}$/.test(messageId));
@@ -105,55 +105,56 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
       // Find the message in our local state
       const message = messages.find(m => m.id === messageId);
       console.log('Found message in local state:', message);
-      console.log('Current messages state:', messages.map(m => ({ id: m.id, added_to_map: m.added_to_map })));
+      console.log('Current messages state:', messages.map(m => ({ id: m.id, type: m.type, added_to_map: m.added_to_map })));
       
       // Validate message ID format
       if (!messageId || typeof messageId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(messageId)) {
         console.error('Invalid message ID detected:', { messageId, type: typeof messageId });
-        alert('Error: Invalid message ID format. Please refresh the page and try again.');
+        showToast('Error: Invalid message ID format. Please refresh the page and try again.', 'error');
         return;
       }
       
       // Check if message is already added to map
       if (message?.added_to_map) {
         console.log('Message already added to map - preventing duplicate addition');
-        alert('This message has already been added to the map.');
+        showToast('This message has already been added to the map.', 'warning');
         return;
       }
-      
-      // IMMEDIATE STATE UPDATE: Optimistically update UI to prevent race conditions
-      console.log('=== OPTIMISTIC UPDATE ===');
-      console.log('Immediately updating local state to prevent race condition...');
       
       // Prevent multiple simultaneous requests for the same message
       if (addingToMap.has(messageId)) {
         console.log('Already processing this message - preventing duplicate request');
-        alert('This message is already being added to the map. Please wait...');
+        showToast('This message is already being added to the map. Please wait...', 'warning');
         return;
       }
       
       // Mark message as being processed
       setAddingToMap(prev => new Set(prev).add(messageId));
       
-      console.log('Calling new addMessageToMap implementation...');
+      console.log('Calling enhanced addMessageToMap implementation...');
       
       try {
-        // Call the API with enhanced error handling
-        const success = await addMessageToMap(messageId, undefined, 'ai');
-        console.log('New addMessageToMap result:', success);
+        // Determine the correct node type based on message type
+        const nodeType = message?.type === 'human' ? 'human' : 'ai';
+        console.log('Using node type:', nodeType, 'for message type:', message?.type);
+        
+        // Call the API with the correct node type
+        const success = await addMessageToMap(messageId, undefined, nodeType);
+        console.log('Enhanced addMessageToMap result:', success);
         
         if (success) {
-          console.log('Successfully added to map with new implementation!');
-          // Show success feedback
-          alert('Message successfully added to map! Check the canvas to see the new node.');
+          console.log('Successfully added to map with enhanced implementation!');
+          // Show success feedback with toast
+          const messageTypeText = message?.type === 'human' ? 'Human input' : 'AI response';
+          showToast(`${messageTypeText} successfully added to map! Check the canvas to see the new node.`, 'success');
           
           // Call the callback if provided
           if (onAddToMap) {
             onAddToMap(messageId);
           }
         } else {
-          console.error('New addMessageToMap returned false');
-          alert('Failed to add message to map. The message may already be added or there was a server error.');
+          console.error('Enhanced addMessageToMap returned false');
+          showToast('Failed to add message to map. The message may already be added or there was a server error.', 'error');
         }
       } finally {
         // Always remove from processing set
@@ -164,7 +165,7 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
         });
       }
     } catch (error) {
-      console.error('Failed to add message to map with new implementation:', error);
+      console.error('Failed to add message to map with enhanced implementation:', error);
       
       // Enhanced error messaging
       let errorMessage = 'Unknown error occurred';
@@ -181,7 +182,7 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
         }
       }
       
-      alert(`Error adding to map: ${errorMessage}`);
+      showToast(`Error adding to map: ${errorMessage}`, 'error');
       
       // Remove from processing set on error
       setAddingToMap(prev => {
@@ -190,6 +191,36 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
         return newSet;
       });
     }
+  };
+
+  // Toast notification helper
+  const showToast = (message: string, type: 'success' | 'error' | 'warning' = 'success') => {
+    // Create a simple toast notification
+    const toast = document.createElement('div');
+    toast.className = `fixed top-4 right-4 z-50 px-4 py-2 rounded-lg text-sm font-medium text-white shadow-lg transition-all duration-300 ${
+      type === 'success' ? 'bg-green-600' :
+      type === 'error' ? 'bg-red-600' :
+      'bg-yellow-600'
+    }`;
+    toast.textContent = message;
+    toast.style.transform = 'translateX(100%)';
+    
+    document.body.appendChild(toast);
+    
+    // Animate in
+    setTimeout(() => {
+      toast.style.transform = 'translateX(0)';
+    }, 10);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+      toast.style.transform = 'translateX(100%)';
+      setTimeout(() => {
+        if (document.body.contains(toast)) {
+          document.body.removeChild(toast);
+        }
+      }, 300);
+    }, 3000);
   };
 
 
@@ -203,7 +234,7 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-3 mt-2">
         <div className="flex items-center space-x-2">
           {isStrategicMode ? (
             <Zap className="w-4 h-4 text-blue-400" />
@@ -369,24 +400,36 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap }) => {
                   {message.content}
                 </p>
                 
-                {/* New Add to Map Button Implementation */}
-                {message.type === 'ai' && (
+                {/* Enhanced Add to Map Button Implementation - Now supports both AI and Human messages */}
+                {(message.type === 'ai' || message.type === 'human') && (
                   message.added_to_map ? (
-                    <div className="flex items-center space-x-1 text-[10px] px-2 py-1 bg-green-500/20 text-green-300 rounded border border-green-500/30">
+                    <div className={`flex items-center space-x-1 text-[10px] px-2 py-1 rounded border ${
+                      message.type === 'human'
+                        ? 'bg-green-500/20 text-green-300 border-green-500/30'
+                        : 'bg-green-500/20 text-green-300 border-green-500/30'
+                    }`}>
                       <Check className="w-3 h-3" />
                       <span>Added to Map</span>
                     </div>
                   ) : addingToMap.has(message.id) ? (
-                    <div className="flex items-center space-x-1 text-[10px] px-2 py-1 bg-yellow-500/20 text-yellow-300 rounded border border-yellow-500/30">
+                    <div className={`flex items-center space-x-1 text-[10px] px-2 py-1 rounded border ${
+                      message.type === 'human'
+                        ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30'
+                        : 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30'
+                    }`}>
                       <Loader2 className="w-3 h-3 animate-spin" />
                       <span>Adding...</span>
                     </div>
                   ) : (
                     <button
                       onClick={() => handleAddToMap(message.id)}
-                      className="text-[10px] px-2 py-1 bg-blue-500/20 text-blue-300 rounded hover:bg-blue-500/30 transition-colors border border-blue-500/30 font-medium"
-                      aria-label={`Add message from ${message.author} to exploration map`}
-                      title="Convert this AI response into a visual node on the exploration canvas"
+                      className={`text-[10px] px-2 py-1 rounded hover:opacity-80 transition-colors border font-medium ${
+                        message.type === 'human'
+                          ? 'bg-[#6B6B3A]/20 text-[#6B6B3A] border-[#6B6B3A]/30 hover:bg-[#6B6B3A]/30'
+                          : 'bg-blue-500/20 text-blue-300 border-blue-500/30 hover:bg-blue-500/30'
+                      }`}
+                      aria-label={`Add ${message.type} message from ${message.author} to exploration map`}
+                      title={`Convert this ${message.type === 'human' ? 'human input' : 'AI response'} into a visual node on the exploration canvas`}
                     >
                       ➕ Add to Map
                     </button>

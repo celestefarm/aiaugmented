@@ -110,7 +110,7 @@
   flex: 1;
   padding: var(--space-8);
   overflow-y: auto;
-  max-height: 100vh;
+  height: 100%;
   background: var(--gradient-background);
   color: var(--gold-light);
   font-family: var(--font-sans);

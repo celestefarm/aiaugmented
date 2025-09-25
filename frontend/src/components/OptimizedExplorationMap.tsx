@@ -618,7 +618,7 @@ const OptimizedExplorationMap: React.FC = () => {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (rect) {
       const relativeY = e.clientY - rect.top;
-      if (relativeY < 120) {
+      if (relativeY < 80) { // Updated for proper header height
         return;
       }
     }
@@ -916,12 +916,12 @@ const OptimizedExplorationMap: React.FC = () => {
   return (
     <ErrorBoundary>
       <TooltipProvider>
-        <div className="flex h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 overflow-hidden">
+        <div className="flex h-full w-full bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 overflow-hidden">
           {/* Left Sidebar */}
-          <div className={`transition-all duration-300 bg-gray-800/50 border-r border-gray-700/50 backdrop-blur-sm ${
+          <div className={`transition-all duration-300 bg-gray-800/50 border-r border-gray-700/50 backdrop-blur-sm flex flex-col ${
             leftSidebarCollapsed ? 'w-16' : 'w-80'
           }`}>
-            <div className="p-4 border-b border-gray-700/50">
+            <div className="flex-shrink-0 p-4 border-b border-gray-700/50 bg-gray-800/70 backdrop-blur-sm">
               <div className="flex items-center justify-between">
                 {!leftSidebarCollapsed && (
                   <h2 className="text-lg font-semibold text-white">Agents</h2>
@@ -936,7 +936,7 @@ const OptimizedExplorationMap: React.FC = () => {
             </div>
             
             {!leftSidebarCollapsed && (
-              <div className="p-4 space-y-3 overflow-y-auto max-h-[calc(100vh-80px)]">
+              <div className="flex-1 p-4 space-y-3 overflow-y-auto">
                 {agents.map(agent => (
                   <div key={agent.agent_id} className="glass-pane p-3 rounded-lg">
                     <div className="flex items-center justify-between mb-2">
@@ -975,7 +975,7 @@ const OptimizedExplorationMap: React.FC = () => {
           {/* Main Canvas Area */}
           <div className="flex-1 relative overflow-hidden">
             {/* Canvas Controls */}
-            <div className="absolute top-4 left-4 z-50 flex gap-2">
+            <div className="absolute top-4 left-4 z-40 flex gap-2">
               <button
                 onClick={() => handleZoom(1)}
                 className="p-2 glass-pane hover:bg-white/10 transition-colors rounded"
@@ -1107,10 +1107,17 @@ const OptimizedExplorationMap: React.FC = () => {
 
           {/* Right Sidebar - Chat */}
           <div
-            className="bg-gray-800/50 border-l border-gray-700/50 backdrop-blur-sm overflow-hidden"
+            className="bg-gray-800/50 border-l border-gray-700/50 backdrop-blur-sm overflow-hidden flex flex-col"
             style={{ width: rightSidebarWidth }}
           >
-            <SparringSession onAddToMap={(messageId) => handleAddToMap(messageId, {})} />
+            <div className="flex-shrink-0 p-4 border-b border-gray-700/50 bg-gray-800/70 backdrop-blur-sm">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-white">Chat</h2>
+              </div>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <SparringSession onAddToMap={(messageId) => handleAddToMap(messageId, {})} />
+            </div>
           </div>
 
           {/* Notification */}

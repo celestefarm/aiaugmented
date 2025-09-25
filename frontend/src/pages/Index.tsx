@@ -88,7 +88,7 @@ const Index: React.FC = () => {
         onTitleChange={handleTitleChange}
       />
       
-      <main className="flex-1 overflow-hidden relative">
+      <main className="flex-1 overflow-hidden relative" style={{ height: 'calc(100vh - 80px)' }}>
         {(() => {
           if (currentView === 'exploration') {
             // Use the new optimized canvas implementation

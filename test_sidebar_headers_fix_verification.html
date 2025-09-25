@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sidebar Headers Fix Verification</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .glass-pane {
+            background: rgba(31, 41, 55, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(75, 85, 99, 0.3);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white">
+    <div class="h-screen w-screen flex flex-col bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 overflow-hidden">
+        <!-- Header (simulating the main header) -->
+        <header class="glass-pane sticky top-0 z-50 w-full px-6 py-4 border-b border-gray-800/50">
+            <div class="flex items-center justify-between">
+                <h1 class="text-lg font-semibold text-white">Agentic Boardroom</h1>
+                <div class="text-sm text-gray-400">Header Height: 80px</div>
+            </div>
+        </header>
+        
+        <!-- Main Content Area -->
+        <main class="flex-1 overflow-hidden relative" style="height: calc(100vh - 80px);">
+            <div class="flex h-full w-full bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 overflow-hidden">
+                
+                <!-- Left Sidebar with Fixed Header -->
+                <div class="w-80 transition-all duration-300 bg-gray-800/50 border-r border-gray-700/50 backdrop-blur-sm flex flex-col">
+                    <!-- Left Sidebar Header - SHOULD BE VISIBLE -->
+                    <div class="flex-shrink-0 p-4 border-b border-gray-700/50 bg-gray-800/70 backdrop-blur-sm">
+                        <div class="flex items-center justify-between">
+                            <h2 class="text-lg font-semibold text-white">Agents</h2>
+                            <div class="text-xs text-green-400">✓ VISIBLE</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Left Sidebar Content -->
+                    <div class="flex-1 p-4 space-y-3 overflow-y-auto">
+                        <div class="glass-pane p-3 rounded-lg">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-2 h-2 rounded-full bg-green-400"></div>
+                                    <span class="text-sm font-medium text-white">Strategic Co-Pilot</span>
+                                </div>
+                            </div>
+                            <p class="text-xs text-gray-300 mb-3">Elite AI co-pilot for high-stakes professional decisions.</p>
+                        </div>
+                        
+                        <div class="glass-pane p-3 rounded-lg">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-2 h-2 rounded-full bg-gray-500"></div>
+                                    <span class="text-sm font-medium text-white">Risk Agent</span>
+                                </div>
+                            </div>
+                            <p class="text-xs text-gray-300 mb-3">Identify regulatory risks, compliance requirements.</p>
+                        </div>
+                        
+                        <div class="glass-pane p-3 rounded-lg">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-2 h-2 rounded-full bg-gray-500"></div>
+                                    <span class="text-sm font-medium text-white">Execution Agent</span>
+                                </div>
+                            </div>
+                            <p class="text-xs text-gray-300 mb-3">Drive execution excellence, monitor progress.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Canvas Area -->
+                <div class="flex-1 relative overflow-hidden bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+                    <div class="absolute top-4 left-4 z-40 flex gap-2">
+                        <button class="p-2 glass-pane hover:bg-white/10 transition-colors rounded">
+                            <div class="w-4 h-4 text-white">🔍</div>
+                        </button>
+                    </div>
+                    
+                    <div class="flex items-center justify-center h-full">
+                        <div class="text-center">
+                            <h3 class="text-xl font-semibold text-white mb-4">Canvas Area</h3>
+                            <p class="text-gray-400">This is where the exploration map would be rendered</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Sidebar with Fixed Header -->
+                <div class="w-80 bg-gray-800/50 border-l border-gray-700/50 backdrop-blur-sm overflow-hidden flex flex-col">
+                    <!-- Right Sidebar Header - SHOULD BE VISIBLE -->
+                    <div class="flex-shrink-0 p-4 border-b border-gray-700/50 bg-gray-800/70 backdrop-blur-sm">
+                        <div class="flex items-center justify-between">
+                            <h2 class="text-lg font-semibold text-white">Chat</h2>
+                            <div class="text-xs text-green-400">✓ VISIBLE</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Right Sidebar Content -->
+                    <div class="flex-1 overflow-hidden p-4">
+                        <div class="space-y-4">
+                            <div class="glass-pane p-3 rounded-lg">
+                                <div class="text-sm text-blue-400 mb-2">Strategic Co-Pilot</div>
+                                <p class="text-xs text-gray-300">Key risks for European expansion include: 1) Regulatory compliance, 2) Currency exchange rates and profitability, 3) Cultural adaptation...</p>
+                                <div class="mt-2 text-xs text-green-400">✓ Added to Map</div>
+                            </div>
+                            
+                            <div class="mt-4">
+                                <input 
+                                    type="text" 
+                                    placeholder="Ask your strategic agents anything..." 
+                                    class="w-full p-3 bg-gray-700/50 border border-gray-600/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Test script to verify layout
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('=== SIDEBAR HEADERS VISIBILITY TEST ===');
+            
+            // Check if left sidebar header is visible
+            const leftHeader = document.querySelector('.flex-col:first-child .flex-shrink-0 h2');
+            if (leftHeader && leftHeader.textContent === 'Agents') {
+                console.log('✅ Left sidebar "Agents" header is present and visible');
+            } else {
+                console.log('❌ Left sidebar "Agents" header is missing or not visible');
+            }
+            
+            // Check if right sidebar header is visible
+            const rightHeader = document.querySelector('.flex-col:last-child .flex-shrink-0 h2');
+            if (rightHeader && rightHeader.textContent === 'Chat') {
+                console.log('✅ Right sidebar "Chat" header is present and visible');
+            } else {
+                console.log('❌ Right sidebar "Chat" header is missing or not visible');
+            }
+            
+            // Check layout structure
+            const mainContent = document.querySelector('main');
+            const computedStyle = window.getComputedStyle(mainContent);
+            console.log('📏 Main content height:', computedStyle.height);
+            
+            // Check sidebar heights
+            const leftSidebar = document.querySelector('.flex-col:first-child');
+            const rightSidebar = document.querySelector('.flex-col:last-child');
+            console.log('📏 Left sidebar height:', window.getComputedStyle(leftSidebar).height);
+            console.log('📏 Right sidebar height:', window.getComputedStyle(rightSidebar).height);
+            
+            console.log('=== TEST COMPLETE ===');
+        });
+    </script>
+</body>
+</html>

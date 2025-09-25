@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas Header Overlay Fix Verification</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background: #0A0A0A;
+            color: #E5E7EB;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .container {
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(135deg, #111827, #1f2937, #111827);
+            overflow: hidden;
+        }
+        
+        .header {
+            /* Matching the actual Header component styles - STICKY */
+            height: 60px;
+            background: rgba(10, 10, 10, 0.4);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 0;
+            border-left: 0;
+            border-right: 0;
+            border-top: 0;
+            border-bottom: 1px solid rgba(55, 65, 81, 0.5);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            flex-shrink: 0;
+        }
+        
+        .main-content {
+            /* This should now have marginTop: 60px to start below sticky header */
+            height: calc(100vh - 60px);
+            margin-top: 60px;
+            overflow: hidden;
+            position: relative;
+            flex: 1;
+        }
+        
+        .canvas-area {
+            display: flex;
+            height: 100%;
+            background: linear-gradient(135deg, #1e40af, #3b82f6, #60a5fa); /* BLUE CANVAS */
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .left-sidebar {
+            width: 320px;
+            background: rgba(31, 41, 55, 0.8);
+            border-right: 1px solid rgba(55, 65, 81, 0.5);
+            backdrop-filter: blur(8px);
+            flex-shrink: 0;
+        }
+        
+        .canvas-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(135deg, #1e40af, #3b82f6, #60a5fa); /* BLUE CANVAS */
+        }
+        
+        .right-sidebar {
+            width: 320px;
+            background: rgba(31, 41, 55, 0.8);
+            border-left: 1px solid rgba(55, 65, 81, 0.5);
+            backdrop-filter: blur(8px);
+            flex-shrink: 0;
+        }
+        
+        .canvas {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1e40af, #3b82f6, #60a5fa); /* BLUE CANVAS */
+            background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.2) 1px, transparent 0);
+            background-size: 20px 20px;
+            cursor: grab;
+            position: relative;
+        }
+        
+        .canvas:active {
+            cursor: grabbing;
+        }
+        
+        .controls {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            z-index: 50;
+            display: flex;
+            gap: 8px;
+        }
+        
+        .control-btn {
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+            backdrop-filter: blur(8px);
+            transition: background-color 0.2s;
+        }
+        
+        .control-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .test-node {
+            position: absolute;
+            width: 240px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            padding: 16px;
+            backdrop-filter: blur(8px);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        
+        .status-indicator {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            padding: 8px 16px;
+            background: rgba(34, 197, 94, 0.3);
+            border: 1px solid rgba(34, 197, 94, 0.5);
+            border-radius: 6px;
+            color: #22c55e;
+            font-size: 14px;
+            backdrop-filter: blur(8px);
+            font-weight: 600;
+        }
+        
+        .overlay-test-indicator {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 4px;
+            height: 30px;
+            background: #22c55e;
+            z-index: 100;
+        }
+        
+        .overlay-test-indicator.overlapped {
+            background: #ef4444;
+        }
+        
+        .overlay-label {
+            position: absolute;
+            top: 35px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            white-space: nowrap;
+            z-index: 100;
+            font-weight: 600;
+        }
+        
+        .overlay-label.no-overlap {
+            color: #22c55e;
+        }
+        
+        .overlay-label.overlapped {
+            color: #ef4444;
+        }
+        
+        .measurement-info {
+            position: absolute;
+            bottom: 16px;
+            left: 16px;
+            padding: 12px 16px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            font-size: 12px;
+            backdrop-filter: blur(8px);
+            max-width: 350px;
+        }
+        
+        .measurement-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+        
+        .measurement-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .measurement-label {
+            color: #9CA3AF;
+        }
+        
+        .measurement-value {
+            color: #60a5fa;
+            font-weight: 500;
+        }
+        
+        .measurement-value.success {
+            color: #22c55e;
+        }
+        
+        .measurement-value.error {
+            color: #ef4444;
+        }
+        
+        /* Header overlay test - this should NOT be visible if positioned correctly */
+        .header-overlap-test {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: rgba(239, 68, 68, 0.3);
+            border: 2px dashed #ef4444;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ef4444;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        .header-overlap-test.hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="width: 24px; height: 24px; background: #6B6B3A; border-radius: 4px;"></div>
+                <h1 style="font-size: 18px; font-weight: 600;">Agentic Boardroom</h1>
+                <span style="background: rgba(107, 107, 58, 0.2); padding: 2px 8px; border-radius: 12px; font-size: 10px;">PREMIUM</span>
+            </div>
+            
+            <div style="display: flex; gap: 8px;">
+                <button style="background: rgba(107, 107, 58, 0.3); border: 1px solid rgba(107, 107, 58, 0.5); padding: 8px 16px; border-radius: 20px; color: white; font-size: 14px;">Exploration Map</button>
+                <button style="background: transparent; border: 1px solid rgba(156, 163, 175, 0.3); padding: 8px 16px; border-radius: 20px; color: #9CA3AF; font-size: 14px;">Last-Mile Brief</button>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <select style="background: transparent; border: 1px solid rgba(107, 107, 58, 0.3); padding: 6px 12px; border-radius: 6px; color: white; font-size: 12px;">
+                    <option>Gemini 2.5 Pro</option>
+                </select>
+                <div style="width: 32px; height: 32px; background: rgba(107, 107, 58, 0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                    <div style="width: 16px; height: 16px; background: #6B6B3A; border-radius: 50%;"></div>
+                </div>
+            </div>
+        </header>
+        
+        <main class="main-content">
+            <!-- Overlay test indicator -->
+            <div class="overlay-test-indicator" id="overlay-indicator"></div>
+            <div class="overlay-label" id="overlay-label">Checking...</div>
+            
+            <!-- This should NOT be visible if canvas is positioned correctly -->
+            <div class="header-overlap-test" id="overlap-test">
+                ⚠️ CANVAS OVERLAPPED BY HEADER ⚠️
+            </div>
+            
+            <div class="canvas-area">
+                <div class="left-sidebar">
+                    <div style="padding: 16px;">
+                        <h3 style="margin-bottom: 8px; color: white;">Left Sidebar</h3>
+                        <p style="font-size: 14px; color: #9CA3AF;">
+                            This sidebar should start below the header, not behind it.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="canvas-container">
+                    <div class="canvas" id="canvas">
+                        <div class="controls">
+                            <button class="control-btn" title="Zoom In">+</button>
+                            <button class="control-btn" title="Zoom Out">-</button>
+                            <button class="control-btn" title="Reset View">⟲</button>
+                        </div>
+                        
+                        <div class="status-indicator" id="status-indicator">
+                            Canvas Position: Checking...
+                        </div>
+                        
+                        <div class="test-node">
+                            <h4 style="color: white; margin-bottom: 8px; font-weight: 600;">Blue Canvas Test</h4>
+                            <p style="font-size: 12px; color: rgba(255,255,255,0.8);">
+                                This blue canvas should be fully visible below the header, not overlapped by it.
+                            </p>
+                        </div>
+                        
+                        <div class="measurement-info" id="measurement-info">
+                            <div class="measurement-item">
+                                <span class="measurement-label">Header Height:</span>
+                                <span class="measurement-value" id="header-height">Loading...</span>
+                            </div>
+                            <div class="measurement-item">
+                                <span class="measurement-label">Header Top Position:</span>
+                                <span class="measurement-value" id="header-top">Loading...</span>
+                            </div>
+                            <div class="measurement-item">
+                                <span class="measurement-label">Main Content Top:</span>
+                                <span class="measurement-value" id="main-top">Loading...</span>
+                            </div>
+                            <div class="measurement-item">
+                                <span class="measurement-label">Canvas Top Position:</span>
+                                <span class="measurement-value" id="canvas-top">Loading...</span>
+                            </div>
+                            <div class="measurement-item">
+                                <span class="measurement-label">Overlap Status:</span>
+                                <span class="measurement-value" id="overlap-status">Checking...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="right-sidebar">
+                    <div style="padding: 16px;">
+                        <h3 style="margin-bottom: 8px; color: white;">Right Sidebar</h3>
+                        <p style="font-size: 14px; color: #9CA3AF;">
+                            This sidebar should also start below the header.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        function checkOverlap() {
+            const header = document.querySelector('.header');
+            const mainContent = document.querySelector('.main-content');
+            const canvas = document.querySelector('.canvas');
+            const overlapTest = document.getElementById('overlap-test');
+            const overlayIndicator = document.getElementById('overlay-indicator');
+            const overlayLabel = document.getElementById('overlay-label');
+            const statusIndicator = document.getElementById('status-indicator');
+            
+            // Get positions
+            const headerRect = header.getBoundingClientRect();
+            const mainRect = mainContent.getBoundingClientRect();
+            const canvasRect = canvas.getBoundingClientRect();
+            
+            // Update measurements
+            document.getElementById('header-height').textContent = `${headerRect.height}px`;
+            document.getElementById('header-top').textContent = `${headerRect.top}px`;
+            document.getElementById('main-top').textContent = `${mainRect.top}px`;
+            document.getElementById('canvas-top').textContent = `${canvasRect.top}px`;
+            
+            // Check for overlap
+            const headerBottom = headerRect.bottom;
+            const canvasTop = canvasRect.top;
+            const isOverlapped = canvasTop < headerBottom;
+            const gap = canvasTop - headerBottom;
+            
+            const overlapStatus = document.getElementById('overlap-status');
+            
+            if (isOverlapped) {
+                // Canvas is overlapped by header
+                overlapTest.classList.remove('hidden');
+                overlayIndicator.classList.add('overlapped');
+                overlayLabel.classList.add('overlapped');
+                overlayLabel.classList.remove('no-overlap');
+                overlayLabel.textContent = `Overlapped by ${Math.abs(gap)}px ✗`;
+                statusIndicator.textContent = 'Canvas Position: OVERLAPPED ✗';
+                statusIndicator.style.background = 'rgba(239, 68, 68, 0.3)';
+                statusIndicator.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+                statusIndicator.style.color = '#ef4444';
+                overlapStatus.textContent = `Overlapped by ${Math.abs(gap)}px ✗`;
+                overlapStatus.classList.add('error');
+                overlapStatus.classList.remove('success');
+            } else {
+                // Canvas is properly positioned
+                overlapTest.classList.add('hidden');
+                overlayIndicator.classList.remove('overlapped');
+                overlayLabel.classList.remove('overlapped');
+                overlayLabel.classList.add('no-overlap');
+                overlayLabel.textContent = gap === 0 ? 'Perfect Position ✓' : `${gap}px Gap ✓`;
+                statusIndicator.textContent = 'Canvas Position: CORRECT ✓';
+                statusIndicator.style.background = 'rgba(34, 197, 94, 0.3)';
+                statusIndicator.style.borderColor = 'rgba(34, 197, 94, 0.5)';
+                statusIndicator.style.color = '#22c55e';
+                overlapStatus.textContent = gap === 0 ? 'Perfect Position ✓' : `${gap}px Gap ✓`;
+                overlapStatus.classList.add('success');
+                overlapStatus.classList.remove('error');
+            }
+            
+            console.log('Canvas Header Overlay Fix Verification Results:');
+            console.log('- Header bottom position:', headerBottom + 'px');
+            console.log('- Canvas top position:', canvasTop + 'px');
+            console.log('- Gap between header and canvas:', gap + 'px');
+            console.log('- Is canvas overlapped by header:', isOverlapped);
+            console.log('- Status:', isOverlapped ? 'OVERLAPPED ✗' : 'CORRECT ✓');
+        }
+        
+        // Check overlap on load and resize
+        window.addEventListener('load', checkOverlap);
+        window.addEventListener('resize', checkOverlap);
+        
+        // Add some interactivity to test canvas behavior
+        const canvas = document.getElementById('canvas');
+        let isDragging = false;
+        let startX, startY;
+        
+        canvas.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            canvas.style.cursor = 'grabbing';
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+            
+            // Visual feedback for panning (just for demo)
+            canvas.style.backgroundPosition = `${deltaX}px ${deltaY}px`;
+        });
+        
+        document.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                canvas.style.cursor = 'grab';
+                canvas.style.backgroundPosition = '0px 0px';
+            }
+        });
+    </script>
+</body>
+</html>

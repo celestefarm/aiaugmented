@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Human Add to Map Functionality Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #0A0A0A;
+            color: #E5E7EB;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #6B6B3A;
+            border-radius: 8px;
+            background-color: rgba(107, 107, 58, 0.1);
+        }
+        .message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 8px;
+            max-width: 90%;
+        }
+        .human-message {
+            background-color: rgba(107, 107, 58, 0.1);
+            border: 1px solid rgba(107, 107, 58, 0.3);
+            margin-left: auto;
+        }
+        .ai-message {
+            background-color: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+        .add-to-map-btn {
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid;
+            font-size: 10px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+        .human-btn {
+            background-color: rgba(107, 107, 58, 0.2);
+            color: #6B6B3A;
+            border-color: rgba(107, 107, 58, 0.3);
+        }
+        .ai-btn {
+            background-color: rgba(59, 130, 246, 0.2);
+            color: rgb(147, 197, 253);
+            border-color: rgba(59, 130, 246, 0.3);
+        }
+        .added-state {
+            background-color: rgba(34, 197, 94, 0.2);
+            color: rgb(134, 239, 172);
+            border-color: rgba(34, 197, 94, 0.3);
+        }
+        .success {
+            color: #10B981;
+        }
+        .feature-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        .feature-list li {
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(107, 107, 58, 0.2);
+        }
+        .feature-list li:before {
+            content: "✅ ";
+            color: #10B981;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎉 Human "Add to Map" Functionality - Implementation Complete!</h1>
+    
+    <div class="test-section">
+        <h2>✅ Implementation Summary</h2>
+        <p>The "Add to Map" functionality has been successfully extended to support both human and AI messages with the following enhancements:</p>
+        
+        <ul class="feature-list">
+            <li><strong>Extended Support:</strong> Both human and AI messages now show "Add to Map" buttons</li>
+            <li><strong>Visual Differentiation:</strong> Human messages use olive/yellow styling, AI messages use blue styling</li>
+            <li><strong>State Management:</strong> Proper label transitions: "Add to Map" → "Adding..." → "Added to Map"</li>
+            <li><strong>Toast Notifications:</strong> Replaced browser alerts with elegant toast notifications</li>
+            <li><strong>Node Type Detection:</strong> Automatically determines correct node type (human/ai) for API calls</li>
+            <li><strong>Error Handling:</strong> Enhanced error messages and duplicate prevention</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>🔧 Technical Implementation Details</h2>
+        <p><strong>Files Modified:</strong></p>
+        <ul>
+            <li><code>frontend/src/components/SparringSession.tsx</code> - Extended UI and logic</li>
+        </ul>
+        
+        <p><strong>Key Changes:</strong></p>
+        <ul>
+            <li>Updated message rendering condition from <code>message.type === 'ai'</code> to <code>(message.type === 'ai' || message.type === 'human')</code></li>
+            <li>Added dynamic styling based on message type</li>
+            <li>Enhanced <code>handleAddToMap</code> function to detect and pass correct node type</li>
+            <li>Implemented <code>showToast</code> helper for better user feedback</li>
+            <li>Maintained all existing functionality for AI messages</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>🎨 Visual Examples</h2>
+        <p>Here's how the buttons will appear for different message types:</p>
+        
+        <div class="message human-message">
+            <strong>👤 Human User:</strong> I think we should focus on improving our customer retention strategy.
+            <br>
+            <button class="add-to-map-btn human-btn">➕ Add to Map</button>
+        </div>
+        
+        <div class="message ai-message">
+            <strong>🤖 Strategist:</strong> Based on your input, I recommend implementing a three-tier retention program focusing on engagement, value delivery, and personalized experiences.
+            <br>
+            <button class="add-to-map-btn ai-btn">➕ Add to Map</button>
+        </div>
+        
+        <div class="message human-message">
+            <strong>👤 Human User:</strong> That's a great approach. Let me add this to the map.
+            <br>
+            <button class="add-to-map-btn added-state">✅ Added to Map</button>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🚀 User Experience Improvements</h2>
+        <ul class="feature-list">
+            <li><strong>Consistent Interface:</strong> Both human and AI messages have the same interaction pattern</li>
+            <li><strong>Visual Feedback:</strong> Clear state indicators with loading, success, and error states</li>
+            <li><strong>Toast Notifications:</strong> Non-intrusive success/error messages instead of browser alerts</li>
+            <li><strong>Accessibility:</strong> Proper ARIA labels and semantic HTML</li>
+            <li><strong>Responsive Design:</strong> Buttons adapt to message type with appropriate colors</li>
+        </ul>
+    </div>
+
+    <div class="test-section success">
+        <h2>✅ Task Completion Status</h2>
+        <p><strong>All requirements have been successfully implemented:</strong></p>
+        <ul>
+            <li>✅ Extended "Add to Map" functionality to human messages (yellow nodes)</li>
+            <li>✅ Maintained existing functionality for AI messages (blue nodes)</li>
+            <li>✅ Implemented proper label state management</li>
+            <li>✅ Added confirmation toast notifications</li>
+            <li>✅ Preserved all existing node design and AI features</li>
+            <li>✅ No overlapping or duplicated code</li>
+        </ul>
+        
+        <p><strong>The implementation is ready for testing in the live application!</strong></p>
+    </div>
+
+    <script>
+        // Simple demo functionality
+        document.querySelectorAll('.add-to-map-btn').forEach(btn => {
+            if (!btn.classList.contains('added-state')) {
+                btn.addEventListener('click', function() {
+                    this.textContent = '⏳ Adding...';
+                    this.style.opacity = '0.7';
+                    
+                    setTimeout(() => {
+                        this.textContent = '✅ Added to Map';
+                        this.className = 'add-to-map-btn added-state';
+                        this.style.opacity = '1';
+                        
+                        // Show toast notification
+                        const toast = document.createElement('div');
+                        toast.style.cssText = `
+                            position: fixed;
+                            top: 20px;
+                            right: 20px;
+                            background: #10B981;
+                            color: white;
+                            padding: 12px 20px;
+                            border-radius: 8px;
+                            font-weight: 500;
+                            z-index: 1000;
+                            transform: translateX(100%);
+                            transition: transform 0.3s ease;
+                        `;
+                        toast.textContent = 'Message successfully added to map!';
+                        document.body.appendChild(toast);
+                        
+                        setTimeout(() => toast.style.transform = 'translateX(0)', 10);
+                        setTimeout(() => {
+                            toast.style.transform = 'translateX(100%)';
+                            setTimeout(() => document.body.removeChild(toast), 300);
+                        }, 3000);
+                    }, 1500);
+                });
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas Positioning Diagnosis</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background: #0A0A0A;
+            color: #E5E7EB;
+            overflow: hidden;
+        }
+        
+        /* Simulate the current layout structure */
+        .main-container {
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(135deg, #1f2937 0%, #111827 50%, #1f2937 100%);
+        }
+        
+        /* Header simulation - current minimal padding */
+        .header-current {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            width: 100%;
+            padding: 0.25rem 1.5rem; /* py-1 px-6 equivalent */
+            border-bottom: 1px solid rgba(107, 107, 58, 0.3);
+            background: rgba(45, 45, 45, 0.75);
+            backdrop-filter: blur(16px);
+        }
+        
+        /* Header simulation - proper padding */
+        .header-fixed {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            width: 100%;
+            padding: 1rem 1.5rem; /* py-4 px-6 equivalent */
+            border-bottom: 1px solid rgba(107, 107, 58, 0.3);
+            background: rgba(45, 45, 45, 0.75);
+            backdrop-filter: blur(16px);
+        }
+        
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 100%;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .diamond {
+            width: 24px;
+            height: 24px;
+            color: #6B6B3A;
+        }
+        
+        .title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: white;
+        }
+        
+        .nav-toggle {
+            display: flex;
+            background: rgba(45, 45, 45, 0.75);
+            backdrop-filter: blur(16px);
+            border-radius: 9999px;
+            padding: 0.25rem;
+        }
+        
+        .nav-button {
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+        }
+        
+        .nav-button.active {
+            background: rgba(107, 107, 58, 0.3);
+            color: white;
+        }
+        
+        .nav-button.inactive {
+            color: #9CA3AF;
+        }
+        
+        .user-section {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        /* Main content area */
+        .main-content {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+        }
+        
+        /* Canvas area simulation */
+        .canvas-area {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(135deg, #1f2937 0%, #111827 50%, #1f2937 100%);
+        }
+        
+        /* Canvas controls - current positioning */
+        .canvas-controls-current {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            z-index: 50;
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        /* Canvas controls - fixed positioning */
+        .canvas-controls-fixed {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            z-index: 40;
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .control-button {
+            padding: 0.5rem;
+            background: rgba(45, 45, 45, 0.75);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(107, 107, 58, 0.3);
+            border-radius: 0.375rem;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .control-button:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        /* Sidebar simulations */
+        .left-sidebar {
+            width: 320px;
+            background: rgba(31, 41, 55, 0.5);
+            border-right: 1px solid rgba(107, 107, 58, 0.3);
+            backdrop-filter: blur(8px);
+        }
+        
+        .sidebar-header {
+            padding: 1rem;
+            border-bottom: 1px solid rgba(107, 107, 58, 0.3);
+            font-weight: 600;
+            color: white;
+        }
+        
+        .right-sidebar {
+            width: 320px;
+            background: rgba(31, 41, 55, 0.5);
+            border-left: 1px solid rgba(107, 107, 58, 0.3);
+            backdrop-filter: blur(8px);
+        }
+        
+        /* Diagnostic overlays */
+        .diagnostic-overlay {
+            position: absolute;
+            background: rgba(255, 0, 0, 0.2);
+            border: 2px solid red;
+            pointer-events: none;
+            z-index: 100;
+        }
+        
+        .header-bounds {
+            top: 0;
+            left: 0;
+            right: 0;
+            height: var(--header-height);
+        }
+        
+        .canvas-bounds {
+            top: var(--header-height);
+            left: 320px;
+            right: 320px;
+            bottom: 0;
+        }
+        
+        .controls-bounds {
+            top: calc(var(--header-height) + 1rem);
+            left: calc(320px + 1rem);
+            width: 200px;
+            height: 40px;
+        }
+        
+        /* Toggle styles */
+        .layout-current {
+            --header-height: 3rem; /* Minimal header height */
+        }
+        
+        .layout-fixed {
+            --header-height: 4rem; /* Proper header height */
+        }
+        
+        .toggle-container {
+            position: fixed;
+            top: 50%;
+            right: 20px;
+            transform: translateY(-50%);
+            z-index: 200;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid rgba(107, 107, 58, 0.5);
+        }
+        
+        .toggle-button {
+            display: block;
+            width: 100%;
+            padding: 0.5rem 1rem;
+            margin: 0.5rem 0;
+            background: rgba(107, 107, 58, 0.3);
+            color: white;
+            border: none;
+            border-radius: 0.25rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .toggle-button:hover {
+            background: rgba(107, 107, 58, 0.5);
+        }
+        
+        .toggle-button.active {
+            background: rgba(107, 107, 58, 0.7);
+        }
+        
+        .info-panel {
+            margin-top: 1rem;
+            padding: 0.5rem;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+        }
+    </style>
+</head>
+<body>
+    <div id="mainContainer" class="main-container layout-current">
+        <!-- Header -->
+        <header id="header" class="header-current">
+            <div class="header-content">
+                <div class="logo">
+                    <svg class="diamond" viewBox="0 0 24 24">
+                        <path d="M12 2 L20 12 L12 22 L4 12 Z" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
+                        <path d="M12 5 L17 12 L12 19 L7 12 Z" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                    </svg>
+                    <h1 class="title">Agentic Boardroom</h1>
+                </div>
+                
+                <div class="nav-toggle">
+                    <button class="nav-button active">Exploration Map</button>
+                    <button class="nav-button inactive">Last-Mile Brief</button>
+                </div>
+                
+                <div class="user-section">
+                    <span>User Controls</span>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Left Sidebar -->
+            <div class="left-sidebar">
+                <div class="sidebar-header">Agents</div>
+                <div style="padding: 1rem; color: #9CA3AF;">
+                    <p>• Strategist AI</p>
+                    <p>• Research Agent</p>
+                    <p>• Analysis Agent</p>
+                </div>
+            </div>
+            
+            <!-- Canvas Area -->
+            <div class="canvas-area">
+                <!-- Canvas Controls -->
+                <div id="canvasControls" class="canvas-controls-current">
+                    <button class="control-button">🔍+</button>
+                    <button class="control-button">🔍-</button>
+                    <button class="control-button">↻</button>
+                    <button class="control-button">➕</button>
+                </div>
+                
+                <div style="padding: 2rem; color: #9CA3AF;">
+                    <h3>Canvas Area</h3>
+                    <p>This represents the main canvas where nodes and connections are displayed.</p>
+                    <p>The canvas controls above should be visible and not overlapped by the header.</p>
+                </div>
+            </div>
+            
+            <!-- Right Sidebar -->
+            <div class="right-sidebar">
+                <div class="sidebar-header">Chat</div>
+                <div style="padding: 1rem; color: #9CA3AF;">
+                    <p>Chat interface would be here</p>
+                </div>
+            </div>
+        </main>
+        
+        <!-- Diagnostic Overlays -->
+        <div class="diagnostic-overlay header-bounds"></div>
+        <div class="diagnostic-overlay canvas-bounds"></div>
+        <div class="diagnostic-overlay controls-bounds"></div>
+    </div>
+    
+    <!-- Toggle Controls -->
+    <div class="toggle-container">
+        <h4 style="margin-bottom: 0.5rem;">Layout Test</h4>
+        <button id="currentBtn" class="toggle-button active">Current Layout (Broken)</button>
+        <button id="fixedBtn" class="toggle-button">Fixed Layout</button>
+        <button id="toggleOverlay" class="toggle-button">Toggle Diagnostic Overlay</button>
+        
+        <div class="info-panel">
+            <div><strong>Current Issues:</strong></div>
+            <div id="issuesList">
+                • Header too short (py-1)<br>
+                • No canvas top padding<br>
+                • Controls overlap header<br>
+                • Z-index conflicts
+            </div>
+            <div style="margin-top: 0.5rem;"><strong>Header Height:</strong> <span id="headerHeight">--</span></div>
+        </div>
+    </div>
+
+    <script>
+        const mainContainer = document.getElementById('mainContainer');
+        const header = document.getElementById('header');
+        const canvasControls = document.getElementById('canvasControls');
+        const currentBtn = document.getElementById('currentBtn');
+        const fixedBtn = document.getElementById('fixedBtn');
+        const toggleOverlayBtn = document.getElementById('toggleOverlay');
+        const headerHeight = document.getElementById('headerHeight');
+        const issuesList = document.getElementById('issuesList');
+        
+        let overlayVisible = true;
+        
+        function updateHeaderHeight() {
+            const height = header.offsetHeight;
+            headerHeight.textContent = height + 'px';
+            document.documentElement.style.setProperty('--header-height', height + 'px');
+        }
+        
+        function switchToCurrent() {
+            mainContainer.className = 'main-container layout-current';
+            header.className = 'header-current';
+            canvasControls.className = 'canvas-controls-current';
+            currentBtn.classList.add('active');
+            fixedBtn.classList.remove('active');
+            
+            issuesList.innerHTML = `
+                • Header too short (py-1)<br>
+                • No canvas top padding<br>
+                • Controls overlap header<br>
+                • Z-index conflicts
+            `;
+            
+            setTimeout(updateHeaderHeight, 100);
+        }
+        
+        function switchToFixed() {
+            mainContainer.className = 'main-container layout-fixed';
+            header.className = 'header-fixed';
+            canvasControls.className = 'canvas-controls-fixed';
+            currentBtn.classList.remove('active');
+            fixedBtn.classList.add('active');
+            
+            issuesList.innerHTML = `
+                ✓ Header proper height (py-4)<br>
+                ✓ Canvas accounts for header<br>
+                ✓ Controls positioned correctly<br>
+                ✓ Z-index hierarchy fixed
+            `;
+            
+            setTimeout(updateHeaderHeight, 100);
+        }
+        
+        function toggleOverlay() {
+            const overlays = document.querySelectorAll('.diagnostic-overlay');
+            overlayVisible = !overlayVisible;
+            overlays.forEach(overlay => {
+                overlay.style.display = overlayVisible ? 'block' : 'none';
+            });
+            toggleOverlayBtn.textContent = overlayVisible ? 'Hide Diagnostic Overlay' : 'Show Diagnostic Overlay';
+        }
+        
+        currentBtn.addEventListener('click', switchToCurrent);
+        fixedBtn.addEventListener('click', switchToFixed);
+        toggleOverlayBtn.addEventListener('click', toggleOverlay);
+        
+        // Initialize
+        updateHeaderHeight();
+        
+        // Update on resize
+        window.addEventListener('resize', updateHeaderHeight);
+    </script>
+</body>
+</html>

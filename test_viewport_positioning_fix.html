@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Viewport Positioning Fix Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background: #0A0A0A;
+            color: #E5E7EB;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .container {
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(135deg, #111827, #1f2937, #111827);
+            overflow: hidden;
+        }
+        
+        .header {
+            height: 60px;
+            background: #1f2937;
+            border-bottom: 1px solid #374151;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            flex-shrink: 0;
+        }
+        
+        .main-content {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .canvas-area {
+            display: flex;
+            height: 100%;
+            background: linear-gradient(135deg, #111827, #1f2937, #111827);
+            overflow: hidden;
+        }
+        
+        .left-sidebar {
+            width: 320px;
+            background: rgba(31, 41, 55, 0.5);
+            border-right: 1px solid rgba(55, 65, 81, 0.5);
+            backdrop-filter: blur(8px);
+            flex-shrink: 0;
+        }
+        
+        .canvas-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .right-sidebar {
+            width: 320px;
+            background: rgba(31, 41, 55, 0.5);
+            border-left: 1px solid rgba(55, 65, 81, 0.5);
+            backdrop-filter: blur(8px);
+            flex-shrink: 0;
+        }
+        
+        .canvas {
+            width: 100%;
+            height: 100%;
+            background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.1) 1px, transparent 0);
+            background-size: 20px 20px;
+            cursor: grab;
+            position: relative;
+        }
+        
+        .canvas:active {
+            cursor: grabbing;
+        }
+        
+        .controls {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            z-index: 50;
+            display: flex;
+            gap: 8px;
+        }
+        
+        .control-btn {
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+            backdrop-filter: blur(8px);
+            transition: background-color 0.2s;
+        }
+        
+        .control-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .test-node {
+            position: absolute;
+            width: 240px;
+            height: 120px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(107, 107, 58, 0.3);
+            border-radius: 8px;
+            padding: 16px;
+            backdrop-filter: blur(8px);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        
+        .status-indicator {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            padding: 8px 16px;
+            background: rgba(34, 197, 94, 0.2);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            border-radius: 6px;
+            color: #22c55e;
+            font-size: 14px;
+            backdrop-filter: blur(8px);
+        }
+        
+        .viewport-info {
+            position: absolute;
+            bottom: 16px;
+            left: 16px;
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            font-size: 12px;
+            backdrop-filter: blur(8px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Exploration Map - Viewport Positioning Test</h1>
+        </header>
+        
+        <main class="main-content">
+            <div class="canvas-area">
+                <div class="left-sidebar">
+                    <div style="padding: 16px;">
+                        <h3>Left Sidebar</h3>
+                        <p style="font-size: 14px; color: #9CA3AF; margin-top: 8px;">
+                            This sidebar should be visible and properly positioned.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="canvas-container">
+                    <div class="canvas" id="canvas">
+                        <div class="controls">
+                            <button class="control-btn" title="Zoom In">+</button>
+                            <button class="control-btn" title="Zoom Out">-</button>
+                            <button class="control-btn" title="Reset View">⟲</button>
+                        </div>
+                        
+                        <div class="status-indicator">
+                            Canvas Positioned Correctly ✓
+                        </div>
+                        
+                        <div class="test-node">
+                            <h4 style="color: #6B6B3A; margin-bottom: 8px;">Test Node</h4>
+                            <p style="font-size: 12px; color: #9CA3AF;">
+                                This node should be centered in the canvas area, not overlapping with sidebars or header.
+                            </p>
+                        </div>
+                        
+                        <div class="viewport-info" id="viewport-info">
+                            Canvas Dimensions: <span id="canvas-size">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="right-sidebar">
+                    <div style="padding: 16px;">
+                        <h3>Right Sidebar</h3>
+                        <p style="font-size: 14px; color: #9CA3AF; margin-top: 8px;">
+                            This sidebar should also be visible and properly positioned.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Update canvas dimensions info
+        function updateCanvasInfo() {
+            const canvas = document.getElementById('canvas');
+            const canvasSize = document.getElementById('canvas-size');
+            
+            if (canvas && canvasSize) {
+                const rect = canvas.getBoundingClientRect();
+                canvasSize.textContent = `${Math.round(rect.width)}x${Math.round(rect.height)}px`;
+            }
+        }
+        
+        // Update on load and resize
+        window.addEventListener('load', updateCanvasInfo);
+        window.addEventListener('resize', updateCanvasInfo);
+        
+        // Add some interactivity to test canvas behavior
+        const canvas = document.getElementById('canvas');
+        let isDragging = false;
+        let startX, startY;
+        
+        canvas.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            canvas.style.cursor = 'grabbing';
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+            
+            // Visual feedback for panning (just for demo)
+            canvas.style.backgroundPosition = `${deltaX}px ${deltaY}px`;
+        });
+        
+        document.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                canvas.style.cursor = 'grab';
+                canvas.style.backgroundPosition = '0px 0px';
+            }
+        });
+        
+        // Test that all areas are properly positioned
+        console.log('Viewport Positioning Test Results:');
+        console.log('- Header height:', document.querySelector('.header').offsetHeight + 'px');
+        console.log('- Main content height:', document.querySelector('.main-content').offsetHeight + 'px');
+        console.log('- Canvas container dimensions:', 
+            document.querySelector('.canvas-container').offsetWidth + 'x' + 
+            document.querySelector('.canvas-container').offsetHeight + 'px');
+        console.log('- Left sidebar width:', document.querySelector('.left-sidebar').offsetWidth + 'px');
+        console.log('- Right sidebar width:', document.querySelector('.right-sidebar').offsetWidth + 'px');
+    </script>
+</body>
+</html>

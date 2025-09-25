@@ -90,7 +90,7 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, title, onTit
   };
 
   return (
-    <header className="glass-pane sticky top-0 z-50 w-full px-6 py-3 border-b border-gray-800/50 rounded-none border-l-0 border-r-0 border-t-0">
+    <header className="glass-pane sticky top-0 z-50 w-full px-6 py-4 border-b border-gray-800/50 rounded-none border-l-0 border-r-0 border-t-0">
       <div className="flex items-center justify-between">
         {/* Left Section */}
         <div className="flex items-center space-x-3">

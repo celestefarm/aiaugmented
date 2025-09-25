@@ -3,6 +3,39 @@ import { createErrorHandler, withRetry, ErrorStateManager } from './errorHandler
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
 
+// DIAGNOSTIC LOGGING: Log API configuration on startup
+console.log('🔧 [API CLIENT DIAGNOSTIC] Configuration loaded:');
+console.log('  - API Base URL:', API_BASE_URL);
+console.log('  - Environment:', (import.meta as any).env?.MODE || 'unknown');
+console.log('  - VITE_API_BASE_URL:', (import.meta as any).env?.VITE_API_BASE_URL || 'not set');
+
+// DIAGNOSTIC LOGGING: Test API connectivity on startup
+const testApiConnectivity = async () => {
+  try {
+    console.log('🔍 [API DIAGNOSTIC] Testing API connectivity...');
+    const response = await fetch(`${API_BASE_URL}/healthz`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    console.log('🔍 [API DIAGNOSTIC] Health check response:', {
+      status: response.status,
+      ok: response.ok,
+      url: response.url
+    });
+    
+    if (response.ok) {
+      const healthData = await response.json();
+      console.log('🔍 [API DIAGNOSTIC] Backend health status:', healthData);
+    }
+  } catch (error) {
+    console.error('🔍 [API DIAGNOSTIC] Health check failed:', error);
+    console.error('🔍 [API DIAGNOSTIC] This indicates the backend server is not running or not accessible');
+  }
+};
+
+// Run connectivity test after a short delay to avoid blocking app startup
+setTimeout(testApiConnectivity, 1000);
+
 // Types for API responses
 export interface User {
   id: string;
@@ -124,7 +157,7 @@ export interface NodeListResponse {
   total: number;
 }
 
-// Edge types
+// Edge types - Enhanced for comprehensive connector system
 export interface Edge {
   id: string;
   workspace_id: string;
@@ -133,6 +166,14 @@ export interface Edge {
   type: 'support' | 'contradiction' | 'dependency' | 'ai-relationship';
   description: string;
   created_at: string;
+  // Enhanced connector properties
+  ai_summary?: string;
+  relationship_strength?: number;
+  confidence_score?: number;
+  tags?: string[];
+  user_edited?: boolean;
+  last_ai_update?: string;
+  metadata?: Record<string, any>;
 }
 
 export interface EdgeCreateRequest {
@@ -140,6 +181,54 @@ export interface EdgeCreateRequest {
   to_node_id: string;
   type: 'support' | 'contradiction' | 'dependency' | 'ai-relationship';
   description?: string;
+  // Enhanced connector creation properties
+  ai_summary?: string;
+  relationship_strength?: number;
+  confidence_score?: number;
+  tags?: string[];
+}
+
+export interface EdgeUpdateRequest {
+  type?: 'support' | 'contradiction' | 'dependency' | 'ai-relationship';
+  description?: string;
+  ai_summary?: string;
+  relationship_strength?: number;
+  confidence_score?: number;
+  tags?: string[];
+  user_edited?: boolean;
+}
+
+// AI Relationship Summarization types
+export interface RelationshipSummarizationRequest {
+  from_node_id: string;
+  to_node_id: string;
+  context?: Record<string, any>;
+}
+
+export interface RelationshipSummarizationResponse {
+  edge_id: string;
+  ai_summary: string;
+  relationship_type: 'support' | 'contradiction' | 'dependency' | 'ai-relationship';
+  relationship_strength: number;
+  confidence_score: number;
+  key_insights: string[];
+  tags: string[];
+  reasoning: string;
+  generated_at: string;
+}
+
+// Connector Card types
+export interface ConnectorCardData {
+  edge: Edge;
+  from_node: Node;
+  to_node: Node;
+  ai_insights?: {
+    summary: string;
+    strength: number;
+    confidence: number;
+    tags: string[];
+    reasoning: string;
+  };
 }
 
 export interface EdgeListResponse {
@@ -483,8 +572,25 @@ class ApiClient {
 
         const response = await fetch(url, config);
         
-        // Reduced logging - only log important responses or errors
-        if (!response.ok || endpoint.includes('/add-to-map') || endpoint.includes('/messages')) {
+        // DIAGNOSTIC LOGGING: Enhanced response logging for debugging
+        if (!response.ok) {
+          console.error('🚨 [API DIAGNOSTIC] Request failed:', {
+            url,
+            method: options.method || 'GET',
+            status: response.status,
+            statusText: response.statusText,
+            ok: response.ok,
+            endpoint,
+            hasToken: !!token
+          });
+          
+          // Log response headers for debugging
+          const headers: Record<string, string> = {};
+          response.headers.forEach((value, key) => {
+            headers[key] = value;
+          });
+          console.error('🚨 [API DIAGNOSTIC] Response headers:', headers);
+        } else if (endpoint.includes('/add-to-map') || endpoint.includes('/messages') || endpoint.includes('/nodes') || endpoint.includes('/edges')) {
           console.log('📡 [ApiClient] Response received:', {
             status: response.status,
             ok: response.ok,
@@ -497,18 +603,38 @@ class ApiClient {
             detail: `HTTP ${response.status}: ${response.statusText}`,
           }));
           
-          // ERROR HANDLING FIX: Enhanced error context
-          const errorMessage = `${errorData.detail} (${endpoint})`;
+          // ENHANCED ERROR HANDLING: Better error classification and logging
+          console.error('🚨 [API ERROR] Request failed:', {
+            endpoint,
+            status: response.status,
+            statusText: response.statusText,
+            errorDetail: errorData.detail,
+            url: response.url,
+            hasToken: !!token
+          });
           
-          // Special handling for authentication errors
+          // Enhanced error context with more specific messages
+          let errorMessage = errorData.detail;
+          
+          // Special handling for different error types
           if (response.status === 401) {
             console.log('🔐 [ApiClient] Authentication failed - clearing token');
+            errorMessage = `Authentication failed: ${errorData.detail}`;
             this.clearAuth();
             
             // Trigger page reload for re-authentication
             if (typeof window !== 'undefined') {
               setTimeout(() => window.location.reload(), 1000);
             }
+          } else if (response.status === 403) {
+            console.log('🚫 [ApiClient] Access forbidden');
+            errorMessage = `Access denied: ${errorData.detail}`;
+          } else if (response.status === 404) {
+            console.log('❌ [ApiClient] Resource not found');
+            errorMessage = `Resource not found: ${errorData.detail} (${endpoint})`;
+          } else if (response.status >= 500) {
+            console.log('🔥 [ApiClient] Server error');
+            errorMessage = `Server error: ${errorData.detail}`;
           }
           
           throw new Error(errorMessage);
@@ -943,10 +1069,63 @@ class ApiClient {
     });
   }
 
+  async updateEdge(workspaceId: string, edgeId: string, data: EdgeUpdateRequest): Promise<Edge> {
+    return await this.request<Edge>(`/workspaces/${workspaceId}/edges/${edgeId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
   async deleteEdge(workspaceId: string, edgeId: string): Promise<void> {
     return await this.request<void>(`/workspaces/${workspaceId}/edges/${edgeId}`, {
       method: 'DELETE',
     });
+  }
+
+  // AI Relationship Summarization methods
+  async summarizeRelationship(workspaceId: string, data: RelationshipSummarizationRequest): Promise<RelationshipSummarizationResponse> {
+    console.log('=== SUMMARIZE RELATIONSHIP API CALL ===');
+    console.log('Workspace ID:', workspaceId);
+    console.log('Request data:', data);
+    
+    try {
+      const response = await this.request<RelationshipSummarizationResponse>(`/workspaces/${workspaceId}/relationships/summarize`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      
+      console.log('Relationship summarization response:', response);
+      return response;
+    } catch (error) {
+      console.error('=== RELATIONSHIP SUMMARIZATION API ERROR ===');
+      console.error('Error details:', error);
+      throw error;
+    }
+  }
+
+  async updateRelationshipSummary(workspaceId: string, edgeId: string, summary: string, userEdited: boolean = true): Promise<Edge> {
+    console.log('=== UPDATE RELATIONSHIP SUMMARY API CALL ===');
+    console.log('Workspace ID:', workspaceId);
+    console.log('Edge ID:', edgeId);
+    console.log('User edited:', userEdited);
+    
+    try {
+      const response = await this.request<Edge>(`/workspaces/${workspaceId}/edges/${edgeId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          ai_summary: summary,
+          user_edited: userEdited,
+          last_ai_update: new Date().toISOString()
+        }),
+      });
+      
+      console.log('Update relationship summary response:', response);
+      return response;
+    } catch (error) {
+      console.error('=== UPDATE RELATIONSHIP SUMMARY API ERROR ===');
+      console.error('Error details:', error);
+      throw error;
+    }
   }
 
   // Agent methods
@@ -1236,7 +1415,10 @@ export const deleteNode = apiClient.deleteNode.bind(apiClient);
 export const clearAllNodes = apiClient.clearAllNodes.bind(apiClient);
 export const getEdges = apiClient.getEdges.bind(apiClient);
 export const createEdge = apiClient.createEdge.bind(apiClient);
+export const updateEdge = apiClient.updateEdge.bind(apiClient);
 export const deleteEdge = apiClient.deleteEdge.bind(apiClient);
+export const summarizeRelationship = apiClient.summarizeRelationship.bind(apiClient);
+export const updateRelationshipSummary = apiClient.updateRelationshipSummary.bind(apiClient);
 export const getAgents = apiClient.getAgents.bind(apiClient);
 export const activateAgent = apiClient.activateAgent.bind(apiClient);
 export const deactivateAgent = apiClient.deactivateAgent.bind(apiClient);

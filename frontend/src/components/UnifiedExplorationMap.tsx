@@ -111,15 +111,14 @@ const SimpleNode: React.FC<{
         'bg-gradient-to-br from-gray-400/5 to-gray-500/10 border-gray-400/30'
       }`}
       style={{
-        left: `${node.x * transform.scale + transform.x}px`,
-        top: `${node.y * transform.scale + transform.y}px`,
+        transform: `translate(${node.x}px, ${node.y}px) ${isDragging ? 'scale(1.05)' : 'scale(1)'}`,
         zIndex: isDragging ? 1000 : 20,
         opacity: isDragging ? 0.8 : 1,
-        transform: isDragging ? 'scale(1.05)' : 'scale(1)',
         pointerEvents: 'auto',
         userSelect: 'none',
         position: 'absolute',
-        willChange: isDragging ? 'transform' : 'auto'
+        willChange: 'transform',
+        backfaceVisibility: 'hidden'
       }}
       onMouseDown={handleMouseDown}
       onContextMenu={(e) => {
@@ -232,6 +231,11 @@ const UnifiedExplorationMap: React.FC = () => {
   // Canvas transform state
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
   const [hasInitializedView, setHasInitializedView] = useState(false);
+  
+  // Panning state
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState<{ x: number; y: number } | null>(null);
+  const [panStartTransform, setPanStartTransform] = useState<{ x: number; y: number; scale: number } | null>(null);
   
   // UI state
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
@@ -514,7 +518,89 @@ const UnifiedExplorationMap: React.FC = () => {
       // Passive event listener - can't prevent default
       console.debug('Cannot preventDefault on passive canvas mouse event');
     }
-  }, []);
+    
+    // Initialize panning state
+    setIsPanning(true);
+    setPanStart({ x: e.clientX, y: e.clientY });
+    setPanStartTransform({ ...transform });
+    
+    // Change cursor to grabbing
+    if (canvasRef.current) {
+      canvasRef.current.style.cursor = 'grabbing';
+    }
+  }, [transform]);
+
+  // Handle mouse move for panning - optimized with requestAnimationFrame
+  const handleCanvasMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isPanning || !panStart || !panStartTransform) {
+      return;
+    }
+    
+    // Calculate delta from pan start
+    const deltaX = e.clientX - panStart.x;
+    const deltaY = e.clientY - panStart.y;
+    
+    // Update transform in real-time with requestAnimationFrame for smooth updates
+    requestAnimationFrame(() => {
+      const newTransform = {
+        x: panStartTransform.x + deltaX,
+        y: panStartTransform.y + deltaY,
+        scale: panStartTransform.scale
+      };
+      
+      setTransform(newTransform);
+    });
+  }, [isPanning, panStart, panStartTransform]);
+
+  // Handle mouse up to end panning
+  const handleCanvasMouseUp = useCallback((e: React.MouseEvent) => {
+    if (isPanning) {
+      setIsPanning(false);
+      setPanStart(null);
+      setPanStartTransform(null);
+      
+      // Reset cursor
+      if (canvasRef.current) {
+        canvasRef.current.style.cursor = 'grab';
+      }
+    }
+  }, [isPanning]);
+
+  // Global mouse move handler for smooth panning - optimized with requestAnimationFrame
+  const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
+    if (!isPanning || !panStart || !panStartTransform) {
+      return;
+    }
+    
+    // Calculate delta from pan start
+    const deltaX = e.clientX - panStart.x;
+    const deltaY = e.clientY - panStart.y;
+    
+    // Update transform in real-time with requestAnimationFrame for smooth updates
+    requestAnimationFrame(() => {
+      const newTransform = {
+        x: panStartTransform.x + deltaX,
+        y: panStartTransform.y + deltaY,
+        scale: panStartTransform.scale
+      };
+      
+      setTransform(newTransform);
+    });
+  }, [isPanning, panStart, panStartTransform]);
+
+  // Global mouse up handler
+  const handleGlobalMouseUp = useCallback((e: MouseEvent) => {
+    if (isPanning) {
+      setIsPanning(false);
+      setPanStart(null);
+      setPanStartTransform(null);
+      
+      // Reset cursor
+      if (canvasRef.current) {
+        canvasRef.current.style.cursor = 'grab';
+      }
+    }
+  }, [isPanning]);
 
   const handleNodeMouseDown = useCallback((e: React.MouseEvent, nodeId: string, nodeType: 'ai' | 'human') => {
     const target = e.target as HTMLElement;
@@ -597,6 +683,25 @@ const UnifiedExplorationMap: React.FC = () => {
     }
   }, [addMessageToMap, showNotification]);
 
+  // Global event listeners for panning
+  useEffect(() => {
+    if (isPanning) {
+      document.addEventListener('mousemove', handleGlobalMouseMove, { passive: false });
+      document.addEventListener('mouseup', handleGlobalMouseUp, { passive: false });
+      
+      // Prevent text selection during panning
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'grabbing';
+      
+      return () => {
+        document.removeEventListener('mousemove', handleGlobalMouseMove);
+        document.removeEventListener('mouseup', handleGlobalMouseUp);
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+      };
+    }
+  }, [isPanning, handleGlobalMouseMove, handleGlobalMouseUp]);
+
   // Close context menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -608,6 +713,35 @@ const UnifiedExplorationMap: React.FC = () => {
       return () => document.removeEventListener('click', handleClickOutside);
     }
   }, [showContextMenu]);
+
+  // Handle sidebar resizing
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizingSidebar) return;
+      
+      const deltaX = e.clientX - resizeStartX;
+      const newWidth = Math.max(280, Math.min(700, resizeStartWidth - deltaX));
+      setRightSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingSidebar(false);
+    };
+
+    if (isResizingSidebar) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      };
+    }
+  }, [isResizingSidebar, resizeStartX, resizeStartWidth]);
 
   // Show loading state if map is loading
   if (mapLoading && nodes.length === 0) {
@@ -645,7 +779,7 @@ const UnifiedExplorationMap: React.FC = () => {
 
   return (
     <TooltipProvider>
-      <div className="w-full h-screen flex relative overflow-hidden bg-[#0A0A0A] text-[#E5E7EB]">
+      <div className="w-full h-full flex relative overflow-hidden bg-[#0A0A0A] text-[#E5E7EB]">
         {/* Notification */}
         {notification && (
           <div className="absolute top-4 right-4 z-50 glass-pane px-4 py-2 text-sm text-[#E5E7EB] border border-[#6B6B3A]/30 rounded-lg">
@@ -714,10 +848,10 @@ const UnifiedExplorationMap: React.FC = () => {
 
         {/* Left Sidebar - Agents */}
         <div
-          className={`flex-shrink-0 h-screen glass-pane border-r border-gray-800/50 transition-all duration-300 ease-in-out ${
+          className={`flex-shrink-0 h-full glass-pane border-r border-gray-800/50 transition-all duration-300 ease-in-out ${
             leftSidebarCollapsed ? 'w-12' : 'w-64'
           }`}
-          style={{ zIndex: 30, paddingTop: '4rem' }}
+          style={{ zIndex: 30, paddingTop: '4px' }}
         >
           {leftSidebarCollapsed ? (
             <div className="p-2 h-full flex flex-col items-center">
@@ -730,7 +864,7 @@ const UnifiedExplorationMap: React.FC = () => {
               </button>
             </div>
           ) : (
-            <div className="p-4 h-full flex flex-col" style={{ height: 'calc(100vh - 4rem)' }}>
+            <div className="p-4 h-full flex flex-col">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-lg font-semibold text-[#E5E7EB]">Agents</h2>
                 <button
@@ -836,17 +970,21 @@ const UnifiedExplorationMap: React.FC = () => {
           className="flex-1 select-none overflow-hidden relative"
           style={{
             boxShadow: 'inset 0 0 40px -10px rgba(107, 107, 58, 0.3)',
-            height: '100vh',
-            paddingTop: '4rem',
+            height: '100%',
+            paddingTop: '4px',
+            cursor: isPanning ? 'grabbing' : 'grab',
           }}
           onWheel={handleWheel}
           onMouseDown={handleCanvasMouseDown}
+          onMouseMove={handleCanvasMouseMove}
+          onMouseUp={handleCanvasMouseUp}
+          onMouseLeave={handleCanvasMouseUp} // End panning if mouse leaves canvas
           tabIndex={0}
           role="application"
           aria-label="Strategy mapping canvas"
         >
           {/* Top Toolbar */}
-          <div className="absolute top-20 left-1/2 transform -translate-x-1/2 flex space-x-2 z-40">
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex space-x-2 z-40">
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -971,70 +1109,69 @@ const UnifiedExplorationMap: React.FC = () => {
                 />
               </svg>
             </ErrorBoundary>
-          </div>
-
-          {/* Enhanced nodes with AI-powered tooltips */}
-          <ErrorBoundary context="Node Rendering" fallback={
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center p-4 bg-yellow-900/20 rounded-lg border border-yellow-500/30">
-                <Target className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
-                <p className="text-yellow-300 text-sm">Node rendering error</p>
+            {/* Enhanced nodes with AI-powered tooltips - moved inside transformed container */}
+            <ErrorBoundary context="Node Rendering" fallback={
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-center p-4 bg-yellow-900/20 rounded-lg border border-yellow-500/30">
+                  <Target className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
+                  <p className="text-yellow-300 text-sm">Node rendering error</p>
+                </div>
               </div>
-            </div>
-          }>
-            {nodes.map(node => {
-              const isSelected = selectedNode === node.id;
-              const isDragging = false;
-              
-              return (
-                <ErrorBoundary key={`node-boundary-${node.id}`} context={`Node ${node.id}`} fallback={
-                  <div
-                    className="absolute glass-pane p-4 w-60 border-red-500/50 bg-red-900/20"
-                    style={{
-                      left: `${node.x * transform.scale + transform.x}px`,
-                      top: `${node.y * transform.scale + transform.y}px`,
-                      zIndex: 20
-                    }}
-                  >
-                    <div className="flex items-center gap-2 text-red-300">
-                      <X className="w-4 h-4" />
-                      <span className="text-sm">Node Error</span>
+            }>
+              {nodes.map(node => {
+                const isSelected = selectedNode === node.id;
+                const isDragging = false;
+                
+                return (
+                  <ErrorBoundary key={`node-boundary-${node.id}`} context={`Node ${node.id}`} fallback={
+                    <div
+                      className="absolute glass-pane p-4 w-60 border-red-500/50 bg-red-900/20"
+                      style={{
+                        left: `${node.x}px`,
+                        top: `${node.y}px`,
+                        zIndex: 20
+                      }}
+                    >
+                      <div className="flex items-center gap-2 text-red-300">
+                        <X className="w-4 h-4" />
+                        <span className="text-sm">Node Error</span>
+                      </div>
+                      <p className="text-xs text-red-400 mt-1">{node.title}</p>
                     </div>
-                    <p className="text-xs text-red-400 mt-1">{node.title}</p>
-                  </div>
-                }>
-                  <NodeWithTooltip
-                    key={node.id}
-                    node={node}
-                    edges={edges}
-                    transform={transform}
-                    isSelected={isSelected}
-                    isDragging={isDragging}
-                    onMouseDown={handleNodeMouseDown}
-                    onSelect={() => {
-                      setSelectedNode(node.id);
-                    }}
-                    onModalOpen={handleModalOpen}
-                  >
-                    <SimpleNode
+                  }>
+                    <NodeWithTooltip
+                      key={node.id}
                       node={node}
+                      edges={edges}
                       transform={transform}
                       isSelected={isSelected}
                       isDragging={isDragging}
-                      agents={agents}
                       onMouseDown={handleNodeMouseDown}
                       onSelect={() => {
                         setSelectedNode(node.id);
                       }}
-                      onTooltipClick={(e) => {
-                        e.stopPropagation();
-                      }}
-                    />
-                  </NodeWithTooltip>
-                </ErrorBoundary>
-              );
-            })}
-          </ErrorBoundary>
+                      onModalOpen={handleModalOpen}
+                    >
+                      <SimpleNode
+                        node={node}
+                        transform={transform}
+                        isSelected={isSelected}
+                        isDragging={isDragging}
+                        agents={agents}
+                        onMouseDown={handleNodeMouseDown}
+                        onSelect={() => {
+                          setSelectedNode(node.id);
+                        }}
+                        onTooltipClick={(e) => {
+                          e.stopPropagation();
+                        }}
+                      />
+                    </NodeWithTooltip>
+                  </ErrorBoundary>
+                );
+              })}
+            </ErrorBoundary>
+          </div>
           
           {/* Debug info */}
           {nodes.length > 0 && (
@@ -1046,17 +1183,30 @@ const UnifiedExplorationMap: React.FC = () => {
 
         {/* Right Sidebar - Sparring Session */}
         <div
-          className="flex-shrink-0 h-screen glass-pane border-l border-gray-800/50 overflow-hidden relative"
+          className="flex-shrink-0 h-full glass-pane border-l border-gray-800/50 overflow-hidden relative"
           style={{
             width: `${rightSidebarWidth}px`,
             minWidth: '280px',
             maxWidth: '700px',
             zIndex: 30,
-            paddingTop: '4rem',
+            paddingTop: '4px',
             transform: 'translate3d(0,0,0)',
           }}
         >
-          <div className="relative p-3 h-full overflow-hidden" style={{ height: 'calc(100vh - 4rem)' }}>
+          {/* Resize Handle */}
+          <div
+            className="absolute left-0 top-0 w-1 h-full cursor-col-resize hover:bg-[#6B6B3A]/50 transition-colors z-40"
+            onMouseDown={(e) => {
+              setIsResizingSidebar(true);
+              setResizeStartX(e.clientX);
+              setResizeStartWidth(rightSidebarWidth);
+              e.preventDefault();
+            }}
+            style={{
+              background: isResizingSidebar ? 'rgba(107, 107, 58, 0.5)' : 'transparent',
+            }}
+          />
+          <div className="relative p-3 h-full overflow-hidden" style={{ paddingLeft: '8px' }}>
             <ErrorBoundary context="Sparring Session" fallback={
               <div className="flex items-center justify-center h-full">
                 <div className="text-center p-6">
