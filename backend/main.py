@@ -37,7 +37,7 @@ app = FastAPI(
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000,http://localhost:5137,http://localhost:5138,http://localhost:5139").split(",")
 # Clean up any whitespace from origins
 cors_origins = [origin.strip() for origin in cors_origins]
-final_origins = cors_origins + ["http://localhost:5137", "http://localhost:5138", "http://localhost:5139"]
+final_origins = cors_origins + ["http://localhost:5137", "http://localhost:5138", "http://localhost:5139", "https://aiaugmented.onrender.com"]
 # Remove duplicates while preserving order
 final_origins = list(dict.fromkeys(final_origins))
 
