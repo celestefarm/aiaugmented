@@ -731,24 +731,11 @@ const ExplorationMap: React.FC = () => {
       
       saveToHistory();
       
-      // CRITICAL FIX: Call removeMessageFromMap API to properly revert chat message state
-      // This ensures the "Added to map" button reverts to "Add to map" for both AI and human messages
-      try {
-        console.log('🗑️ [DELETE-NODE] Calling removeMessageFromMap API for node:', nodeId);
-        const removeResult = await removeMessageFromMapContext(nodeId);
-        console.log('🗑️ [DELETE-NODE] removeMessageFromMap result:', removeResult);
-        
-        if (removeResult) {
-          console.log('🗑️ [DELETE-NODE] ✅ Successfully reverted message state for node:', nodeId);
-        } else {
-          console.warn('🗑️ [DELETE-NODE] ⚠️ removeMessageFromMap returned false, but continuing with node deletion');
-        }
-      } catch (removeError) {
-        console.warn('🗑️ [DELETE-NODE] ⚠️ Failed to revert message state, but continuing with node deletion:', removeError);
-        // Don't fail the whole operation if message revert fails - the node deletion is more important
-      }
+      // CRITICAL FIX: Use the correct deleteNodeAPI function from useMap context
+      // This calls the proper DELETE /workspaces/{workspace_id}/nodes/{node_id} endpoint
+      console.log('🗑️ [DELETE-NODE] Calling correct deleteNodeAPI endpoint');
       
-      // Delete the node from the canvas
+      // Delete the node from the canvas - backend handles message state reversion automatically
       await deleteNodeAPI(nodeId);
       setSelectedNode(null);
       setFocusedNode(null);
@@ -772,7 +759,7 @@ const ExplorationMap: React.FC = () => {
       console.error('🗑️ [DELETE-NODE] ❌ Failed to delete node:', error);
       showNotification('Failed to delete node');
     }
-  }, [nodes, saveToHistory, showNotification, deleteNodeAPI, loadMessages, refreshMapData, removeMessageFromMapContext]);
+  }, [nodes, saveToHistory, showNotification, deleteNodeAPI, loadMessages, refreshMapData]);
 
   // Delete edge
   const deleteEdge = useCallback(async (edgeId: string) => {

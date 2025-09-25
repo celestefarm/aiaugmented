@@ -344,62 +344,55 @@ async def delete_node(
             detail="Node not found in workspace"
         )
     
-    # Find and reset the corresponding message's added_to_map status
-    # Look for a message that was created from this node by matching content/title
-    node_title = existing_node.get("title", "")
-    node_description = existing_node.get("description", "")
+    # CRITICAL FIX: Direct message state reversion using the same logic as remove_message_from_map
+    # This ensures proper message state reversion without the circular dependency issue
+    print(f"=== NODE DELETION: REVERTING MESSAGE STATE ===")
+    print(f"Node ID: {node_id}")
+    print(f"Node title: {existing_node.get('title', 'No title')}")
     
-    # Try to find the message that created this node
-    # We'll look for messages with similar content and added_to_map=True
-    if node_title or node_description:
-        search_text = node_title or node_description
-        # Get first few words to match against message content
-        search_words = search_text.lower().split()[:5]  # First 5 words
-        
-        # Find messages in the workspace that might have created this node
-        messages_cursor = database.messages.find({
+    try:
+        # Find the corresponding message by matching content and author
+        # This is the same logic used in the remove_message_from_map endpoint
+        message_query = {
             "workspace_id": workspace_id,
-            "added_to_map": True,
-            "type": "ai"  # Only AI messages can be added to map
-        })
+            "content": existing_node.get("description", ""),
+            "added_to_map": True
+        }
         
-        # Convert cursor to list for in-memory database compatibility
-        messages_docs = []
-        if hasattr(messages_cursor, 'to_list'):
-            messages_docs = await messages_cursor.to_list(length=None)
+        # If the node has a source_agent, it came from an AI message
+        if existing_node.get("source_agent"):
+            message_query["author"] = existing_node["source_agent"]
+            message_query["type"] = "ai"
         else:
-            try:
-                async for msg_doc in messages_cursor:
-                    messages_docs.append(msg_doc)
-            except TypeError:
-                for msg_doc in messages_cursor:
-                    messages_docs.append(msg_doc)
+            # Otherwise it's a human message
+            message_query["type"] = "human"
         
-        # Find the most likely message that created this node
-        best_match = None
-        best_score = 0
+        print(f"🔍 Searching for message with query: {message_query}")
         
-        for msg_doc in messages_docs:
-            msg_content = msg_doc.get("content", "").lower()
+        # Find the message
+        message_doc = await database.messages.find_one(message_query)
+        
+        if message_doc:
+            message_id = str(message_doc["_id"])
+            print(f"✅ Found matching message: {message_id}")
             
-            # Calculate similarity score based on word overlap
-            msg_words = msg_content.split()[:10]  # First 10 words of message
-            overlap = len(set(search_words) & set(msg_words))
-            score = overlap / max(len(search_words), 1)
-            
-            if score > best_score and score > 0.3:  # At least 30% word overlap
-                best_score = score
-                best_match = msg_doc
-        
-        # Reset the message's added_to_map status
-        if best_match:
-            await database.messages.update_one(
-                {"_id": best_match["_id"]},
+            # Revert the message's added_to_map status
+            update_result = await database.messages.update_one(
+                {"_id": message_doc["_id"]},
                 {"$set": {"added_to_map": False, "updated_at": datetime.utcnow()}}
             )
-            print(f"=== NODE DELETION DEBUG ===")
-            print(f"Reset message {best_match['_id']} added_to_map status to False")
-            print(f"Match score: {best_score:.2f}")
+            
+            modified_count = getattr(update_result, 'modified_count', getattr(update_result, 'modified', 0))
+            print(f"✅ Message state reverted successfully: modified={modified_count}")
+            
+        else:
+            print(f"⚠️ No matching message found for node {node_id}")
+            # Don't fail the node deletion if message reversion fails
+            
+    except Exception as revert_error:
+        print(f"⚠️ Error during message state reversion: {revert_error}")
+        # Don't fail the node deletion if message reversion fails
+        # The node deletion is more important than the message state
     
     # Delete all edges connected to this node (cascade deletion)
     # CONSISTENCY FIX: Use string workspace_id to match how nodes are stored

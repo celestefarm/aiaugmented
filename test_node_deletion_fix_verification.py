@@ -1,318 +1,224 @@
 #!/usr/bin/env python3
-"""
-Node Deletion Fix Verification Test
-Tests that the node deletion fixes work correctly by simulating the frontend behavior
-"""
 
-import asyncio
-import aiohttp
+import requests
 import json
+import time
 
 # Configuration
-API_BASE_URL = "http://localhost:8000/api/v1"
+BASE_URL = "http://localhost:8000/api/v1"
+WORKSPACE_ID = "68d579e446ea8e53f748eef5"  # From the logs
+USER_EMAIL = "celeste.fcp@gmail.com"
+USER_PASSWORD = "celeste060291"
 
-async def test_node_deletion_fix():
-    """Test that node deletion works correctly and handles edge cases"""
+def login():
+    """Login and get access token"""
+    print("🔐 [LOGIN] Logging in...")
     
-    print("🔍 [FIX VERIFICATION] Testing node deletion fixes...")
-    print(f"API Base URL: {API_BASE_URL}")
+    login_data = {
+        "email": USER_EMAIL,
+        "password": USER_PASSWORD
+    }
+    
+    response = requests.post(f"{BASE_URL}/auth/login", json=login_data)
+    
+    if response.status_code == 200:
+        data = response.json()
+        print(f"🔐 [LOGIN] ✅ Login successful")
+        return data["access_token"]
+    else:
+        print(f"🔐 [LOGIN] ❌ Login failed: {response.status_code} - {response.text}")
+        return None
+
+def get_headers(token):
+    """Get headers with authorization"""
+    return {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+
+def send_test_message(token):
+    """Send a test message to create a message that can be added to map"""
+    print("💬 [MESSAGE] Sending test message...")
+    
+    message_data = {
+        "content": "This is a test message for node deletion verification"
+    }
+    
+    response = requests.post(
+        f"{BASE_URL}/workspaces/{WORKSPACE_ID}/messages",
+        json=message_data,
+        headers=get_headers(token)
+    )
+    
+    if response.status_code == 201:  # Messages endpoint returns 201 Created
+        messages = response.json()
+        # Find the human message (the one we just sent)
+        human_message = None
+        for msg in messages:
+            if msg.get("type") == "human" and "test message for node deletion" in msg.get("content", ""):
+                human_message = msg
+                break
+        
+        if human_message:
+            print(f"💬 [MESSAGE] ✅ Test message created: {human_message['id']}")
+            return human_message["id"]
+        else:
+            print("💬 [MESSAGE] ❌ Could not find human message in response")
+            print(f"💬 [MESSAGE] Response: {messages}")
+            return None
+    else:
+        print(f"💬 [MESSAGE] ❌ Failed to send message: {response.status_code} - {response.text}")
+        return None
+
+def add_message_to_map(token, message_id):
+    """Add message to map and return node ID"""
+    print(f"🗺️ [ADD-TO-MAP] Adding message {message_id} to map...")
+    
+    add_data = {
+        "node_title": "Test Node for Deletion",
+        "node_type": "human"
+    }
+    
+    response = requests.post(
+        f"{BASE_URL}/workspaces/{WORKSPACE_ID}/messages/{message_id}/add-to-map",
+        json=add_data,
+        headers=get_headers(token)
+    )
+    
+    if response.status_code == 200:
+        data = response.json()
+        if data.get("success"):
+            node_id = data.get("node_id")
+            print(f"🗺️ [ADD-TO-MAP] ✅ Message added to map, node ID: {node_id}")
+            return node_id
+        else:
+            print(f"🗺️ [ADD-TO-MAP] ❌ API returned success=false: {data.get('message')}")
+            return None
+    else:
+        print(f"🗺️ [ADD-TO-MAP] ❌ Failed to add to map: {response.status_code} - {response.text}")
+        return None
+
+def check_message_state(token, message_id):
+    """Check if message is marked as added_to_map"""
+    print(f"🔍 [CHECK-STATE] Checking message state for {message_id}...")
+    
+    response = requests.get(
+        f"{BASE_URL}/workspaces/{WORKSPACE_ID}/messages",
+        headers=get_headers(token)
+    )
+    
+    if response.status_code == 200:
+        data = response.json()
+        messages = data.get("messages", [])
+        
+        target_message = None
+        for msg in messages:
+            if msg["id"] == message_id:
+                target_message = msg
+                break
+        
+        if target_message:
+            added_to_map = target_message.get("added_to_map", False)
+            print(f"🔍 [CHECK-STATE] Message {message_id} added_to_map: {added_to_map}")
+            return added_to_map
+        else:
+            print(f"🔍 [CHECK-STATE] ❌ Message {message_id} not found")
+            return None
+    else:
+        print(f"🔍 [CHECK-STATE] ❌ Failed to get messages: {response.status_code} - {response.text}")
+        return None
+
+def delete_node(token, node_id):
+    """Delete node from canvas"""
+    print(f"🗑️ [DELETE-NODE] Deleting node {node_id}...")
+    
+    response = requests.delete(
+        f"{BASE_URL}/workspaces/{WORKSPACE_ID}/nodes/{node_id}",
+        headers=get_headers(token)
+    )
+    
+    if response.status_code == 204:  # DELETE operations return 204 No Content on success
+        print(f"🗑️ [DELETE-NODE] ✅ Node deleted successfully")
+        return True
+    else:
+        print(f"🗑️ [DELETE-NODE] ❌ Failed to delete node: {response.status_code} - {response.text}")
+        return False
+
+def main():
+    """Main test function"""
+    print("🧪 [TEST] Starting node deletion fix verification...")
     print("=" * 60)
     
-    async with aiohttp.ClientSession() as session:
-        try:
-            # Step 1: Create a new user
-            print("\n1️⃣ [SETUP] Creating test user and workspace...")
-            signup_data = {
-                "email": f"test-fix-{int(asyncio.get_event_loop().time())}@example.com",
-                "password": "testpass123",
-                "name": "Fix Test User"
-            }
-            
-            async with session.post(f"{API_BASE_URL}/auth/signup", json=signup_data) as response:
-                if response.status not in [200, 201]:
-                    error_text = await response.text()
-                    print(f"❌ Signup failed: {response.status} - {error_text}")
-                    return
-                
-                signup_result = await response.json()
-                token = signup_result["access_token"]
-                headers = {"Authorization": f"Bearer {token}"}
-                print(f"✅ User created successfully")
-            
-            # Step 2: Create workspace
-            workspace_data = {
-                "title": "Node Deletion Fix Test Workspace",
-                "settings": {},
-                "transform": {"x": 0, "y": 0, "scale": 1}
-            }
-            
-            async with session.post(f"{API_BASE_URL}/workspaces", json=workspace_data, headers=headers) as response:
-                if response.status != 201:
-                    error_text = await response.text()
-                    print(f"❌ Workspace creation failed: {response.status} - {error_text}")
-                    return
-                
-                workspace = await response.json()
-                workspace_id = workspace["id"]
-                print(f"✅ Workspace created: {workspace_id}")
-            
-            # Step 3: Create multiple test nodes
-            print("\n2️⃣ [NODE CREATION] Creating multiple test nodes...")
-            node_ids = []
-            
-            for i in range(3):
-                node_data = {
-                    "title": f"Test Node {i+1} for Deletion Fix",
-                    "description": f"This is test node {i+1} for testing the deletion fix",
-                    "type": "ai",
-                    "x": 100 + (i * 150),
-                    "y": 100 + (i * 100),
-                    "confidence": 85,
-                    "source_agent": "fix-test-script"
-                }
-                
-                async with session.post(f"{API_BASE_URL}/workspaces/{workspace_id}/nodes", 
-                                      json=node_data, headers=headers) as response:
-                    if response.status != 201:
-                        error_text = await response.text()
-                        print(f"❌ Node {i+1} creation failed: {response.status} - {error_text}")
-                        return
-                    
-                    created_node = await response.json()
-                    node_ids.append(created_node["id"])
-                    print(f"✅ Node {i+1} created: {created_node['id']}")
-            
-            # Step 4: Test normal deletion (should work)
-            print("\n3️⃣ [NORMAL DELETION] Testing normal node deletion...")
-            test_node_id = node_ids[0]
-            
-            async with session.delete(f"{API_BASE_URL}/workspaces/{workspace_id}/nodes/{test_node_id}", 
-                                    headers=headers) as response:
-                if response.status == 204:
-                    print(f"✅ Normal deletion successful: {test_node_id}")
-                else:
-                    error_text = await response.text()
-                    print(f"❌ Normal deletion failed: {response.status} - {error_text}")
-                    return
-            
-            # Step 5: Test double deletion (should return 404 but not crash)
-            print("\n4️⃣ [DOUBLE DELETION] Testing double deletion (should return 404)...")
-            
-            async with session.delete(f"{API_BASE_URL}/workspaces/{workspace_id}/nodes/{test_node_id}", 
-                                    headers=headers) as response:
-                if response.status == 404:
-                    print(f"✅ Double deletion correctly returned 404: {test_node_id}")
-                else:
-                    print(f"⚠️ Double deletion returned unexpected status: {response.status}")
-            
-            # Step 6: Test deletion of non-existent node
-            print("\n5️⃣ [NON-EXISTENT DELETION] Testing deletion of non-existent node...")
-            fake_node_id = "507f1f77bcf86cd799439011"  # Valid ObjectId format but doesn't exist
-            
-            async with session.delete(f"{API_BASE_URL}/workspaces/{workspace_id}/nodes/{fake_node_id}", 
-                                    headers=headers) as response:
-                if response.status == 404:
-                    print(f"✅ Non-existent node deletion correctly returned 404: {fake_node_id}")
-                else:
-                    print(f"⚠️ Non-existent node deletion returned unexpected status: {response.status}")
-            
-            # Step 7: Test rapid multiple deletions (race condition test)
-            print("\n6️⃣ [RACE CONDITION TEST] Testing rapid multiple deletions...")
-            remaining_nodes = node_ids[1:]  # Use remaining nodes
-            
-            # Create tasks for simultaneous deletion attempts
-            deletion_tasks = []
-            for node_id in remaining_nodes:
-                # Create multiple deletion attempts for the same node
-                for attempt in range(3):
-                    task = asyncio.create_task(
-                        self.attempt_deletion(session, workspace_id, node_id, attempt + 1, headers)
-                    )
-                    deletion_tasks.append(task)
-            
-            # Wait for all deletion attempts to complete
-            results = await asyncio.gather(*deletion_tasks, return_exceptions=True)
-            
-            # Analyze results
-            successful_deletions = 0
-            expected_404s = 0
-            errors = 0
-            
-            for i, result in enumerate(results):
-                if isinstance(result, Exception):
-                    errors += 1
-                    print(f"   Task {i+1}: Error - {result}")
-                elif result == 204:
-                    successful_deletions += 1
-                    print(f"   Task {i+1}: Success (204)")
-                elif result == 404:
-                    expected_404s += 1
-                    print(f"   Task {i+1}: Expected 404")
-                else:
-                    print(f"   Task {i+1}: Unexpected status {result}")
-            
-            print(f"\n📊 Race condition test results:")
-            print(f"   Successful deletions: {successful_deletions}")
-            print(f"   Expected 404s: {expected_404s}")
-            print(f"   Errors: {errors}")
-            
-            # Each node should only be successfully deleted once
-            expected_successes = len(remaining_nodes)
-            if successful_deletions == expected_successes:
-                print(f"✅ Race condition test PASSED: Each node deleted exactly once")
-            else:
-                print(f"❌ Race condition test FAILED: Expected {expected_successes} successes, got {successful_deletions}")
-            
-            # Step 8: Verify final state
-            print("\n7️⃣ [FINAL VERIFICATION] Verifying final workspace state...")
-            async with session.get(f"{API_BASE_URL}/workspaces/{workspace_id}/nodes", headers=headers) as response:
-                if response.status == 200:
-                    final_nodes = await response.json()
-                    remaining_count = len(final_nodes["nodes"])
-                    print(f"✅ Final verification: {remaining_count} nodes remaining in workspace")
-                    
-                    if remaining_count == 0:
-                        print("✅ All nodes successfully deleted - workspace is clean")
-                    else:
-                        print(f"⚠️ {remaining_count} nodes still remain:")
-                        for node in final_nodes["nodes"]:
-                            print(f"   - {node['id']}: {node['title']}")
-                else:
-                    print(f"❌ Failed to verify final state: {response.status}")
-            
-            print("\n" + "=" * 60)
-            print("🏁 [FIX VERIFICATION COMPLETE]")
-            print("✅ Node deletion fixes have been tested successfully!")
-            print("The frontend should now handle node deletion errors gracefully.")
-            
-        except Exception as e:
-            print(f"💥 [TEST ERROR] Unexpected error: {e}")
-            import traceback
-            traceback.print_exc()
-
-    async def attempt_deletion(self, session, workspace_id, node_id, attempt_num, headers):
-        """Helper method to attempt node deletion"""
-        try:
-            async with session.delete(f"{API_BASE_URL}/workspaces/{workspace_id}/nodes/{node_id}", 
-                                    headers=headers) as response:
-                return response.status
-        except Exception as e:
-            return e
-
-# Fix the method reference issue
-async def attempt_deletion(session, workspace_id, node_id, attempt_num, headers):
-    """Helper function to attempt node deletion"""
-    try:
-        async with session.delete(f"{API_BASE_URL}/workspaces/{workspace_id}/nodes/{node_id}", 
-                                headers=headers) as response:
-            return response.status
-    except Exception as e:
-        return e
-
-# Update the main function to use the standalone helper
-async def test_node_deletion_fix_corrected():
-    """Test that node deletion works correctly and handles edge cases"""
+    # Step 1: Login
+    token = login()
+    if not token:
+        print("❌ [FAILED] Could not login")
+        return
     
-    print("🔍 [FIX VERIFICATION] Testing node deletion fixes...")
-    print(f"API Base URL: {API_BASE_URL}")
+    # Step 2: Send test message
+    message_id = send_test_message(token)
+    if not message_id:
+        print("❌ [FAILED] Could not create test message")
+        return
+    
+    # Step 3: Check initial message state (should be False)
+    initial_state = check_message_state(token, message_id)
+    if initial_state is None:
+        print("❌ [FAILED] Could not check initial message state")
+        return
+    
+    if initial_state:
+        print("⚠️ [WARNING] Message already marked as added_to_map")
+    else:
+        print("✅ [INITIAL-STATE] Message correctly marked as not added to map")
+    
+    # Step 4: Add message to map
+    node_id = add_message_to_map(token, message_id)
+    if not node_id:
+        print("❌ [FAILED] Could not add message to map")
+        return
+    
+    # Step 5: Check message state after adding to map (should be True)
+    time.sleep(1)  # Brief delay for state update
+    after_add_state = check_message_state(token, message_id)
+    if after_add_state is None:
+        print("❌ [FAILED] Could not check message state after adding to map")
+        return
+    
+    if after_add_state:
+        print("✅ [AFTER-ADD] Message correctly marked as added_to_map")
+    else:
+        print("❌ [FAILED] Message not marked as added_to_map after adding")
+        return
+    
+    # Step 6: Delete the node (this should revert the message state)
+    delete_success = delete_node(token, node_id)
+    if not delete_success:
+        print("❌ [FAILED] Could not delete node")
+        return
+    
+    # Step 7: Check message state after node deletion (should be False again)
+    time.sleep(2)  # Brief delay for state update
+    after_delete_state = check_message_state(token, message_id)
+    if after_delete_state is None:
+        print("❌ [FAILED] Could not check message state after node deletion")
+        return
+    
+    # Final verification
     print("=" * 60)
+    print("🧪 [TEST RESULTS]")
+    print(f"Initial state (should be False): {initial_state}")
+    print(f"After add to map (should be True): {after_add_state}")
+    print(f"After node deletion (should be False): {after_delete_state}")
     
-    async with aiohttp.ClientSession() as session:
-        try:
-            # Step 1: Create a new user
-            print("\n1️⃣ [SETUP] Creating test user and workspace...")
-            signup_data = {
-                "email": f"test-fix-{int(asyncio.get_event_loop().time())}@example.com",
-                "password": "testpass123",
-                "name": "Fix Test User"
-            }
-            
-            async with session.post(f"{API_BASE_URL}/auth/signup", json=signup_data) as response:
-                if response.status not in [200, 201]:
-                    error_text = await response.text()
-                    print(f"❌ Signup failed: {response.status} - {error_text}")
-                    return
-                
-                signup_result = await response.json()
-                token = signup_result["access_token"]
-                headers = {"Authorization": f"Bearer {token}"}
-                print(f"✅ User created successfully")
-            
-            # Step 2: Create workspace
-            workspace_data = {
-                "title": "Node Deletion Fix Test Workspace",
-                "settings": {},
-                "transform": {"x": 0, "y": 0, "scale": 1}
-            }
-            
-            async with session.post(f"{API_BASE_URL}/workspaces", json=workspace_data, headers=headers) as response:
-                if response.status != 201:
-                    error_text = await response.text()
-                    print(f"❌ Workspace creation failed: {response.status} - {error_text}")
-                    return
-                
-                workspace = await response.json()
-                workspace_id = workspace["id"]
-                print(f"✅ Workspace created: {workspace_id}")
-            
-            # Step 3: Create multiple test nodes
-            print("\n2️⃣ [NODE CREATION] Creating multiple test nodes...")
-            node_ids = []
-            
-            for i in range(3):
-                node_data = {
-                    "title": f"Test Node {i+1} for Deletion Fix",
-                    "description": f"This is test node {i+1} for testing the deletion fix",
-                    "type": "ai",
-                    "x": 100 + (i * 150),
-                    "y": 100 + (i * 100),
-                    "confidence": 85,
-                    "source_agent": "fix-test-script"
-                }
-                
-                async with session.post(f"{API_BASE_URL}/workspaces/{workspace_id}/nodes", 
-                                      json=node_data, headers=headers) as response:
-                    if response.status != 201:
-                        error_text = await response.text()
-                        print(f"❌ Node {i+1} creation failed: {response.status} - {error_text}")
-                        return
-                    
-                    created_node = await response.json()
-                    node_ids.append(created_node["id"])
-                    print(f"✅ Node {i+1} created: {created_node['id']}")
-            
-            # Step 4: Test normal deletion (should work)
-            print("\n3️⃣ [NORMAL DELETION] Testing normal node deletion...")
-            test_node_id = node_ids[0]
-            
-            async with session.delete(f"{API_BASE_URL}/workspaces/{workspace_id}/nodes/{test_node_id}", 
-                                    headers=headers) as response:
-                if response.status == 204:
-                    print(f"✅ Normal deletion successful: {test_node_id}")
-                else:
-                    error_text = await response.text()
-                    print(f"❌ Normal deletion failed: {response.status} - {error_text}")
-                    return
-            
-            # Step 5: Test double deletion (should return 404 but not crash)
-            print("\n4️⃣ [DOUBLE DELETION] Testing double deletion (should return 404)...")
-            
-            async with session.delete(f"{API_BASE_URL}/workspaces/{workspace_id}/nodes/{test_node_id}", 
-                                    headers=headers) as response:
-                if response.status == 404:
-                    print(f"✅ Double deletion correctly returned 404: {test_node_id}")
-                else:
-                    print(f"⚠️ Double deletion returned unexpected status: {response.status}")
-            
-            print("\n" + "=" * 60)
-            print("🏁 [FIX VERIFICATION COMPLETE]")
-            print("✅ Node deletion fixes have been tested successfully!")
-            print("The backend API works correctly and handles edge cases properly.")
-            
-        except Exception as e:
-            print(f"💥 [TEST ERROR] Unexpected error: {e}")
-            import traceback
-            traceback.print_exc()
+    if not after_delete_state:
+        print("🎉 [SUCCESS] Node deletion correctly reverted message state!")
+        print("✅ The 'Added to map' button should now show 'Add to map' again")
+    else:
+        print("❌ [FAILED] Node deletion did not revert message state")
+        print("❌ The message is still marked as added_to_map")
+    
+    print("=" * 60)
 
 if __name__ == "__main__":
-    asyncio.run(test_node_deletion_fix_corrected())
+    main()

@@ -21,6 +21,9 @@ async def lifespan(app: FastAPI):
     # Seed workspaces on startup
     from utils.seed_workspaces import seed_workspaces
     await seed_workspaces()
+    # Seed nodes on startup
+    from utils.seed_nodes import seed_nodes
+    await seed_nodes()
     yield
     # Shutdown
     await close_mongo_connection()
