@@ -1224,7 +1224,7 @@ const OptimizedExplorationMap: React.FC = () => {
     switch (type) {
       case 'support':
         return {
-          stroke: `rgba(34, 197, 94, ${baseOpacity})`,
+          stroke: `rgba(156, 163, 175, ${baseOpacity})`, // Changed from green to light gray
           strokeWidth,
           strokeDasharray: 'none'
         };

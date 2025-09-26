@@ -208,7 +208,7 @@ const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
   const getEdgeColor = (edge: ProcessedEdge) => {
     const typeColors = {
-      'support': '#10B981',
+      'support': '#9CA3AF', // Changed from green (#10B981) to light gray
       'dependency': '#3B82F6',
       'contradiction': '#EF4444',
       'ai-relationship': '#F59E0B'

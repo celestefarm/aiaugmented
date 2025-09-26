@@ -632,7 +632,7 @@ const UnifiedExplorationMap: React.FC = () => {
     switch (type) {
       case 'support':
         return {
-          stroke: `rgba(156, 163, 175, ${baseOpacity})`,
+          stroke: `rgba(156, 163, 175, ${baseOpacity})`, // Changed from green to light gray
           strokeWidth,
           strokeDasharray: 'none',
           filter: strength && strength > 0.8 ? 'drop-shadow(0 0 4px rgba(156, 163, 175, 0.5))' : 'none'
