@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { Plus, Target, Trash2, ZoomIn, ZoomOut, RefreshCw, X, User, Link, Check, Info, HelpCircle } from 'lucide-react';
+import { Plus, Target, Trash2, ZoomIn, ZoomOut, RefreshCw, X, User, Link, Check, Info, HelpCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useMap } from '@/contexts/MapContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
@@ -209,6 +209,9 @@ const EnhancedExplorationMap: React.FC = () => {
   const [hasInitializedView, setHasInitializedView] = useState(false);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
+  
+  // UI state
+  const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
   
   // Connector system state
   const [connectorManager] = useState(() => new ConnectorManager({
@@ -631,6 +634,79 @@ const EnhancedExplorationMap: React.FC = () => {
             {notification}
           </div>
         )}
+
+        {/* Left Sidebar - Agents */}
+        <div
+          className={`flex-shrink-0 h-screen glass-pane border-r border-gray-800/50 transition-all duration-300 ease-in-out ${
+            leftSidebarCollapsed ? 'w-12' : 'w-64'
+          }`}
+          style={{ zIndex: 30, paddingTop: '4rem' }}
+        >
+          {leftSidebarCollapsed ? (
+            <div className="p-2 h-full flex flex-col items-center">
+              <button
+                onClick={() => setLeftSidebarCollapsed(false)}
+                className="w-8 h-8 rounded bg-[#6B6B3A]/20 text-[#E5E7EB] hover:bg-[#6B6B3A]/30 flex items-center justify-center transition-colors"
+                aria-label="Expand agents panel"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="p-4 h-full flex flex-col" style={{ height: 'calc(100vh - 4rem)' }}>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-semibold text-[#E5E7EB]">Agents</h2>
+                <button
+                  onClick={() => setLeftSidebarCollapsed(true)}
+                  className="w-6 h-6 rounded bg-[#6B6B3A]/20 text-[#E5E7EB] hover:bg-[#6B6B3A]/30 flex items-center justify-center transition-colors"
+                  aria-label="Collapse agents panel"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex-grow overflow-y-auto space-y-2 mb-4">
+                {agents.map(agent => (
+                  <div
+                    key={agent.id}
+                    className="p-2 rounded-md transition-colors hover:bg-gray-800/30"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-start space-x-1.5 flex-1 min-w-0">
+                        <User className="w-3 h-3 text-[#6B6B3A] flex-shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <div className="leading-tight">
+                            <span className="text-xs font-medium text-[#E5E7EB]">
+                              {agent.name}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Footer */}
+              <div className="mt-auto p-4 pt-3 border-t border-gray-800/50 glass-pane">
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => window.location.href = '/dashboard'}
+                    className="flex-1 px-4 py-2 text-sm font-medium text-[#E5E7EB] bg-[#6B6B3A]/20 hover:bg-[#6B6B3A]/30 border border-[#6B6B3A]/30 rounded-lg transition-colors"
+                  >
+                    Dashboard
+                  </button>
+                  <button
+                    onClick={() => window.location.href = '/'}
+                    className="flex-1 px-4 py-2 text-sm font-medium text-[#E5E7EB] bg-[#6B6B3A]/20 hover:bg-[#6B6B3A]/30 border border-[#6B6B3A]/30 rounded-lg transition-colors"
+                  >
+                    Home
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Canvas Area */}
         <div

@@ -380,7 +380,14 @@ const OptimizedExplorationMap: React.FC = () => {
   
   // UI state
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
-  const [rightSidebarWidth, setRightSidebarWidth] = useState(320);
+  const [rightSidebarWidth, setRightSidebarWidth] = useState(() => {
+    // Load from localStorage on initialization
+    const saved = localStorage.getItem('rightSidebarWidth');
+    return saved ? parseInt(saved, 10) : 320;
+  });
+  const [isResizingRightSidebar, setIsResizingRightSidebar] = useState(false);
+  const [resizeStartX, setResizeStartX] = useState(0);
+  const [resizeStartWidth, setResizeStartWidth] = useState(0);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [selectedNodes, setSelectedNodes] = useState<Set<string>>(new Set());
   const [selectedEdges, setSelectedEdges] = useState<Set<string>>(new Set());
@@ -422,6 +429,35 @@ const OptimizedExplorationMap: React.FC = () => {
   const showNotification = useCallback((message: string) => {
     setNotification(message);
     setTimeout(() => setNotification(null), 3000);
+  }, []);
+
+  // Handle right sidebar resize start
+  const handleRightSidebarResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsResizingRightSidebar(true);
+    setResizeStartX(e.clientX);
+    setResizeStartWidth(rightSidebarWidth);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [rightSidebarWidth]);
+
+  // Handle right sidebar resize move
+  const handleRightSidebarResizeMove = useCallback((e: MouseEvent) => {
+    if (!isResizingRightSidebar) return;
+    
+    const deltaX = resizeStartX - e.clientX; // Inverted because we're resizing from the left edge
+    const newWidth = Math.max(280, Math.min(800, resizeStartWidth + deltaX));
+    
+    setRightSidebarWidth(newWidth);
+    localStorage.setItem('rightSidebarWidth', newWidth.toString());
+  }, [isResizingRightSidebar, resizeStartX, resizeStartWidth]);
+
+  // Handle right sidebar resize end
+  const handleRightSidebarResizeEnd = useCallback(() => {
+    setIsResizingRightSidebar(false);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
   }, []);
 
   // Coordinate conversion helpers
@@ -993,6 +1029,28 @@ const OptimizedExplorationMap: React.FC = () => {
       }));
     }
 
+    // Handle node dragging
+    if (canvasState.isDragging && canvasState.draggedNodeId && canvasState.dragOffset && canvasRef.current) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      const canvasX = (e.clientX - rect.left - canvasState.transform.x) / canvasState.transform.scale;
+      const canvasY = (e.clientY - rect.top - canvasState.transform.y) / canvasState.transform.scale;
+      
+      const newX = canvasX - canvasState.dragOffset.x;
+      const newY = canvasY - canvasState.dragOffset.y;
+      
+      // Snap to grid
+      const snappedPos = snapToGrid(newX, newY);
+      
+      // Update node position in real-time by updating the DOM element directly
+      const nodeElement = document.getElementById(`node-${canvasState.draggedNodeId}`);
+      if (nodeElement) {
+        nodeElement.style.transform = `translate(${snappedPos.x}px, ${snappedPos.y}px)`;
+      }
+      
+      return;
+    }
+
+    // Handle canvas panning
     if (!canvasState.isPanning || !canvasState.panStart || !canvasState.panStartTransform) {
       return;
     }
@@ -1017,10 +1075,56 @@ const OptimizedExplorationMap: React.FC = () => {
         };
       });
     });
-  }, [canvasState.isPanning, canvasState.panStart, canvasState.panStartTransform, canvasState.isConnecting, canvasState.connectionStart]);
+  }, [canvasState.isPanning, canvasState.panStart, canvasState.panStartTransform, canvasState.isConnecting, canvasState.connectionStart, canvasState.isDragging, canvasState.draggedNodeId, canvasState.dragOffset, canvasState.transform, snapToGrid]);
 
-  const handleGlobalMouseUp = useCallback((e: MouseEvent) => {
+  const handleGlobalMouseUp = useCallback(async (e: MouseEvent) => {
     try {
+      // Handle node drag end
+      if (canvasState.isDragging && canvasState.draggedNodeId && canvasState.dragOffset && canvasRef.current) {
+        const rect = canvasRef.current.getBoundingClientRect();
+        const canvasX = (e.clientX - rect.left - canvasState.transform.x) / canvasState.transform.scale;
+        const canvasY = (e.clientY - rect.top - canvasState.transform.y) / canvasState.transform.scale;
+        
+        const newX = canvasX - canvasState.dragOffset.x;
+        const newY = canvasY - canvasState.dragOffset.y;
+        
+        // Snap to grid
+        const snappedPos = snapToGrid(newX, newY);
+        
+        // Update the node position in the backend
+        try {
+          const updateData: NodeUpdateRequest = {
+            x: snappedPos.x,
+            y: snappedPos.y
+          };
+          
+          await updateNodeAPI(canvasState.draggedNodeId, updateData);
+        } catch (error) {
+          console.error('Failed to update node position:', error);
+          showNotification('Failed to update node position');
+          
+          // Revert the visual position on error
+          const nodeElement = document.getElementById(`node-${canvasState.draggedNodeId}`);
+          if (nodeElement) {
+            const originalNode = nodes.find(n => n.id === canvasState.draggedNodeId);
+            if (originalNode) {
+              nodeElement.style.transform = `translate(${originalNode.x}px, ${originalNode.y}px)`;
+            }
+          }
+        }
+        
+        // Clear drag state
+        setCanvasState(prev => ({
+          ...prev,
+          isDragging: false,
+          draggedNodeId: null,
+          dragOffset: null
+        }));
+        
+        return;
+      }
+
+      // Handle canvas pan end
       if (canvasState.isPanning) {
         setCanvasState(prev => {
           if (!prev) return prev;
@@ -1039,7 +1143,7 @@ const OptimizedExplorationMap: React.FC = () => {
     } catch (error) {
       console.error('Error in handleGlobalMouseUp:', error);
     }
-  }, [canvasState.isPanning]);
+  }, [canvasState.isPanning, canvasState.isDragging, canvasState.draggedNodeId, canvasState.dragOffset, canvasState.transform, snapToGrid, updateNodeAPI, showNotification, nodes]);
 
   const handleNodeMouseDown = useCallback((e: React.MouseEvent, nodeId: string, nodeType: 'ai' | 'human') => {
     const target = e.target as HTMLElement;
@@ -1054,8 +1158,6 @@ const OptimizedExplorationMap: React.FC = () => {
       return;
     }
     
-    // Remove preventDefault to avoid passive event listener errors
-
     // Handle connection mode
     if (canvasState.isConnecting) {
       if (!canvasState.connectionStart) {
@@ -1087,9 +1189,32 @@ const OptimizedExplorationMap: React.FC = () => {
       return;
     }
 
-    // Normal selection behavior
+    // Start node dragging
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node || !canvasRef.current) return;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const canvasX = (e.clientX - rect.left - canvasState.transform.x) / canvasState.transform.scale;
+    const canvasY = (e.clientY - rect.top - canvasState.transform.y) / canvasState.transform.scale;
+    
+    const dragOffset = {
+      x: canvasX - node.x,
+      y: canvasY - node.y
+    };
+
+    setCanvasState(prev => ({
+      ...prev,
+      isDragging: true,
+      draggedNodeId: nodeId,
+      dragOffset
+    }));
+
+    // Handle selection
     handleNodeSelection(nodeId, e.ctrlKey || e.metaKey);
-  }, [handleNodeSelection, canvasState.isConnecting, canvasState.connectionStart, createConnection, nodes, showNotification]);
+
+    // Prevent canvas panning when dragging a node
+    e.stopPropagation();
+  }, [handleNodeSelection, canvasState.isConnecting, canvasState.connectionStart, canvasState.transform, createConnection, nodes, showNotification]);
 
   // Get edge style for SVG rendering
   const getEdgeStyle = (type: string, strength?: number) => {
@@ -1160,9 +1285,9 @@ const OptimizedExplorationMap: React.FC = () => {
     }
   }, [nodes, hasInitializedView]);
 
-  // Global event listeners for smooth panning
+  // Global event listeners for smooth panning and node dragging
   useEffect(() => {
-    if (canvasState.isPanning) {
+    if (canvasState.isPanning || canvasState.isDragging) {
       document.addEventListener('mousemove', handleGlobalMouseMove, { passive: false });
       document.addEventListener('mouseup', handleGlobalMouseUp, { passive: false });
       
@@ -1171,7 +1296,20 @@ const OptimizedExplorationMap: React.FC = () => {
         document.removeEventListener('mouseup', handleGlobalMouseUp);
       };
     }
-  }, [canvasState.isPanning, handleGlobalMouseMove, handleGlobalMouseUp]);
+  }, [canvasState.isPanning, canvasState.isDragging, handleGlobalMouseMove, handleGlobalMouseUp]);
+
+  // Global event listeners for right sidebar resizing
+  useEffect(() => {
+    if (isResizingRightSidebar) {
+      document.addEventListener('mousemove', handleRightSidebarResizeMove);
+      document.addEventListener('mouseup', handleRightSidebarResizeEnd);
+      
+      return () => {
+        document.removeEventListener('mousemove', handleRightSidebarResizeMove);
+        document.removeEventListener('mouseup', handleRightSidebarResizeEnd);
+      };
+    }
+  }, [isResizingRightSidebar, handleRightSidebarResizeMove, handleRightSidebarResizeEnd]);
 
   // Cleanup animation frames and event listeners
   useEffect(() => {
@@ -1212,6 +1350,24 @@ const OptimizedExplorationMap: React.FC = () => {
       return () => document.removeEventListener('click', handleClickOutside);
     }
   }, [showContextMenu]);
+
+  // Handle keyboard events for connect mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && canvasState.isConnecting) {
+        setCanvasState(prev => ({
+          ...prev,
+          isConnecting: false,
+          connectionStart: null,
+          connectionPreview: null
+        }));
+        showNotification('Connection mode disabled');
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [canvasState.isConnecting, showNotification]);
 
   // Memoized node styles for performance
   const nodeStyles = useMemo(() => {
@@ -1286,10 +1442,10 @@ const OptimizedExplorationMap: React.FC = () => {
       <TooltipProvider>
         <div className="flex h-full w-full bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 overflow-hidden">
           {/* Left Sidebar */}
-          <div className={`transition-all duration-300 bg-gray-800/50 border-r border-gray-700/50 backdrop-blur-sm flex flex-col ${
+          <div className={`transition-all duration-300 glass-pane border-r border-gray-600/30 flex flex-col ${
             leftSidebarCollapsed ? 'w-16' : 'w-80'
           }`}>
-            <div className="flex-shrink-0 p-4 border-b border-gray-700/50 bg-gray-800/70 backdrop-blur-sm">
+            <div className="flex-shrink-0 p-4 border-b border-gray-600/30 glass-pane">
               <div className="flex items-center justify-between">
                 {!leftSidebarCollapsed && (
                   <h2 className="text-lg font-semibold text-white">Agents</h2>
@@ -1340,7 +1496,7 @@ const OptimizedExplorationMap: React.FC = () => {
                 </div>
                 
                 {/* Navigation Footer */}
-                <div className="flex-shrink-0 p-4 border-t border-gray-700/50 bg-gray-800/70 backdrop-blur-sm">
+                <div className="flex-shrink-0 p-4 border-t border-gray-600/30 glass-pane">
                   <div className="space-y-2">
                     <button
                       onClick={() => window.location.href = '/dashboard'}
@@ -1390,11 +1546,14 @@ const OptimizedExplorationMap: React.FC = () => {
                 <RefreshCw className="w-4 h-4 text-white" />
               </button>
               <button
-                onClick={() => showNotification('Connect Nodes functionality coming soon!')}
-                className="p-2 glass-pane hover:bg-white/10 transition-colors rounded"
-                title="Connect Nodes"
+                onClick={() => setCanvasState(prev => ({ ...prev, isConnecting: !prev.isConnecting }))}
+                className={`p-2 glass-pane hover:bg-white/10 transition-colors rounded ${
+                  canvasState.isConnecting ? 'bg-[#6B6B3A]/20 text-[#6B6B3A]' : 'text-white'
+                } ${nodes.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                title={canvasState.isConnecting ? "Exit Connect Mode (Esc)" : "Connect Nodes"}
+                disabled={nodes.length === 0}
               >
-                <Link className="w-4 h-4 text-white" />
+                <Link className="w-4 h-4" />
               </button>
               <button
                 onClick={handleDeleteSelected}
@@ -1415,7 +1574,7 @@ const OptimizedExplorationMap: React.FC = () => {
             {/* Connection mode hint */}
             {canvasState.isConnecting && (
               <div className="absolute top-20 left-1/2 transform -translate-x-1/2 glass-pane px-4 py-2 text-sm text-[#6B6B3A] z-40 border border-[#6B6B3A]/30">
-                🔗 {canvasState.connectionStart ? 'Click another node to complete connection' : 'Click a node and drag to another node to create connection'}
+                🔗 {canvasState.connectionStart ? 'Click another node to complete connection' : 'Click a node to start connection'} • Press Esc to exit
               </div>
             )}
 
@@ -1576,15 +1735,35 @@ const OptimizedExplorationMap: React.FC = () => {
 
           {/* Right Sidebar - Chat */}
           <div
-            className="bg-gray-800/50 border-l border-gray-700/50 backdrop-blur-sm overflow-hidden flex flex-col"
-            style={{ width: rightSidebarWidth }}
+            className={`glass-pane border-l border-gray-600/30 overflow-hidden flex flex-col relative ${
+              isResizingRightSidebar ? '' : 'transition-all duration-300 ease-in-out'
+            }`}
+            style={{
+              width: `${rightSidebarWidth}px`,
+              maxWidth: '800px',
+              minWidth: '280px'
+            }}
           >
-            <div className="flex-shrink-0 p-4 border-b border-gray-700/50 bg-gray-800/70 backdrop-blur-sm">
+            {/* Right Sidebar Resize Handle */}
+            <div
+              className={`absolute left-0 top-0 bottom-0 w-1 bg-transparent hover:bg-[#6B6B3A]/50 cursor-col-resize z-50 group ${
+                isResizingRightSidebar ? 'bg-[#6B6B3A]/70' : ''
+              }`}
+              onMouseDown={handleRightSidebarResizeStart}
+              title="Drag to resize sidebar"
+            >
+              <div className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-1/2 w-3 h-8 glass-pane border border-gray-600/50 rounded-l-lg transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
+                <div className="w-0.5 h-4 bg-gray-300 rounded-full"></div>
+              </div>
+            </div>
+
+            <div className="flex-shrink-0 p-4 border-b border-gray-600/30 glass-pane">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-white">Chat</h2>
               </div>
             </div>
-            <div className="flex-1 overflow-hidden">
+            
+            <div className="flex-1 overflow-hidden pl-4 pb-4 pr-4">
               <SparringSession onAddToMap={(messageId) => handleAddToMap(messageId, {})} />
             </div>
           </div>
