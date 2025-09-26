@@ -1830,40 +1830,223 @@ const OptimizedExplorationMap: React.FC = () => {
             </div>
           )}
 
-          {/* Agent Details Modal */}
+          {/* Enhanced Agent Details Modal */}
           {showAgentDetailsModal && (
             <Dialog open={!!showAgentDetailsModal} onOpenChange={() => setShowAgentDetailsModal(null)}>
-              <DialogContent className="glass-pane border-gray-600/50">
+              <DialogContent className="glass-pane border-gray-600/50 max-w-2xl max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle className="text-white">Agent Details</DialogTitle>
+                  <DialogTitle className="text-white flex items-center gap-2">
+                    <Users className="w-5 h-5 text-[#6B6B3A]" />
+                    Agent Details & Collaboration
+                  </DialogTitle>
                 </DialogHeader>
                 {(() => {
                   const agent = agents.find(a => a.agent_id === showAgentDetailsModal);
-                  return agent ? (
-                    <div className="space-y-4">
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-300 mb-1">Name</h3>
-                        <p className="text-white">{agent.name}</p>
+                  if (!agent) return null;
+
+                  // Enhanced collaboration information based on agent type
+                  const getCollaborationInfo = (agentName: string, role: string) => {
+                    const baseInfo = {
+                      role: "Strategic AI Assistant",
+                      independentTasks: [
+                        "Analyze complex data patterns and trends",
+                        "Generate strategic insights and recommendations",
+                        "Process and synthesize large amounts of information",
+                        "Identify potential risks and opportunities"
+                      ],
+                      humanSupport: [
+                        "Provides data-driven insights to inform decision-making",
+                        "Offers alternative perspectives and strategic options",
+                        "Highlights key considerations and trade-offs",
+                        "Suggests actionable next steps and priorities"
+                      ],
+                      interactionModes: [
+                        {
+                          mode: "Advisory Mode",
+                          description: "AI provides recommendations while human makes final decisions",
+                          example: "AI analyzes market data and suggests 3 strategic options, human selects and refines the chosen approach"
+                        },
+                        {
+                          mode: "Co-Creation",
+                          description: "Human and AI collaborate iteratively to develop solutions",
+                          example: "Human provides business context, AI generates framework, both refine through multiple iterations"
+                        },
+                        {
+                          mode: "Validation & Review",
+                          description: "AI reviews human proposals and provides feedback",
+                          example: "Human drafts strategy, AI identifies gaps and suggests improvements before implementation"
+                        }
+                      ]
+                    };
+
+                    // Customize based on specific agent characteristics
+                    if (role.toLowerCase().includes('strategist') || role.toLowerCase().includes('strategy')) {
+                      return {
+                        ...baseInfo,
+                        role: "Strategic Planning Partner",
+                        independentTasks: [
+                          "Conduct comprehensive strategic analysis",
+                          "Map competitive landscapes and market dynamics",
+                          "Generate scenario planning and risk assessments",
+                          "Create strategic frameworks and methodologies"
+                        ],
+                        humanSupport: [
+                          "Transforms complex business challenges into structured strategic frameworks",
+                          "Provides objective analysis free from cognitive biases",
+                          "Offers rapid synthesis of multiple strategic perspectives",
+                          "Enables faster iteration on strategic concepts"
+                        ]
+                      };
+                    } else if (role.toLowerCase().includes('analyst') || role.toLowerCase().includes('research')) {
+                      return {
+                        ...baseInfo,
+                        role: "Research & Analysis Specialist",
+                        independentTasks: [
+                          "Perform deep-dive research and data analysis",
+                          "Generate comprehensive reports and summaries",
+                          "Identify patterns and correlations in complex datasets",
+                          "Create visualizations and analytical frameworks"
+                        ],
+                        humanSupport: [
+                          "Accelerates research processes with rapid information synthesis",
+                          "Provides unbiased analytical perspectives",
+                          "Identifies blind spots and alternative interpretations",
+                          "Enables evidence-based decision making"
+                        ]
+                      };
+                    } else if (role.toLowerCase().includes('creative') || role.toLowerCase().includes('innovation')) {
+                      return {
+                        ...baseInfo,
+                        role: "Innovation & Creative Partner",
+                        independentTasks: [
+                          "Generate creative concepts and innovative solutions",
+                          "Explore unconventional approaches and possibilities",
+                          "Create diverse ideation frameworks",
+                          "Synthesize inspiration from multiple domains"
+                        ],
+                        humanSupport: [
+                          "Expands creative thinking beyond conventional boundaries",
+                          "Provides rapid ideation and concept development",
+                          "Offers fresh perspectives on established problems",
+                          "Enables systematic exploration of creative possibilities"
+                        ]
+                      };
+                    }
+
+                    return baseInfo;
+                  };
+
+                  const collaborationInfo = getCollaborationInfo(agent.name, agent.ai_role);
+
+                  return (
+                    <div className="space-y-6">
+                      {/* Basic Information */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <h3 className="text-sm font-medium text-gray-300 mb-1">Name</h3>
+                          <p className="text-white font-medium">{agent.name}</p>
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-medium text-gray-300 mb-1">Status</h3>
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs ${
+                            activeAgents.includes(agent.agent_id)
+                              ? 'bg-green-500/20 text-green-300'
+                              : 'bg-gray-500/20 text-gray-300'
+                          }`}>
+                            <div className={`w-2 h-2 rounded-full ${
+                              activeAgents.includes(agent.agent_id) ? 'bg-green-400' : 'bg-gray-500'
+                            }`} />
+                            {activeAgents.includes(agent.agent_id) ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
                       </div>
+
                       <div>
                         <h3 className="text-sm font-medium text-gray-300 mb-1">Description</h3>
                         <p className="text-gray-200">{agent.ai_role}</p>
                       </div>
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-300 mb-1">Status</h3>
-                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs ${
-                          activeAgents.includes(agent.agent_id)
-                            ? 'bg-green-500/20 text-green-300'
-                            : 'bg-gray-500/20 text-gray-300'
-                        }`}>
-                          <div className={`w-2 h-2 rounded-full ${
-                            activeAgents.includes(agent.agent_id) ? 'bg-green-400' : 'bg-gray-500'
-                          }`} />
-                          {activeAgents.includes(agent.agent_id) ? 'Active' : 'Inactive'}
-                        </span>
+
+                      {/* Human-AI Collaboration Section */}
+                      <div className="border-t border-gray-600/30 pt-4">
+                        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                          <Target className="w-4 h-4 text-[#6B6B3A]" />
+                          Human-AI Collaboration
+                        </h3>
+
+                        {/* Role & Purpose */}
+                        <div className="mb-4">
+                          <h4 className="text-sm font-medium text-[#6B6B3A] mb-2">Role & Purpose in Workflow</h4>
+                          <p className="text-gray-200 text-sm leading-relaxed">
+                            This AI agent serves as a <strong className="text-white">{collaborationInfo.role}</strong>,
+                            designed to enhance human strategic thinking and decision-making processes. It acts as an
+                            intelligent partner that complements human intuition, experience, and contextual knowledge
+                            with data-driven insights and systematic analysis.
+                          </p>
+                        </div>
+
+                        {/* Independent Tasks */}
+                        <div className="mb-4">
+                          <h4 className="text-sm font-medium text-[#6B6B3A] mb-2">Tasks Handled Independently</h4>
+                          <ul className="space-y-1">
+                            {collaborationInfo.independentTasks.map((task, index) => (
+                              <li key={index} className="text-gray-200 text-sm flex items-start gap-2">
+                                <Check className="w-3 h-3 text-green-400 mt-0.5 flex-shrink-0" />
+                                {task}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        {/* Human Decision Support */}
+                        <div className="mb-4">
+                          <h4 className="text-sm font-medium text-[#6B6B3A] mb-2">How It Supports Human Decision-Making</h4>
+                          <ul className="space-y-1">
+                            {collaborationInfo.humanSupport.map((support, index) => (
+                              <li key={index} className="text-gray-200 text-sm flex items-start gap-2">
+                                <User className="w-3 h-3 text-blue-400 mt-0.5 flex-shrink-0" />
+                                {support}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        {/* Interaction Examples */}
+                        <div>
+                          <h4 className="text-sm font-medium text-[#6B6B3A] mb-3">Collaboration Interaction Modes</h4>
+                          <div className="space-y-3">
+                            {collaborationInfo.interactionModes.map((mode, index) => (
+                              <div key={index} className="glass-pane p-3 rounded-lg border border-gray-600/30">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Link className="w-3 h-3 text-[#6B6B3A]" />
+                                  <h5 className="text-sm font-medium text-white">{mode.mode}</h5>
+                                </div>
+                                <p className="text-gray-300 text-xs mb-2">{mode.description}</p>
+                                <div className="bg-gray-800/50 p-2 rounded border-l-2 border-[#6B6B3A]/50">
+                                  <p className="text-gray-200 text-xs italic">
+                                    <strong className="text-[#6B6B3A]">Example:</strong> {mode.example}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Value Proposition */}
+                        <div className="mt-4 p-3 bg-[#6B6B3A]/10 rounded-lg border border-[#6B6B3A]/30">
+                          <h4 className="text-sm font-medium text-[#6B6B3A] mb-2 flex items-center gap-1">
+                            <Info className="w-3 h-3" />
+                            Key Collaboration Benefits
+                          </h4>
+                          <p className="text-gray-200 text-xs leading-relaxed">
+                            By working with this AI agent, you gain access to rapid analysis, objective perspectives,
+                            and systematic thinking while maintaining full control over strategic decisions. The AI
+                            handles time-intensive research and analysis, allowing you to focus on high-level strategy,
+                            stakeholder management, and creative problem-solving.
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  ) : null;
+                  );
                 })()}
               </DialogContent>
             </Dialog>
