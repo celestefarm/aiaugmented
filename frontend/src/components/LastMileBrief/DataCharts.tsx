@@ -367,9 +367,18 @@ const DataCharts: React.FC<DataChartsProps> = ({
     }
   };
 
+  // Add safety checks for charts array
+  const safeCharts = charts && Array.isArray(charts) ? charts : [];
+  
+  console.log('📊 [DataCharts] Rendering charts:', {
+    chartsCount: safeCharts.length,
+    chartsType: typeof charts,
+    chartsIsArray: Array.isArray(charts)
+  });
+
   return (
     <div className="data-charts">
-      {charts.map(chart => (
+      {safeCharts.map(chart => (
         <div key={chart.id} className="chart-container">
           <canvas
             ref={el => chartRefs.current[chart.id] = el}
@@ -379,7 +388,7 @@ const DataCharts: React.FC<DataChartsProps> = ({
           />
           
           {/* Chart insights */}
-          {chart.insights.length > 0 && (
+          {chart.insights && Array.isArray(chart.insights) && chart.insights.length > 0 && (
             <div className="chart-insights">
               <h4>Key Insights</h4>
               <ul>

@@ -65,18 +65,30 @@ const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
 
-  // Process nodes to add computed properties
-  const processedNodes: ProcessedNode[] = nodes.map(node => ({
+  // Process nodes to add computed properties with safety checks
+  const safeNodes = nodes && Array.isArray(nodes) ? nodes : [];
+  const safeEdges = edges && Array.isArray(edges) ? edges : [];
+  
+  console.log('🗺️ [InteractiveMap] Processing nodes and edges:', {
+    nodesCount: safeNodes.length,
+    edgesCount: safeEdges.length,
+    nodesType: typeof nodes,
+    edgesType: typeof edges,
+    nodesIsArray: Array.isArray(nodes),
+    edgesIsArray: Array.isArray(edges)
+  });
+
+  const processedNodes: ProcessedNode[] = safeNodes.map(node => ({
     ...node,
-    importance: calculateNodeImportance(node, edges),
-    connections: edges.filter(edge => 
+    importance: calculateNodeImportance(node, safeEdges),
+    connections: safeEdges.filter(edge =>
       edge.from_node_id === node.id || edge.to_node_id === node.id
     ).length,
     insights: [] // Would be populated from analytics
   }));
 
   // Process edges to add computed properties
-  const processedEdges: ProcessedEdge[] = edges.map(edge => ({
+  const processedEdges: ProcessedEdge[] = safeEdges.map(edge => ({
     ...edge,
     strength: calculateEdgeStrength(edge),
     significance: calculateEdgeSignificance(edge),
@@ -84,7 +96,8 @@ const InteractiveMap: React.FC<InteractiveMapProps> = ({
   }));
 
   function calculateNodeImportance(node: Node, edges: Edge[]): number {
-    const connections = edges.filter(edge => 
+    const safeEdgesForCalc = edges && Array.isArray(edges) ? edges : [];
+    const connections = safeEdgesForCalc.filter(edge =>
       edge.from_node_id === node.id || edge.to_node_id === node.id
     ).length;
     const confidence = node.confidence || 50;
@@ -208,6 +221,10 @@ const InteractiveMap: React.FC<InteractiveMapProps> = ({
   };
 
   const renderEdges = () => {
+    if (!processedEdges || !Array.isArray(processedEdges)) {
+      console.warn('InteractiveMap: processedEdges is not an array:', processedEdges);
+      return null;
+    }
     return processedEdges.map(edge => {
       const fromNode = positionedNodes.find(n => n.id === edge.from_node_id);
       const toNode = positionedNodes.find(n => n.id === edge.to_node_id);
@@ -233,6 +250,10 @@ const InteractiveMap: React.FC<InteractiveMapProps> = ({
   };
 
   const renderNodes = () => {
+    if (!positionedNodes || !Array.isArray(positionedNodes)) {
+      console.warn('InteractiveMap: positionedNodes is not an array:', positionedNodes);
+      return null;
+    }
     return positionedNodes.map(node => {
       const isSelected = selectedNode === node.id;
       const isHovered = hoveredNode === node.id;

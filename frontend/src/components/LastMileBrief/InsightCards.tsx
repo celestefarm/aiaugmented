@@ -86,7 +86,20 @@ const InsightCards: React.FC<InsightCardsProps> = ({
     });
   };
 
-  const filteredAndSortedInsights = insights
+  // Add safety checks for insights array
+  const safeInsights = insights && Array.isArray(insights) ? insights : [];
+  const safeFilters = filters && Array.isArray(filters) ? filters : [];
+  
+  console.log('💡 [InsightCards] Processing insights:', {
+    insightsCount: safeInsights.length,
+    filtersCount: safeFilters.length,
+    insightsType: typeof insights,
+    filtersType: typeof filters,
+    insightsIsArray: Array.isArray(insights),
+    filtersIsArray: Array.isArray(filters)
+  });
+
+  const filteredAndSortedInsights = safeInsights
     .filter(insight => {
       // Search filter
       if (searchTerm && !insight.title.toLowerCase().includes(searchTerm.toLowerCase()) &&
@@ -98,7 +111,7 @@ const InsightCards: React.FC<InsightCardsProps> = ({
       for (const [filterId, values] of Object.entries(activeFilters)) {
         if (values.length === 0) continue;
         
-        const filter = filters.find(f => f.id === filterId);
+        const filter = safeFilters.find(f => f.id === filterId);
         if (!filter) continue;
 
         let fieldValue: string;
@@ -184,10 +197,10 @@ const InsightCards: React.FC<InsightCardsProps> = ({
         <div className="filters-container">
           <Filter className="w-4 h-4" />
           <span>Filters:</span>
-          {filters.map(filter => (
+          {safeFilters.map(filter => (
             <div key={filter.id} className="filter-group">
               <span className="filter-label">{filter.label}:</span>
-              {filter.values.map(value => (
+              {filter.values && Array.isArray(filter.values) && filter.values.map(value => (
                 <button
                   key={value}
                   className={`filter-btn ${
@@ -225,7 +238,7 @@ const InsightCards: React.FC<InsightCardsProps> = ({
 
       {/* Results count */}
       <div className="results-info">
-        <span>{filteredAndSortedInsights.length} of {insights.length} insights</span>
+        <span>{filteredAndSortedInsights.length} of {safeInsights.length} insights</span>
       </div>
 
       {/* Insights Grid */}
@@ -287,7 +300,7 @@ const InsightCards: React.FC<InsightCardsProps> = ({
                   <span className="category-value">{insight.category}</span>
                 </div>
 
-                {insight.supportingData.length > 0 && (
+                {insight.supportingData && Array.isArray(insight.supportingData) && insight.supportingData.length > 0 && (
                   <div className="supporting-data">
                     <span className="supporting-label">Supporting data:</span>
                     <div className="supporting-items">
@@ -305,7 +318,7 @@ const InsightCards: React.FC<InsightCardsProps> = ({
                   </div>
                 )}
 
-                {insight.visualizations.length > 0 && (
+                {insight.visualizations && Array.isArray(insight.visualizations) && insight.visualizations.length > 0 && (
                   <div className="related-visualizations">
                     <span className="viz-label">Related visualizations:</span>
                     <div className="viz-links">

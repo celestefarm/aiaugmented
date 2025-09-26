@@ -24,9 +24,9 @@ export interface GridLayout {
 }
 
 const VisualizationGrid: React.FC<VisualizationGridProps> = ({
-  visualizations,
+  visualizations = [],
   analytics,
-  insights,
+  insights = [],
   viewMode,
   rawData
 }) => {
@@ -66,6 +66,16 @@ const VisualizationGrid: React.FC<VisualizationGridProps> = ({
   const getVisualizationComponent = (viz: VisualizationData) => {
     switch (viz.type) {
       case 'node-network':
+        return (
+          <InteractiveMap
+            nodes={rawData.nodes}
+            edges={rawData.edges}
+            layout={{ type: 'force-directed-graph', ...viz.config }}
+            interactions={viz.interactivity}
+            onNodeClick={(nodeId) => console.log('Node clicked:', nodeId)}
+            onEdgeClick={(edgeId) => console.log('Edge clicked:', edgeId)}
+          />
+        );
       case 'force-directed-graph':
         return (
           <InteractiveMap
@@ -86,18 +96,25 @@ const VisualizationGrid: React.FC<VisualizationGridProps> = ({
           <DataCharts
             charts={[{
               id: viz.id,
-              type: viz.type as any,
+              type: viz.type === 'bar-chart' ? 'bar' : viz.type === 'pie-chart' ? 'pie' : viz.type as any,
               title: viz.title,
               data: viz.data,
               config: viz.config,
-              insights: viz.insights
+              insights: (viz.insights && Array.isArray(viz.insights)
+                ? viz.insights.map((insight, index) => ({
+                    id: `${viz.id}-insight-${index}`,
+                    type: 'visualization',
+                    description: insight,
+                    confidence: 0.8
+                  }))
+                : [])
             }]}
             theme={{
               primaryColor: '#C6AC8E',
               backgroundColor: 'rgba(34, 51, 59, 0.4)',
               textColor: '#EAE0D5'
             }}
-            onChartInteraction={(chartId, interaction) => 
+            onChartInteraction={(chartId, interaction) =>
               console.log('Chart interaction:', chartId, interaction)
             }
           />
@@ -173,13 +190,13 @@ const VisualizationGrid: React.FC<VisualizationGridProps> = ({
       </div>
 
       {/* Analytics Overview */}
-      {viewMode !== 'interactive' && (
+      {viewMode !== 'interactive' && analytics && (
         <div className="analytics-overview">
           <div className="analytics-cards">
             <div className="analytics-card">
               <h3>Node Distribution</h3>
               <div className="node-type-breakdown">
-                {Object.entries(analytics.nodeDistribution.byType).map(([type, count]) => (
+                {analytics.nodeDistribution?.byType && Object.entries(analytics.nodeDistribution.byType).map(([type, count]) => (
                   <div key={type} className="type-item">
                     <span className={`type-indicator ${type}`}></span>
                     <span className="type-label">{type}</span>
@@ -194,15 +211,15 @@ const VisualizationGrid: React.FC<VisualizationGridProps> = ({
               <div className="connection-metrics">
                 <div className="metric">
                   <span className="metric-label">Total Connections</span>
-                  <span className="metric-value">{analytics.connectionAnalysis.totalConnections}</span>
+                  <span className="metric-value">{analytics.connectionAnalysis?.totalConnections || 0}</span>
                 </div>
                 <div className="metric">
                   <span className="metric-label">Network Density</span>
-                  <span className="metric-value">{(analytics.connectionAnalysis.networkDensity * 100).toFixed(1)}%</span>
+                  <span className="metric-value">{((analytics.connectionAnalysis?.networkDensity || 0) * 100).toFixed(1)}%</span>
                 </div>
                 <div className="metric">
                   <span className="metric-label">Avg Connections</span>
-                  <span className="metric-value">{analytics.connectionAnalysis.averageConnections.toFixed(1)}</span>
+                  <span className="metric-value">{(analytics.connectionAnalysis?.averageConnections || 0).toFixed(1)}</span>
                 </div>
               </div>
             </div>
@@ -212,15 +229,15 @@ const VisualizationGrid: React.FC<VisualizationGridProps> = ({
               <div className="confidence-breakdown">
                 <div className="confidence-item high">
                   <span className="confidence-label">High</span>
-                  <span className="confidence-count">{analytics.confidenceMetrics.distribution.high}</span>
+                  <span className="confidence-count">{analytics.confidenceMetrics?.distribution?.high || 0}</span>
                 </div>
                 <div className="confidence-item medium">
                   <span className="confidence-label">Medium</span>
-                  <span className="confidence-count">{analytics.confidenceMetrics.distribution.medium}</span>
+                  <span className="confidence-count">{analytics.confidenceMetrics?.distribution?.medium || 0}</span>
                 </div>
                 <div className="confidence-item low">
                   <span className="confidence-label">Low</span>
-                  <span className="confidence-count">{analytics.confidenceMetrics.distribution.low}</span>
+                  <span className="confidence-count">{analytics.confidenceMetrics?.distribution?.low || 0}</span>
                 </div>
               </div>
             </div>
@@ -283,14 +300,19 @@ const VisualizationGrid: React.FC<VisualizationGridProps> = ({
                   type: 'pie',
                   title: 'Node Type Distribution',
                   data: {
-                    labels: Object.keys(analytics.nodeDistribution.byType),
+                    labels: analytics?.nodeDistribution?.byType ? Object.keys(analytics.nodeDistribution.byType) : [],
                     datasets: [{
-                      data: Object.values(analytics.nodeDistribution.byType),
+                      data: analytics?.nodeDistribution?.byType ? Object.values(analytics.nodeDistribution.byType) : [],
                       backgroundColor: ['#C6AC8E', '#EAE0D5', '#10B981', '#3B82F6', '#F59E0B']
                     }]
                   },
                   config: { responsive: true },
-                  insights: ['Human insights dominate the strategic landscape']
+                  insights: [{
+                    id: 'node-dist-insight',
+                    type: 'distribution',
+                    description: 'Node distribution analysis',
+                    confidence: 0.9
+                  }]
                 },
                 {
                   id: 'confidence-distribution',
@@ -301,15 +323,20 @@ const VisualizationGrid: React.FC<VisualizationGridProps> = ({
                     datasets: [{
                       label: 'Node Count',
                       data: [
-                        analytics.confidenceMetrics.distribution.high,
-                        analytics.confidenceMetrics.distribution.medium,
-                        analytics.confidenceMetrics.distribution.low
+                        analytics?.confidenceMetrics?.distribution?.high || 0,
+                        analytics?.confidenceMetrics?.distribution?.medium || 0,
+                        analytics?.confidenceMetrics?.distribution?.low || 0
                       ],
                       backgroundColor: ['#10B981', '#F59E0B', '#EF4444']
                     }]
                   },
                   config: { responsive: true },
-                  insights: ['High confidence nodes indicate strong strategic foundation']
+                  insights: [{
+                    id: 'confidence-dist-insight',
+                    type: 'confidence',
+                    description: 'Confidence distribution analysis',
+                    confidence: 0.9
+                  }]
                 }
               ]}
               theme={{
@@ -346,7 +373,7 @@ const VisualizationGrid: React.FC<VisualizationGridProps> = ({
         )}
 
         {/* Additional Visualizations */}
-        {visualizations.map((viz) => (
+        {visualizations && Array.isArray(visualizations) && visualizations.length > 0 && visualizations.map((viz) => (
           <div key={viz.id} className="visualization-item">
             <div className="viz-header">
               <h3>{viz.title}</h3>

@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { TrendingUp, BarChart3, PieChart, Target, AlertTriangle, CheckCircle, Clock, Zap } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { TrendingUp, BarChart3, PieChart, Target, AlertTriangle, CheckCircle, Clock, Zap, Edit2 } from 'lucide-react';
 import { Node, Edge } from '../../lib/api';
 import { AnalyticsData, ProcessedInsight } from './LastMileBriefCanvas';
 import DataCharts from './DataCharts';
@@ -18,14 +18,21 @@ export interface ExecutiveReportProps {
   edges: Edge[];
   analytics: AnalyticsData;
   insights: ProcessedInsight[];
+  isEditing?: boolean;
+  onContentEdit?: (field: string, value: any) => void;
 }
 
 const ExecutiveReport: React.FC<ExecutiveReportProps> = ({
   nodes = [],
   edges = [],
   analytics,
-  insights = []
+  insights = [],
+  isEditing = false,
+  onContentEdit
 }) => {
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState<string>('');
+
   // Generate executive report data with fallback for empty data
   const reportData = useMemo(() => {
     // Handle case where analytics might be null/undefined
@@ -135,6 +142,101 @@ const ExecutiveReport: React.FC<ExecutiveReportProps> = ({
     }
   };
 
+  const handleEditStart = (field: string, currentValue: string) => {
+    if (!isEditing) return;
+    setEditingField(field);
+    setEditingValue(currentValue);
+  };
+
+  const handleEditSave = (field: string) => {
+    if (onContentEdit && editingValue.trim() !== '') {
+      onContentEdit(field, editingValue.trim());
+    }
+    setEditingField(null);
+    setEditingValue('');
+  };
+
+  const handleEditCancel = () => {
+    setEditingField(null);
+    setEditingValue('');
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent, field: string) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleEditSave(field);
+    } else if (e.key === 'Escape') {
+      handleEditCancel();
+    }
+  };
+
+  const renderEditableText = (field: string, content: string, className: string = '') => {
+    if (isEditing && editingField === field) {
+      return (
+        <textarea
+          value={editingValue}
+          onChange={(e) => setEditingValue(e.target.value)}
+          onBlur={() => handleEditSave(field)}
+          onKeyDown={(e) => handleKeyPress(e, field)}
+          className={`editable-textarea ${className}`}
+          autoFocus
+          rows={content.split('\n').length || 3}
+        />
+      );
+    }
+
+    return (
+      <div className={`editable-content ${className} ${isEditing ? 'editable' : ''}`}>
+        {content}
+        {isEditing && (
+          <button
+            onClick={() => handleEditStart(field, content)}
+            className="edit-inline-btn"
+            title="Edit this content"
+          >
+            <Edit2 className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  const renderEditableList = (field: string, items: string[], className: string = '') => {
+    if (isEditing && editingField === field) {
+      return (
+        <textarea
+          value={editingValue}
+          onChange={(e) => setEditingValue(e.target.value)}
+          onBlur={() => handleEditSave(field)}
+          onKeyDown={(e) => handleKeyPress(e, field)}
+          className={`editable-textarea ${className}`}
+          autoFocus
+          rows={Math.max(items.length, 3)}
+          placeholder="Enter each item on a new line"
+        />
+      );
+    }
+
+    return (
+      <div className={`editable-list ${className} ${isEditing ? 'editable' : ''}`}>
+        <ul>
+          {items && Array.isArray(items) && items.map((item, index) => (
+            <li key={index}>{item}</li>
+          ))}
+        </ul>
+        {isEditing && (
+          <button
+            onClick={() => handleEditStart(field, items.join('\n'))}
+            className="edit-inline-btn"
+            title="Edit this list"
+          >
+            <Edit2 className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+    );
+  };
+
   const chartTheme = {
     primaryColor: '#C6AC8E',
     backgroundColor: '#0A0908',
@@ -170,7 +272,7 @@ const ExecutiveReport: React.FC<ExecutiveReportProps> = ({
       <div className="report-section">
         <h2 className="section-title">Executive Overview</h2>
         <div className="overview-content">
-          <p className="overview-summary">{getOverviewSummary()}</p>
+          {renderEditableText('executiveOverview', getOverviewSummary(), 'overview-summary')}
         </div>
       </div>
 
@@ -186,25 +288,23 @@ const ExecutiveReport: React.FC<ExecutiveReportProps> = ({
                 title: reportData.keyTrendChart.title,
                 data: reportData.keyTrendChart.data,
                 config: { width: 600, height: 350, responsive: true },
-                insights: reportData.keyTrendChart.insights.map((insight, index) => ({
-                  id: `trend-insight-${index}`,
-                  type: 'trend',
-                  description: insight,
-                  confidence: 0.85
-                }))
+                insights: (reportData.keyTrendChart.insights && Array.isArray(reportData.keyTrendChart.insights)
+                  ? reportData.keyTrendChart.insights.map((insight, index) => ({
+                      id: `trend-insight-${index}`,
+                      type: 'trend',
+                      description: insight,
+                      confidence: 0.85
+                    }))
+                  : [])
               }]}
               theme={chartTheme}
             />
           </div>
           <div className="trend-explanation">
-            <p className="trend-description">{reportData.keyTrendChart.description}</p>
+            {renderEditableText('trendDescription', reportData.keyTrendChart.description, 'trend-description')}
             <div className="trend-insights">
               <h4>Key Insights:</h4>
-              <ul>
-                {reportData.keyTrendChart.insights.map((insight, index) => (
-                  <li key={index} className="trend-insight-item">{insight}</li>
-                ))}
-              </ul>
+              {renderEditableList('trendInsights', reportData.keyTrendChart.insights || [], 'trend-insights-list')}
             </div>
           </div>
         </div>
@@ -222,25 +322,23 @@ const ExecutiveReport: React.FC<ExecutiveReportProps> = ({
                 title: reportData.componentChart.title,
                 data: reportData.componentChart.data,
                 config: { width: 500, height: 400, responsive: true },
-                insights: reportData.componentChart.insights.map((insight, index) => ({
-                  id: `component-insight-${index}`,
-                  type: 'composition',
-                  description: insight,
-                  confidence: 0.9
-                }))
+                insights: (reportData.componentChart.insights && Array.isArray(reportData.componentChart.insights)
+                  ? reportData.componentChart.insights.map((insight, index) => ({
+                      id: `component-insight-${index}`,
+                      type: 'composition',
+                      description: insight,
+                      confidence: 0.9
+                    }))
+                  : [])
               }]}
               theme={chartTheme}
             />
           </div>
           <div className="component-explanation">
-            <p className="component-description">{reportData.componentChart.description}</p>
+            {renderEditableText('componentDescription', reportData.componentChart.description, 'component-description')}
             <div className="component-insights">
               <h4>Composition Analysis:</h4>
-              <ul>
-                {reportData.componentChart.insights.map((insight, index) => (
-                  <li key={index} className="component-insight-item">{insight}</li>
-                ))}
-              </ul>
+              {renderEditableList('componentInsights', reportData.componentChart.insights || [], 'component-insights-list')}
             </div>
           </div>
         </div>
@@ -251,7 +349,7 @@ const ExecutiveReport: React.FC<ExecutiveReportProps> = ({
         <h2 className="section-title">Strategic Outlook</h2>
         <div className="outlook-content">
           <div className="outlook-summary">
-            <p className="outlook-main-text">{reportData.strategicOutlook.summary}</p>
+            {renderEditableText('strategicOutlookSummary', reportData.strategicOutlook.summary, 'outlook-main-text')}
             <div className="outlook-confidence">
               <span className="confidence-label">Strategic Confidence:</span>
               <span className="confidence-value">
@@ -267,29 +365,17 @@ const ExecutiveReport: React.FC<ExecutiveReportProps> = ({
             <div className="outlook-grid">
               <div className="outlook-card implications">
                 <h4>Key Implications</h4>
-                <ul>
-                  {reportData.strategicOutlook.keyImplications.map((implication, index) => (
-                    <li key={index}>{implication}</li>
-                  ))}
-                </ul>
+                {renderEditableList('keyImplications', reportData.strategicOutlook.keyImplications || [])}
               </div>
 
               <div className="outlook-card opportunities">
                 <h4>Strategic Opportunities</h4>
-                <ul>
-                  {reportData.strategicOutlook.opportunities.map((opportunity, index) => (
-                    <li key={index}>{opportunity}</li>
-                  ))}
-                </ul>
+                {renderEditableList('strategicOpportunities', reportData.strategicOutlook.opportunities || [])}
               </div>
 
               <div className="outlook-card risks">
                 <h4>Risk Factors</h4>
-                <ul>
-                  {reportData.strategicOutlook.riskFactors.map((risk, index) => (
-                    <li key={index}>{risk}</li>
-                  ))}
-                </ul>
+                {renderEditableList('riskFactors', reportData.strategicOutlook.riskFactors || [])}
               </div>
             </div>
           </div>
@@ -301,11 +387,11 @@ const ExecutiveReport: React.FC<ExecutiveReportProps> = ({
         <h2 className="section-title">Executive Recommendations</h2>
         <div className="recommendations-content">
           <div className="recommendations-summary">
-            <p>Based on comprehensive analysis, the following {reportData.recommendations.length} recommendations provide clear pathways for strategic value realization:</p>
+            {renderEditableText('recommendationsSummary', `Based on comprehensive analysis, the following ${reportData.recommendations.length} recommendations provide clear pathways for strategic value realization:`, '')}
           </div>
           
           <div className="recommendations-list">
-            {reportData.recommendations.slice(0, 8).map((recommendation, index) => (
+            {reportData.recommendations && Array.isArray(reportData.recommendations) && reportData.recommendations.slice(0, 8).map((recommendation, index) => (
               <div key={recommendation.id} className="recommendation-item">
                 <div className="recommendation-header">
                   <div className="recommendation-priority">
@@ -330,11 +416,11 @@ const ExecutiveReport: React.FC<ExecutiveReportProps> = ({
                 <div className="recommendation-content">
                   <div className="insight-recommendation-pair">
                     <div className="insight-text">
-                      <strong>Insight:</strong> {recommendation.insight}
+                      <strong>Insight:</strong> {renderEditableText(`recommendation-${index}-insight`, recommendation.insight, 'inline-editable')}
                     </div>
                     <div className="recommendation-arrow">→</div>
                     <div className="recommendation-text">
-                      <strong>Recommendation:</strong> {recommendation.recommendation}
+                      <strong>Recommendation:</strong> {renderEditableText(`recommendation-${index}-text`, recommendation.recommendation, 'inline-editable')}
                     </div>
                   </div>
                   
@@ -346,9 +432,13 @@ const ExecutiveReport: React.FC<ExecutiveReportProps> = ({
                       <div className="success-metrics">
                         <span className="metrics-label">Success Metrics:</span>
                         <div className="metrics-list">
-                          {recommendation.successMetrics.slice(0, 3).map((metric, metricIndex) => (
-                            <span key={metricIndex} className="metric-item">{metric}</span>
-                          ))}
+                          {isEditing ? (
+                            renderEditableList(`recommendation-${index}-metrics`, recommendation.successMetrics || [], 'metrics-editable')
+                          ) : (
+                            recommendation.successMetrics && Array.isArray(recommendation.successMetrics) && recommendation.successMetrics.slice(0, 3).map((metric, metricIndex) => (
+                              <span key={metricIndex} className="metric-item">{metric}</span>
+                            ))
+                          )}
                         </div>
                       </div>
                     )}
@@ -358,7 +448,7 @@ const ExecutiveReport: React.FC<ExecutiveReportProps> = ({
             ))}
           </div>
 
-          {reportData.recommendations.length > 8 && (
+          {reportData.recommendations && reportData.recommendations.length > 8 && (
             <div className="recommendations-footer">
               <p className="additional-recommendations">
                 {reportData.recommendations.length - 8} additional recommendations available in detailed analysis.

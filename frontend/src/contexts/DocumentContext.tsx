@@ -209,28 +209,32 @@ export const DocumentProvider: React.FC<DocumentProviderProps> = ({ children }) 
         executiveSummary: {
           keyMetrics: generateKeyMetrics(strategicAnalysis.analytics),
           insights: generateExecutiveInsights(strategicAnalysis.insights),
-          recommendations: strategicAnalysis.recommendations.map(rec => ({
-            id: rec.id,
-            title: rec.recommendation,
-            description: rec.insight,
-            priority: rec.priority === 'critical' ? 'high' : rec.priority,
-            impact: rec.impact === 'transformational' ? 'high' : rec.impact === 'significant' ? 'medium' : 'low',
-            effort: rec.effort === 'extensive' ? 'high' : rec.effort,
-            category: rec.category
-          }))
+          recommendations: strategicAnalysis.recommendations && Array.isArray(strategicAnalysis.recommendations)
+            ? strategicAnalysis.recommendations.map(rec => ({
+                id: rec.id,
+                title: rec.recommendation,
+                description: rec.insight,
+                priority: rec.priority === 'critical' ? 'high' : rec.priority,
+                impact: rec.impact === 'transformational' ? 'high' : rec.impact === 'significant' ? 'medium' : 'low',
+                effort: rec.effort === 'extensive' ? 'high' : rec.effort,
+                category: rec.category
+              }))
+            : []
         },
         analytics: strategicAnalysis.analytics,
         visualizations: strategicAnalysis.visualizations,
         insights: strategicAnalysis.insights,
-        recommendations: strategicAnalysis.recommendations.map(rec => ({
-          id: rec.id,
-          title: rec.recommendation,
-          description: rec.insight,
-          priority: rec.priority === 'critical' ? 'high' : rec.priority,
-          impact: rec.impact === 'transformational' ? 'high' : rec.impact === 'significant' ? 'medium' : 'low',
-          effort: rec.effort === 'extensive' ? 'high' : rec.effort,
-          category: rec.category
-        })),
+        recommendations: strategicAnalysis.recommendations && Array.isArray(strategicAnalysis.recommendations)
+          ? strategicAnalysis.recommendations.map(rec => ({
+              id: rec.id,
+              title: rec.recommendation,
+              description: rec.insight,
+              priority: rec.priority === 'critical' ? 'high' : rec.priority,
+              impact: rec.impact === 'transformational' ? 'high' : rec.impact === 'significant' ? 'medium' : 'low',
+              effort: rec.effort === 'extensive' ? 'high' : rec.effort,
+              category: rec.category
+            }))
+          : [],
         rawData: {
           nodes: nodesResponse.nodes,
           edges: edgesResponse.edges
@@ -368,12 +372,25 @@ export const useDocument = (): DocumentContextType => {
 
 // Utility functions for data processing
 function generateAnalyticsFromData(nodes: Node[], edges: Edge[]): AnalyticsData {
-  const nodesByType = nodes.reduce((acc, node) => {
+  // Add safety checks for nodes and edges arrays
+  const safeNodes = nodes && Array.isArray(nodes) ? nodes : [];
+  const safeEdges = edges && Array.isArray(edges) ? edges : [];
+  
+  console.log('📈 [DocumentContext] generateAnalyticsFromData called:', {
+    nodesCount: safeNodes.length,
+    edgesCount: safeEdges.length,
+    nodesType: typeof nodes,
+    edgesType: typeof edges,
+    nodesIsArray: Array.isArray(nodes),
+    edgesIsArray: Array.isArray(edges)
+  });
+
+  const nodesByType = safeNodes.reduce((acc, node) => {
     acc[node.type] = (acc[node.type] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
-  const confidenceDistribution = nodes.reduce((acc, node) => {
+  const confidenceDistribution = safeNodes.reduce((acc, node) => {
     const confidence = node.confidence || 50;
     if (confidence >= 80) acc.high++;
     else if (confidence >= 60) acc.medium++;
@@ -381,27 +398,27 @@ function generateAnalyticsFromData(nodes: Node[], edges: Edge[]): AnalyticsData 
     return acc;
   }, { high: 0, medium: 0, low: 0 });
 
-  const connectionTypes = edges.reduce((acc, edge) => {
+  const connectionTypes = safeEdges.reduce((acc, edge) => {
     acc[edge.type] = (acc[edge.type] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
-  const averageConfidence = nodes.length > 0
-    ? nodes.reduce((sum, node) => sum + (node.confidence || 50), 0) / nodes.length / 100
+  const averageConfidence = safeNodes.length > 0
+    ? safeNodes.reduce((sum, node) => sum + (node.confidence || 50), 0) / safeNodes.length / 100
     : 0;
 
   return {
     nodeDistribution: {
       byType: nodesByType,
       byConfidence: confidenceDistribution,
-      bySource: { 'user': nodes.length, 'ai-generated': 0 },
+      bySource: { 'user': safeNodes.length, 'ai-generated': 0 },
       byCreationDate: {}
     },
     connectionAnalysis: {
-      totalConnections: edges.length,
+      totalConnections: safeEdges.length,
       connectionTypes,
-      averageConnections: nodes.length > 0 ? edges.length / nodes.length : 0,
-      networkDensity: nodes.length > 1 ? (2 * edges.length) / (nodes.length * (nodes.length - 1)) : 0,
+      averageConnections: safeNodes.length > 0 ? safeEdges.length / safeNodes.length : 0,
+      networkDensity: safeNodes.length > 1 ? (2 * safeEdges.length) / (safeNodes.length * (safeNodes.length - 1)) : 0,
       centralityMetrics: {
         betweenness: {},
         closeness: {},
@@ -427,13 +444,22 @@ function generateAnalyticsFromData(nodes: Node[], edges: Edge[]): AnalyticsData 
 }
 
 function generateVisualizationsFromData(nodes: Node[], edges: Edge[]): VisualizationData[] {
+  // Add safety checks for nodes and edges arrays
+  const safeNodes = nodes && Array.isArray(nodes) ? nodes : [];
+  const safeEdges = edges && Array.isArray(edges) ? edges : [];
+  
+  console.log('📊 [DocumentContext] generateVisualizationsFromData called:', {
+    nodesCount: safeNodes.length,
+    edgesCount: safeEdges.length
+  });
+
   return [
     {
       id: 'node-network-viz',
       type: 'node-network',
       title: 'Strategic Network Overview',
       description: 'Interactive visualization of all strategic elements and their relationships',
-      data: { nodes, edges },
+      data: { nodes: safeNodes, edges: safeEdges },
       config: {
         width: 800,
         height: 600,
@@ -452,6 +478,16 @@ function generateVisualizationsFromData(nodes: Node[], edges: Edge[]): Visualiza
 }
 
 function generateInsightsFromData(nodes: Node[], edges: Edge[], analytics: AnalyticsData): ProcessedInsight[] {
+  // Add safety checks for nodes and edges arrays
+  const safeNodes = nodes && Array.isArray(nodes) ? nodes : [];
+  const safeEdges = edges && Array.isArray(edges) ? edges : [];
+  
+  console.log('💡 [DocumentContext] generateInsightsFromData called:', {
+    nodesCount: safeNodes.length,
+    edgesCount: safeEdges.length,
+    analyticsProvided: !!analytics
+  });
+
   const insights: ProcessedInsight[] = [];
 
   // Network density insight
@@ -524,13 +560,24 @@ function generateKeyMetrics(analytics: AnalyticsData): KeyMetric[] {
 }
 
 function generateExecutiveInsights(insights: ProcessedInsight[]): ExecutiveInsight[] {
-  return insights.map(insight => ({
+  // Add safety checks for insights array
+  const safeInsights = insights && Array.isArray(insights) ? insights : [];
+  
+  console.log('📊 [DocumentContext] generateExecutiveInsights called:', {
+    insightsCount: safeInsights.length,
+    insightsType: typeof insights,
+    insightsIsArray: Array.isArray(insights)
+  });
+
+  return safeInsights.map(insight => ({
     id: insight.id,
     title: insight.title,
     description: insight.description,
     impact: insight.impact,
     confidence: insight.confidence,
-    supportingData: insight.supportingData.map(data => `${data.type}: ${data.value}`)
+    supportingData: insight.supportingData && Array.isArray(insight.supportingData)
+      ? insight.supportingData.map(data => `${data.type}: ${data.value}`)
+      : []
   }));
 }
 

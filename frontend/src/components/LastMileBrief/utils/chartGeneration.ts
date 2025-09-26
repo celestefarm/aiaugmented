@@ -27,14 +27,25 @@ export interface ComponentBreakdown {
  * Intelligently selects and generates the most appropriate chart for key trends
  */
 export function generateKeyTrendChart(nodes: Node[], edges: Edge[], analytics: AnalyticsData): ChartData {
+  console.log('=== CHART GENERATION DEBUG ===');
+  console.log('generateKeyTrendChart called with:', {
+    nodesLength: nodes?.length || 0,
+    edgesLength: edges?.length || 0,
+    analyticsExists: !!analytics
+  });
+
+  // Ensure nodes and edges are arrays
+  const safeNodes = nodes && Array.isArray(nodes) ? nodes : [];
+  const safeEdges = edges && Array.isArray(edges) ? edges : [];
+  
   // Analyze temporal patterns in node creation
-  const temporalData = analyzeTemporalTrends(nodes);
+  const temporalData = analyzeTemporalTrends(safeNodes);
   
   // Analyze confidence trends
-  const confidenceTrends = analyzeConfidenceTrends(nodes);
+  const confidenceTrends = analyzeConfidenceTrends(safeNodes);
   
   // Analyze connection growth
-  const connectionTrends = analyzeConnectionTrends(nodes, edges);
+  const connectionTrends = analyzeConnectionTrends(safeNodes, safeEdges);
   
   // Select the most significant trend
   const mostSignificantTrend = selectMostSignificantTrend(temporalData, confidenceTrends, connectionTrends);
@@ -98,7 +109,14 @@ export function generateKeyTrendChart(nodes: Node[], edges: Edge[], analytics: A
  * Generates component breakdown chart showing strategic landscape composition
  */
 export function generateComponentBreakdownChart(nodes: Node[], analytics: AnalyticsData): ChartData {
-  const breakdown = analyzeComponentBreakdown(nodes, analytics);
+  console.log('generateComponentBreakdownChart called with:', {
+    nodesLength: nodes?.length || 0,
+    analyticsExists: !!analytics
+  });
+
+  // Ensure nodes is an array
+  const safeNodes = nodes && Array.isArray(nodes) ? nodes : [];
+  const breakdown = analyzeComponentBreakdown(safeNodes, analytics);
   
   return {
     type: 'pie',
@@ -121,10 +139,13 @@ export function generateComponentBreakdownChart(nodes: Node[], analytics: Analyt
  * Analyzes temporal trends in node creation
  */
 function analyzeTemporalTrends(nodes: Node[]): TrendData {
+  // Ensure nodes is an array
+  const safeNodes = nodes && Array.isArray(nodes) ? nodes : [];
+  
   // Group nodes by creation date (by day)
   const dateGroups: { [key: string]: number } = {};
   
-  nodes.forEach(node => {
+  safeNodes.forEach(node => {
     const date = new Date(node.created_at).toISOString().split('T')[0];
     dateGroups[date] = (dateGroups[date] || 0) + 1;
   });
@@ -157,9 +178,11 @@ function analyzeTemporalTrends(nodes: Node[]): TrendData {
  * Analyzes confidence level trends
  */
 function analyzeConfidenceTrends(nodes: Node[]): TrendData {
+  // Ensure nodes is an array
+  const safeNodes = nodes && Array.isArray(nodes) ? nodes : [];
   const confidenceDistribution = { high: 0, medium: 0, low: 0 };
   
-  nodes.forEach(node => {
+  safeNodes.forEach(node => {
     const confidence = node.confidence || 50;
     if (confidence >= 80) confidenceDistribution.high++;
     else if (confidence >= 60) confidenceDistribution.medium++;
@@ -178,10 +201,14 @@ function analyzeConfidenceTrends(nodes: Node[]): TrendData {
  * Analyzes connection growth and patterns
  */
 function analyzeConnectionTrends(nodes: Node[], edges: Edge[]): TrendData {
+  // Ensure arrays are safe
+  const safeNodes = nodes && Array.isArray(nodes) ? nodes : [];
+  const safeEdges = edges && Array.isArray(edges) ? edges : [];
+  
   // Analyze node connectivity
   const nodeConnections: { [key: string]: number } = {};
   
-  edges.forEach(edge => {
+  safeEdges.forEach(edge => {
     const fromId = edge.from_node_id.toString();
     const toId = edge.to_node_id.toString();
     nodeConnections[fromId] = (nodeConnections[fromId] || 0) + 1;
@@ -191,7 +218,7 @@ function analyzeConnectionTrends(nodes: Node[], edges: Edge[]): TrendData {
   // Group by connection count
   const connectionGroups = { isolated: 0, connected: 0, highly_connected: 0 };
   
-  nodes.forEach(node => {
+  safeNodes.forEach(node => {
     const connections = nodeConnections[node.id.toString()] || 0;
     if (connections === 0) connectionGroups.isolated++;
     else if (connections <= 2) connectionGroups.connected++;
@@ -202,7 +229,7 @@ function analyzeConnectionTrends(nodes: Node[], edges: Edge[]): TrendData {
     labels: ['Isolated', 'Connected', 'Highly Connected'],
     values: [connectionGroups.isolated, connectionGroups.connected, connectionGroups.highly_connected],
     trend: connectionGroups.highly_connected > connectionGroups.isolated ? 'increasing' : 'decreasing',
-    significance: edges.length > nodes.length ? 'high' : 'medium'
+    significance: safeEdges.length > safeNodes.length ? 'high' : 'medium'
   };
 }
 
@@ -233,17 +260,20 @@ function analyzeComponentBreakdown(nodes: Node[], analytics: AnalyticsData): Com
     default: '#9CA3AF'
   };
   
-  const categories = Object.entries(analytics.nodeDistribution.byType).map(([type, count]) => ({
+  const nodeTypes = analytics?.nodeDistribution?.byType || {};
+  const categories = Object.entries(nodeTypes).map(([type, count]) => ({
     name: type.charAt(0).toUpperCase() + type.slice(1),
     value: count,
     color: typeColors[type] || typeColors.default
   }));
   
   const total = categories.reduce((sum, cat) => sum + cat.value, 0);
-  const dominantCategory = categories.reduce((max, cat) => cat.value > max.value ? cat : max, categories[0]);
+  const dominantCategory = categories.length > 0
+    ? categories.reduce((max, cat) => cat.value > max.value ? cat : max, categories[0])
+    : { name: 'Unknown', value: 0, color: typeColors.default };
   
   // Calculate diversity
-  const maxPercentage = dominantCategory.value / total;
+  const maxPercentage = total > 0 ? dominantCategory.value / total : 0;
   const diversity = maxPercentage > 0.6 ? 'low' : maxPercentage > 0.4 ? 'medium' : 'high';
   
   return {
@@ -302,7 +332,7 @@ function generateConfidenceInsights(trend: TrendData, analytics: AnalyticsData):
  */
 function generateConnectionInsights(trend: TrendData, analytics: AnalyticsData): string[] {
   const insights: string[] = [];
-  const networkDensity = analytics.connectionAnalysis.networkDensity;
+  const networkDensity = analytics?.connectionAnalysis?.networkDensity || 0;
   
   if (networkDensity > 0.5) {
     insights.push('Highly interconnected strategic network indicates strong integration');

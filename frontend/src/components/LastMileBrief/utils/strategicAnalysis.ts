@@ -26,26 +26,39 @@ export interface ActionableRecommendation {
  * Generates executive-level strategic outlook based on comprehensive analysis
  */
 export function generateStrategicOutlook(
-  nodes: Node[], 
-  edges: Edge[], 
-  analytics: AnalyticsData, 
+  nodes: Node[],
+  edges: Edge[],
+  analytics: AnalyticsData,
   insights: ProcessedInsight[]
 ): StrategicOutlook {
-  const networkAnalysis = analyzeNetworkStructure(nodes, edges);
-  const riskAssessment = assessStrategicRisks(nodes, analytics);
-  const opportunityAnalysis = identifyStrategicOpportunities(nodes, edges, analytics);
+  console.log('=== STRATEGIC ANALYSIS DEBUG ===');
+  console.log('generateStrategicOutlook called with:', {
+    nodesLength: nodes?.length || 0,
+    edgesLength: edges?.length || 0,
+    analyticsExists: !!analytics,
+    insightsLength: insights?.length || 0
+  });
+
+  // Ensure arrays are safe
+  const safeNodes = nodes && Array.isArray(nodes) ? nodes : [];
+  const safeEdges = edges && Array.isArray(edges) ? edges : [];
+  const safeInsights = insights && Array.isArray(insights) ? insights : [];
+
+  const networkAnalysis = analyzeNetworkStructure(safeNodes, safeEdges);
+  const riskAssessment = assessStrategicRisks(safeNodes, analytics);
+  const opportunityAnalysis = identifyStrategicOpportunities(safeNodes, safeEdges, analytics);
   
   // Generate comprehensive strategic summary
   const summary = generateStrategicSummary(networkAnalysis, riskAssessment, opportunityAnalysis, analytics);
   
   // Extract key implications
-  const keyImplications = extractKeyImplications(networkAnalysis, analytics, insights);
+  const keyImplications = extractKeyImplications(networkAnalysis, analytics, safeInsights);
   
   // Determine time horizon based on strategic complexity
-  const timeHorizon = determineTimeHorizon(nodes, edges, analytics);
+  const timeHorizon = determineTimeHorizon(safeNodes, safeEdges, analytics);
   
   // Calculate overall confidence
-  const confidence = calculateStrategicConfidence(analytics, insights);
+  const confidence = calculateStrategicConfidence(analytics, safeInsights);
   
   return {
     summary,
@@ -66,19 +79,31 @@ export function generateActionableRecommendations(
   analytics: AnalyticsData,
   insights: ProcessedInsight[]
 ): ActionableRecommendation[] {
+  console.log('generateActionableRecommendations called with:', {
+    nodesLength: nodes?.length || 0,
+    edgesLength: edges?.length || 0,
+    analyticsExists: !!analytics,
+    insightsLength: insights?.length || 0
+  });
+
+  // Ensure arrays are safe
+  const safeNodes = nodes && Array.isArray(nodes) ? nodes : [];
+  const safeEdges = edges && Array.isArray(edges) ? edges : [];
+  const safeInsights = insights && Array.isArray(insights) ? insights : [];
+
   const recommendations: ActionableRecommendation[] = [];
   
   // Network optimization recommendations
-  recommendations.push(...generateNetworkRecommendations(nodes, edges, analytics));
+  recommendations.push(...generateNetworkRecommendations(safeNodes, safeEdges, analytics));
   
   // Confidence improvement recommendations
-  recommendations.push(...generateConfidenceRecommendations(nodes, analytics));
+  recommendations.push(...generateConfidenceRecommendations(safeNodes, analytics));
   
   // Risk mitigation recommendations
-  recommendations.push(...generateRiskRecommendations(nodes, analytics));
+  recommendations.push(...generateRiskRecommendations(safeNodes, analytics));
   
   // Strategic enhancement recommendations
-  recommendations.push(...generateStrategicRecommendations(insights, analytics));
+  recommendations.push(...generateStrategicRecommendations(safeInsights, analytics));
   
   // Sort by priority and impact
   return recommendations.sort((a, b) => {
@@ -99,12 +124,16 @@ export function generateActionableRecommendations(
  * Infers strategic title from explanation map central theme
  */
 export function inferStrategicTitle(nodes: Node[], analytics: AnalyticsData): string {
-  const dominantType = Object.entries(analytics.nodeDistribution.byType)
-    .sort(([,a], [,b]) => b - a)[0];
+  // Ensure nodes is an array
+  const safeNodes = nodes && Array.isArray(nodes) ? nodes : [];
+  const nodeTypes = analytics?.nodeDistribution?.byType || {};
+  const dominantType = Object.entries(nodeTypes).length > 0
+    ? Object.entries(nodeTypes).sort(([,a], [,b]) => b - a)[0]
+    : null;
   
-  const totalNodes = nodes.length;
-  const networkDensity = analytics.connectionAnalysis.networkDensity;
-  const avgConfidence = analytics.confidenceMetrics.average;
+  const totalNodes = safeNodes.length;
+  const networkDensity = analytics?.connectionAnalysis?.networkDensity || 0;
+  const avgConfidence = analytics?.confidenceMetrics?.average || 0;
   
   // Generate contextual title based on strategic characteristics
   if (dominantType && dominantType[0] === 'decision' && totalNodes > 10) {
@@ -175,8 +204,10 @@ function assessStrategicRisks(nodes: Node[], analytics: AnalyticsData) {
   }
   
   // Over-concentration risk
-  const dominantType = Object.entries(analytics.nodeDistribution.byType)
-    .sort(([,a], [,b]) => b - a)[0];
+  const nodeTypes = analytics?.nodeDistribution?.byType || {};
+  const dominantType = Object.entries(nodeTypes).length > 0
+    ? Object.entries(nodeTypes).sort(([,a], [,b]) => b - a)[0]
+    : null;
   if (dominantType && dominantType[1] / nodes.length > 0.7) {
     risks.push(`Over-concentration in ${dominantType[0]} elements may limit strategic flexibility`);
   }
@@ -206,7 +237,7 @@ function identifyStrategicOpportunities(nodes: Node[], edges: Edge[], analytics:
   }
   
   // Balanced portfolio opportunity
-  const typeCount = Object.keys(analytics.nodeDistribution.byType).length;
+  const typeCount = Object.keys(analytics?.nodeDistribution?.byType || {}).length;
   if (typeCount >= 3 && nodes.length > 10) {
     opportunities.push('Diversified strategic approach enables multiple value creation pathways');
   }
@@ -230,8 +261,8 @@ function generateStrategicSummary(
 ): string {
   const nodeCount = networkAnalysis.totalNodes;
   const edgeCount = networkAnalysis.totalEdges;
-  const avgConfidence = Math.round(analytics.confidenceMetrics.average * 100);
-  const networkDensity = Math.round(analytics.connectionAnalysis.networkDensity * 100);
+  const avgConfidence = Math.round((analytics?.confidenceMetrics?.average || 0) * 100);
+  const networkDensity = Math.round((analytics?.connectionAnalysis?.networkDensity || 0) * 100);
   
   let summary = `This strategic analysis encompasses ${nodeCount} key elements with ${edgeCount} interconnections, `;
   summary += `demonstrating ${avgConfidence}% average confidence and ${networkDensity}% network integration. `;
@@ -262,16 +293,18 @@ function extractKeyImplications(networkAnalysis: any, analytics: AnalyticsData, 
   }
   
   // Confidence implications
-  if (analytics.confidenceMetrics.average > 0.8) {
+  const avgConfidence = analytics?.confidenceMetrics?.average || 0;
+  if (avgConfidence > 0.8) {
     implications.push('High confidence levels support aggressive strategic execution and resource commitment');
-  } else if (analytics.confidenceMetrics.average < 0.5) {
+  } else if (avgConfidence < 0.5) {
     implications.push('Low confidence levels necessitate additional research and validation before major commitments');
   }
   
   // Integration implications
-  if (analytics.connectionAnalysis.networkDensity > 0.6) {
+  const networkDensity = analytics?.connectionAnalysis?.networkDensity || 0;
+  if (networkDensity > 0.6) {
     implications.push('High integration requires coordinated execution approach and change management');
-  } else if (analytics.connectionAnalysis.networkDensity < 0.3) {
+  } else if (networkDensity < 0.3) {
     implications.push('Low integration allows for modular implementation but may miss synergy opportunities');
   }
   
@@ -288,8 +321,8 @@ function extractKeyImplications(networkAnalysis: any, analytics: AnalyticsData, 
  */
 function determineTimeHorizon(nodes: Node[], edges: Edge[], analytics: AnalyticsData): 'short-term' | 'medium-term' | 'long-term' {
   const complexity = nodes.length + edges.length;
-  const integration = analytics.connectionAnalysis.networkDensity;
-  const confidence = analytics.confidenceMetrics.average;
+  const integration = analytics?.connectionAnalysis?.networkDensity || 0;
+  const confidence = analytics?.confidenceMetrics?.average || 0;
   
   if (complexity > 40 || (integration > 0.7 && nodes.length > 15)) {
     return 'long-term';
@@ -304,9 +337,9 @@ function determineTimeHorizon(nodes: Node[], edges: Edge[], analytics: Analytics
  * Calculates overall strategic confidence
  */
 function calculateStrategicConfidence(analytics: AnalyticsData, insights: ProcessedInsight[]): number {
-  const baseConfidence = analytics.confidenceMetrics.average;
-  const networkBonus = analytics.connectionAnalysis.networkDensity * 0.1;
-  const insightBonus = insights.length > 0 ? Math.min(insights.length * 0.02, 0.1) : 0;
+  const baseConfidence = analytics?.confidenceMetrics?.average || 0;
+  const networkBonus = (analytics?.connectionAnalysis?.networkDensity || 0) * 0.1;
+  const insightBonus = insights && insights.length > 0 ? Math.min(insights.length * 0.02, 0.1) : 0;
   
   return Math.min(1, baseConfidence + networkBonus + insightBonus);
 }
@@ -317,7 +350,7 @@ function calculateStrategicConfidence(analytics: AnalyticsData, insights: Proces
 function generateNetworkRecommendations(nodes: Node[], edges: Edge[], analytics: AnalyticsData): ActionableRecommendation[] {
   const recommendations: ActionableRecommendation[] = [];
   
-  if (analytics.connectionAnalysis.networkDensity < 0.3) {
+  if ((analytics?.connectionAnalysis?.networkDensity || 0) < 0.3) {
     recommendations.push({
       id: 'network-integration',
       insight: 'Strategic network shows low connectivity between elements',
@@ -340,7 +373,7 @@ function generateNetworkRecommendations(nodes: Node[], edges: Edge[], analytics:
 function generateConfidenceRecommendations(nodes: Node[], analytics: AnalyticsData): ActionableRecommendation[] {
   const recommendations: ActionableRecommendation[] = [];
   
-  if (analytics.confidenceMetrics.average < 0.7) {
+  if ((analytics?.confidenceMetrics?.average || 0) < 0.7) {
     recommendations.push({
       id: 'confidence-enhancement',
       insight: 'Strategic elements show below-optimal confidence levels',
@@ -387,7 +420,7 @@ function generateRiskRecommendations(nodes: Node[], analytics: AnalyticsData): A
 function generateStrategicRecommendations(insights: ProcessedInsight[], analytics: AnalyticsData): ActionableRecommendation[] {
   const recommendations: ActionableRecommendation[] = [];
   
-  const highImpactInsights = insights.filter(insight => insight.impact === 'high');
+  const highImpactInsights = insights && insights.length > 0 ? insights.filter(insight => insight.impact === 'high') : [];
   if (highImpactInsights.length > 0) {
     recommendations.push({
       id: 'insight-implementation',
