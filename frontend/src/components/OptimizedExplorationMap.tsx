@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { Plus, ChevronLeft, ChevronRight, X, User, Target, Trash2, ZoomIn, ZoomOut, Link, RefreshCw, Info, Users, Briefcase, Check, HelpCircle, Undo2 } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, X, User, Target, Trash2, ZoomIn, ZoomOut, Link, RefreshCw, Info, Users, Briefcase, Check, HelpCircle, Undo2, Home } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useMap } from '@/contexts/MapContext';
@@ -1304,39 +1304,63 @@ const OptimizedExplorationMap: React.FC = () => {
             </div>
             
             {!leftSidebarCollapsed && (
-              <div className="flex-1 p-4 space-y-3 overflow-y-auto">
-                {agents.map(agent => (
-                  <div key={agent.agent_id} className="glass-pane p-3 rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${
-                          activeAgents.includes(agent.agent_id) ? 'bg-green-400' : 'bg-gray-500'
-                        }`} />
-                        <span className="text-sm font-medium text-white">{agent.name}</span>
+              <>
+                <div className="flex-1 p-4 space-y-3 overflow-y-auto">
+                  {agents.map(agent => (
+                    <div key={agent.agent_id} className="glass-pane p-3 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${
+                            activeAgents.includes(agent.agent_id) ? 'bg-green-400' : 'bg-gray-500'
+                          }`} />
+                          <span className="text-sm font-medium text-white">{agent.name}</span>
+                        </div>
+                        <button
+                          onClick={() => setShowAgentDetailsModal(agent.agent_id)}
+                          className="text-xs text-gray-400 hover:text-white transition-colors"
+                        >
+                          Details
+                        </button>
                       </div>
-                      <button
-                        onClick={() => setShowAgentDetailsModal(agent.agent_id)}
-                        className="text-xs text-gray-400 hover:text-white transition-colors"
-                      >
-                        Details
-                      </button>
+                      <p className="text-xs text-gray-300 mb-3">{agent.ai_role}</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => activeAgents.includes(agent.agent_id) ? deactivateAgent(agent.agent_id) : activateAgent(agent.agent_id)}
+                          className={`flex-1 px-3 py-1.5 text-xs rounded transition-colors ${
+                            activeAgents.includes(agent.agent_id)
+                              ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30'
+                              : 'bg-[#6B6B3A]/20 text-[#6B6B3A] hover:bg-[#6B6B3A]/30'
+                          }`}
+                        >
+                          {activeAgents.includes(agent.agent_id) ? 'Deactivate' : 'Activate'}
+                        </button>
+                      </div>
                     </div>
-                    <p className="text-xs text-gray-300 mb-3">{agent.ai_role}</p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => activeAgents.includes(agent.agent_id) ? deactivateAgent(agent.agent_id) : activateAgent(agent.agent_id)}
-                        className={`flex-1 px-3 py-1.5 text-xs rounded transition-colors ${
-                          activeAgents.includes(agent.agent_id)
-                            ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30'
-                            : 'bg-[#6B6B3A]/20 text-[#6B6B3A] hover:bg-[#6B6B3A]/30'
-                        }`}
-                      >
-                        {activeAgents.includes(agent.agent_id) ? 'Deactivate' : 'Activate'}
-                      </button>
-                    </div>
+                  ))}
+                </div>
+                
+                {/* Navigation Footer */}
+                <div className="flex-shrink-0 p-4 border-t border-gray-700/50 bg-gray-800/70 backdrop-blur-sm">
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => window.location.href = '/dashboard'}
+                      className="w-full flex items-center gap-3 px-4 py-3 glass-pane hover:bg-white/10 transition-colors rounded-lg group"
+                      title="Go to Dashboard"
+                    >
+                      <Briefcase className="w-5 h-5 text-[#6B6B3A] group-hover:text-[#8B8B4A] transition-colors" />
+                      <span className="text-sm font-medium text-white group-hover:text-[#6B6B3A] transition-colors">Dashboard</span>
+                    </button>
+                    <button
+                      onClick={() => window.location.href = '/'}
+                      className="w-full flex items-center gap-3 px-4 py-3 glass-pane hover:bg-white/10 transition-colors rounded-lg group"
+                      title="Go to Home"
+                    >
+                      <Home className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
+                      <span className="text-sm font-medium text-gray-300 group-hover:text-white transition-colors">Home</span>
+                    </button>
                   </div>
-                ))}
-              </div>
+                </div>
+              </>
             )}
           </div>
 
