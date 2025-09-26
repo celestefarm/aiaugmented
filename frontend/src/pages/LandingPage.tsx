@@ -11,6 +11,7 @@ const LandingPage: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isSignupOpen, setIsSignupOpen] = useState(false);
+  const [expandedDropdown, setExpandedDropdown] = useState<string | null>(null);
 
   // Disable automatic redirect to allow landing page to be viewed by all users
   // Authentication redirect is handled by other routes if needed
@@ -31,6 +32,10 @@ const LandingPage: React.FC = () => {
 
   const handleCloseSignup = () => {
     setIsSignupOpen(false);
+  };
+
+  const toggleDropdown = (dropdownId: string) => {
+    setExpandedDropdown(expandedDropdown === dropdownId ? null : dropdownId);
   };
 
 
@@ -202,10 +207,22 @@ const LandingPage: React.FC = () => {
                   <p className="step-description">
                     First, we anchor the entire process around a single, high-stakes decision or challenge you're facing right now. It could be a career-defining board presentation, a critical market-entry strategy, or a high-pressure M&A negotiation.
                   </p>
-                  <div className="step-dropdown">
+                  <div
+                    className="step-dropdown"
+                    onClick={() => toggleDropdown('step-01')}
+                  >
                     <span className="dropdown-text">The Deep Solution</span>
-                    <span className="dropdown-arrow">▼</span>
+                    <span className={`dropdown-arrow ${expandedDropdown === 'step-01' ? 'expanded' : ''}`}>
+                      {expandedDropdown === 'step-01' ? '▲' : '▼'}
+                    </span>
                   </div>
+                  {expandedDropdown === 'step-01' && (
+                    <div className="dropdown-content">
+                      <p className="dropdown-expanded-text">
+                        This isn't about project management; it's an antidote to the overwhelming anxiety of "keeping up." The fear that you must be an expert in everything is replaced by a singular focus. By concentrating your expertise on a "crucible moment," we silence the noise and restore a profound sense of control and purpose. Your relevance is affirmed not by knowing everything, but by mastering what matters most.
+                      </p>
+                    </div>
+                  )}
                 </div>
                 
                 {/* Step 02 */}
@@ -215,10 +232,22 @@ const LandingPage: React.FC = () => {
                   <p className="step-description">
                     Once the challenge is set, our system engages you in a disciplined dialogue. It acts as a confidential sparring partner, stress-testing your assumptions, surfacing hidden risks, and challenging you to defend your logic against rigorous, unbiased questioning.
                   </p>
-                  <div className="step-dropdown">
+                  <div
+                    className="step-dropdown"
+                    onClick={() => toggleDropdown('step-02')}
+                  >
                     <span className="dropdown-text">The Deep Solution</span>
-                    <span className="dropdown-arrow">▼</span>
+                    <span className={`dropdown-arrow ${expandedDropdown === 'step-02' ? 'expanded' : ''}`}>
+                      {expandedDropdown === 'step-02' ? '▲' : '▼'}
+                    </span>
                   </div>
+                  {expandedDropdown === 'step-02' && (
+                    <div className="dropdown-content">
+                      <p className="dropdown-expanded-text">
+                        This directly confronts the "Imposter Syndrome Amplified by AI." The fear that an AI will "expose your hidden knowledge gaps" is inverted. Here, the system is used in a private, controlled environment to intentionally find those gaps for you. It's a confidential rehearsal designed not to expose you, but to fortify you. It ensures that by the time you face the board or your team, every facet of your argument is battle-tested, turning a source of anxiety into a source of supreme confidence.
+                      </p>
+                    </div>
+                  )}
                 </div>
                 
                 {/* Step 03 */}
@@ -228,10 +257,22 @@ const LandingPage: React.FC = () => {
                   <p className="step-description">
                     As we work, your entire reasoning process, assumptions, evidence, stakeholder impacts, counterarguments, is captured on a dynamic, visual "Exploration Map." This isn't a mind map of ideas; it's a logical architecture of your decision.
                   </p>
-                  <div className="step-dropdown">
+                  <div
+                    className="step-dropdown"
+                    onClick={() => toggleDropdown('step-03')}
+                  >
                     <span className="dropdown-text">The Deep Solution</span>
-                    <span className="dropdown-arrow">▼</span>
+                    <span className={`dropdown-arrow ${expandedDropdown === 'step-03' ? 'expanded' : ''}`}>
+                      {expandedDropdown === 'step-03' ? '▲' : '▼'}
+                    </span>
                   </div>
+                  {expandedDropdown === 'step-03' && (
+                    <div className="dropdown-content">
+                      <p className="dropdown-expanded-text">
+                        This answers the existential question, "Does my accumulated wisdom and 'gut feeling' matter anymore?" The Exploration Map makes your intuition tangible. It takes the abstract connections you've formed over a lifetime of experience and renders them into a structured, defensible framework. It proves that your "gut feel" is not a novelty; it's a complex data-processing system that can now be articulated, defended, and shared with clarity. It preserves your unique insight, shielding it from being dismissed as mere opinion.
+                      </p>
+                    </div>
+                  )}
                 </div>
                 
                 {/* Step 04 */}
@@ -241,10 +282,22 @@ const LandingPage: React.FC = () => {
                   <p className="step-description">
                     Finally, the system translates this robust, visual strategy into a concise, executive-ready document we call the "Last-Mile Brief." It contains your final decision, the powerful rationale behind it, a clear view of the risks, and the strategic next steps.
                   </p>
-                  <div className="step-dropdown">
+                  <div
+                    className="step-dropdown"
+                    onClick={() => toggleDropdown('step-04')}
+                  >
                     <span className="dropdown-text">The Deep Solution</span>
-                    <span className="dropdown-arrow">▼</span>
+                    <span className={`dropdown-arrow ${expandedDropdown === 'step-04' ? 'expanded' : ''}`}>
+                      {expandedDropdown === 'step-04' ? '▲' : '▼'}
+                    </span>
                   </div>
+                  {expandedDropdown === 'step-04' && (
+                    <div className="dropdown-content">
+                      <p className="dropdown-expanded-text">
+                        This resolves the crisis of professional identity and the fear that you're becoming a "glorified prompt engineer." The brief is the undeniable proof of your value. While an AI was a tool in the process, the final judgment, the narrative, and the ethical considerations woven into the brief are unequivocally yours. It allows you to walk into any room and defend your decision with absolute conviction, because you haven't just arrived at an answer; you have mastered the entire landscape of the problem. Your authority is not just preserved; it is enhanced.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -273,10 +326,28 @@ const LandingPage: React.FC = () => {
                 <p className="card-description">
                   The era of experimentation is over. The era of accountability has begun.
                 </p>
-                <div className="card-dropdown">
+                <div
+                  className="card-dropdown"
+                  onClick={() => toggleDropdown('why-now-01')}
+                >
                   <span className="dropdown-text">Read More</span>
-                  <span className="dropdown-arrow">▼</span>
+                  <span className={`dropdown-arrow ${expandedDropdown === 'why-now-01' ? 'expanded' : ''}`}>
+                    {expandedDropdown === 'why-now-01' ? '▲' : '▼'}
+                  </span>
                 </div>
+                {expandedDropdown === 'why-now-01' && (
+                  <div className="dropdown-content">
+                    <p className="dropdown-expanded-text">
+                      The first wave of the AI revolution has passed. The initial reports have been filed, the productivity gains have been noted, and now a stark silence has fallen in boardrooms across London and the world. It is the silence of expectation. The era of experimentation is definitively over, and the era of accountability has begun.
+                    </p>
+                    <p className="dropdown-expanded-text">
+                      As you enter the final budget and strategy sessions for 2026, the question is no longer "Are we using AI?" It has become a far more personal and penetrating one: "How is your leadership leveraging AI to deliver a defensible, asymmetric advantage?"
+                    </p>
+                    <p className="dropdown-expanded-text">
+                      This is the inflection point, and here's why this moment is so critical.
+                    </p>
+                  </div>
+                )}
               </div>
               
               {/* Card 02 */}
@@ -289,10 +360,25 @@ const LandingPage: React.FC = () => {
                 <p className="card-description">
                   Your competitors are drowning in machine-generated options while their judgment stalls.
                 </p>
-                <div className="card-dropdown">
+                <div
+                  className="card-dropdown"
+                  onClick={() => toggleDropdown('why-now-02')}
+                >
                   <span className="dropdown-text">Read More</span>
-                  <span className="dropdown-arrow">▼</span>
+                  <span className={`dropdown-arrow ${expandedDropdown === 'why-now-02' ? 'expanded' : ''}`}>
+                    {expandedDropdown === 'why-now-02' ? '▲' : '▼'}
+                  </span>
                 </div>
+                {expandedDropdown === 'why-now-02' && (
+                  <div className="dropdown-content">
+                    <p className="dropdown-expanded-text">
+                      Many of your competitors are currently making a fatal error. They are mistaking AI-driven productivity for genuine strategic progress. Their teams are generating flawless reports, detailed models, and brilliant slide decks at an unprecedented rate. But this has created a dangerous illusion of progress.
+                    </p>
+                    <p className="dropdown-expanded-text">
+                      They are drowning in a sea of plausible, machine-generated options. Their speed of output has accelerated, but their quality of judgment has stalled. This is the productivity trap: a race to the bottom where efficiency gains mask a total erosion of strategic differentiation. They are building a faster horse in an age that demands an entirely new form of transport.
+                    </p>
+                  </div>
+                )}
               </div>
               
               {/* Card 03 */}
@@ -305,10 +391,25 @@ const LandingPage: React.FC = () => {
                 <p className="card-description">
                   Select leaders are building the only moat that matters: synthesized intelligence.
                 </p>
-                <div className="card-dropdown">
+                <div
+                  className="card-dropdown"
+                  onClick={() => toggleDropdown('why-now-03')}
+                >
                   <span className="dropdown-text">Read More</span>
-                  <span className="dropdown-arrow">▼</span>
+                  <span className={`dropdown-arrow ${expandedDropdown === 'why-now-03' ? 'expanded' : ''}`}>
+                    {expandedDropdown === 'why-now-03' ? '▲' : '▼'}
+                  </span>
                 </div>
+                {expandedDropdown === 'why-now-03' && (
+                  <div className="dropdown-content">
+                    <p className="dropdown-expanded-text">
+                      While they are trapped in the weeds of automation, a select few leaders are quietly building the only competitive moat that will matter in 2026 and beyond. They understand the new paradigm: with information now a universal commodity, the only source of true alpha is the quality, rigour, and courage of human leadership.
+                    </p>
+                    <p className="dropdown-expanded-text">
+                      They are not just using tools; they are architecting a new synthesis of machine intelligence and human wisdom. They are building a decision-making engine that allows them to see what others miss, to move with conviction while others hesitate, and to justify their strategic bets with a level of clarity that is simply unassailable.
+                    </p>
+                  </div>
+                )}
               </div>
               
               {/* Card 04 */}
@@ -321,10 +422,25 @@ const LandingPage: React.FC = () => {
                 <p className="card-description">
                   The strategic plans you commit to by December will define your relevance for years to come.
                 </p>
-                <div className="card-dropdown">
+                <div
+                  className="card-dropdown"
+                  onClick={() => toggleDropdown('why-now-04')}
+                >
                   <span className="dropdown-text">Read More</span>
-                  <span className="dropdown-arrow">▼</span>
+                  <span className={`dropdown-arrow ${expandedDropdown === 'why-now-04' ? 'expanded' : ''}`}>
+                    {expandedDropdown === 'why-now-04' ? '▲' : '▼'}
+                  </span>
                 </div>
+                {expandedDropdown === 'why-now-04' && (
+                  <div className="dropdown-content">
+                    <p className="dropdown-expanded-text">
+                      The strategic plans you commit to between now and December will define your company's trajectory and your personal relevance for years to come.
+                    </p>
+                    <p className="dropdown-expanded-text">
+                      You have a brief, rapidly closing window to make a fundamental choice. Will you enter 2026 armed with the same leadership model that worked in the past, hoping your experience alone will be enough to navigate this new terrain? Or will you enter the year having mastered the definitive skill of this era: the ability to synthesise machine intelligence and your own wisdom into demonstrable, defensible, and decisive leadership?
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
             
