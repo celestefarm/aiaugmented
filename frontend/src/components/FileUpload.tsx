@@ -68,8 +68,19 @@ const FileUpload: React.FC<FileUploadProps> = ({
   };
 
   const handleFiles = useCallback(async (files: FileList) => {
+    console.log('=== HANDLE FILES CALLED ===');
+    console.log('Files received:', files.length);
+    console.log('File names:', Array.from(files).map(f => f.name));
+    console.log('Current uploading state:', isUploading);
+    
     if (!currentWorkspace) {
       onError?.('No workspace selected');
+      return;
+    }
+
+    // Prevent multiple simultaneous uploads
+    if (isUploading) {
+      console.log('Upload already in progress, ignoring this call');
       return;
     }
 
@@ -96,6 +107,8 @@ const FileUpload: React.FC<FileUploadProps> = ({
       return;
     }
 
+    console.log('=== STARTING UPLOAD PROCESS ===');
+    console.log('Valid files to upload:', validFiles.length);
     setIsUploading(true);
 
     // Initialize uploading files state
@@ -110,11 +123,14 @@ const FileUpload: React.FC<FileUploadProps> = ({
     try {
       console.log('=== FILE UPLOAD STARTED ===');
       console.log('Files to upload:', validFiles.map(f => ({ name: f.name, size: f.size, type: f.type })));
+      console.log('Uploading all files in a single batch...');
 
-      // Upload files
+      // Upload ALL files in a single API call
       const uploadedDocuments = await uploadDocuments(currentWorkspace.id, validFiles);
       
       console.log('Upload response:', uploadedDocuments);
+      console.log('Successfully uploaded', uploadedDocuments.length, 'documents in batch');
+      console.log('Expected:', validFiles.length, 'Received:', uploadedDocuments.length);
 
       // Update status to processing
       setUploadingFiles(prev => prev.map(uf => ({
@@ -134,14 +150,14 @@ const FileUpload: React.FC<FileUploadProps> = ({
               return { doc, content };
             }
             
-            // Poll for processing completion with shorter timeout
+            // Poll for processing completion with extended timeout for OCR
             let attempts = 0;
-            const maxAttempts = 10; // 10 seconds max (reduced from 30)
+            const maxAttempts = 60; // 60 seconds max for OCR processing (EasyOCR can be slow on CPU)
             
             while (attempts < maxAttempts) {
               const content = await getDocumentContent(currentWorkspace.id, doc.id);
               
-              if (content.processing_status === 'completed') {
+              if (content.processing_status === 'completed' || content.processing_status === 'completed_with_warnings') {
                 return { doc, content };
               } else if (content.processing_status === 'failed') {
                 throw new Error(content.processing_error || 'Processing failed');
@@ -150,6 +166,13 @@ const FileUpload: React.FC<FileUploadProps> = ({
               // Wait 1 second before next attempt
               await new Promise(resolve => setTimeout(resolve, 1000));
               attempts++;
+            }
+            
+            // Check one more time and return partial results if available
+            const finalContent = await getDocumentContent(currentWorkspace.id, doc.id);
+            if (finalContent.processing_status === 'completed_with_warnings') {
+              console.warn(`Document ${doc.id} completed with warnings after timeout`);
+              return { doc, content: finalContent };
             }
             
             throw new Error('Processing timeout - document may still be processing');
@@ -233,11 +256,19 @@ const FileUpload: React.FC<FileUploadProps> = ({
 
     if (disabled || !e.dataTransfer.files.length) return;
 
+    console.log('=== DRAG DROP EVENT ===');
+    console.log('Files dropped:', e.dataTransfer.files.length);
+    console.log('File names:', Array.from(e.dataTransfer.files).map(f => f.name));
+
     handleFiles(e.dataTransfer.files);
   }, [disabled, handleFiles]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
+      console.log('=== FILE INPUT EVENT ===');
+      console.log('Files selected:', e.target.files.length);
+      console.log('File names:', Array.from(e.target.files).map(f => f.name));
+      
       handleFiles(e.target.files);
     }
     // Reset input value to allow selecting the same file again
@@ -366,7 +397,9 @@ const FileUpload: React.FC<FileUploadProps> = ({
                     {uploadingFile.status === 'processing' && (
                       <>
                         <Loader2 className="w-3 h-3 animate-spin text-blue-400" />
-                        <span className="text-xs text-blue-400">Processing...</span>
+                        <span className="text-xs text-blue-400">
+                          {uploadingFile.file.type.includes('image/') ? 'OCR Processing...' : 'Processing...'}
+                        </span>
                       </>
                     )}
                     {uploadingFile.status === 'completed' && (

@@ -1,8 +1,9 @@
-import React, { useState, useCallback } from 'react';
-import { FileText, Image, File, Eye, Download, Plus, Check, Loader2, AlertCircle } from 'lucide-react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { FileText, Image, File, Eye, Download, Plus, Check, Loader2, AlertCircle, Zap } from 'lucide-react';
 import { DocumentUploadResponse, DocumentProcessingResult, getDocumentContent, createNode } from '@/lib/api';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useMap } from '@/contexts/MapContext';
+import OCRResultsDisplay from './OCRResultsDisplay';
 
 interface DocumentMessageProps {
   documents: DocumentUploadResponse[];
@@ -16,6 +17,7 @@ interface DocumentWithContent extends DocumentUploadResponse {
   contentError?: string;
   isAddingToMap?: boolean;
   addedToMapNodeId?: string;
+  showOCRResults?: boolean;
 }
 
 const DocumentMessage: React.FC<DocumentMessageProps> = ({
@@ -28,6 +30,31 @@ const DocumentMessage: React.FC<DocumentMessageProps> = ({
   );
   const { currentWorkspace } = useWorkspace();
   const { createNode: createNodeAPI } = useMap();
+
+  // Update documentsWithContent when documents prop changes
+  useEffect(() => {
+    console.log('=== DOCUMENT MESSAGE PROP UPDATE ===');
+    console.log('New documents received:', documents.length);
+    console.log('Document names:', documents.map(d => d.filename));
+    console.log('Current documentsWithContent count:', documentsWithContent.length);
+    
+    // Update state to include new documents while preserving existing state
+    setDocumentsWithContent(prev => {
+      const existingIds = new Set(prev.map(doc => doc.id));
+      const newDocuments = documents.filter(doc => !existingIds.has(doc.id));
+      
+      console.log('New documents to add:', newDocuments.length);
+      console.log('New document names:', newDocuments.map(d => d.filename));
+      
+      if (newDocuments.length > 0) {
+        const updatedDocuments = [...prev, ...newDocuments.map(doc => ({ ...doc }))];
+        console.log('Updated documentsWithContent count:', updatedDocuments.length);
+        return updatedDocuments;
+      }
+      
+      return prev;
+    });
+  }, [documents]);
 
   const getFileIcon = (contentType: string, size: 'sm' | 'md' = 'md') => {
     const iconSize = size === 'sm' ? 'w-4 h-4' : 'w-6 h-6';
@@ -143,6 +170,22 @@ const DocumentMessage: React.FC<DocumentMessageProps> = ({
     }
   }, [loadDocumentContent]);
 
+  const toggleOCRResults = useCallback((documentId: string) => {
+    setDocumentsWithContent(prev => prev.map(doc =>
+      doc.id === documentId
+        ? { ...doc, showOCRResults: !doc.showOCRResults }
+        : doc
+    ));
+  }, []);
+
+  const isImageFile = (contentType: string): boolean => {
+    return contentType.includes('image/');
+  };
+
+  const hasOCRMetadata = (content?: DocumentProcessingResult): boolean => {
+    return !!(content?.ocr_metadata || content?.extracted_data?.regions || content?.extracted_data?.tables || content?.extracted_data?.chart_elements);
+  };
+
   return (
     <div className={`space-y-2 ${className}`}>
       {documentsWithContent.map((document) => (
@@ -206,6 +249,18 @@ const DocumentMessage: React.FC<DocumentMessageProps> = ({
                 </div>
               )}
 
+              {/* OCR Results Display for Images */}
+              {document.content && isImageFile(document.content_type) && hasOCRMetadata(document.content) && document.showOCRResults && (
+                <div className="mb-3">
+                  <OCRResultsDisplay
+                    extractedText={document.content.extracted_text || ''}
+                    ocrMetadata={document.content.ocr_metadata}
+                    extractedData={document.content.extracted_data}
+                    filename={document.filename}
+                  />
+                </div>
+              )}
+
               {/* Key Insights */}
               {document.content?.key_insights && document.content.key_insights.length > 0 && (
                 <div className="mb-2">
@@ -244,6 +299,18 @@ const DocumentMessage: React.FC<DocumentMessageProps> = ({
                   )}
                   Preview
                 </button>
+
+                {/* OCR Results Button for Images */}
+                {document.content && isImageFile(document.content_type) && hasOCRMetadata(document.content) && (
+                  <button
+                    onClick={() => toggleOCRResults(document.id)}
+                    className="text-xs px-2 py-1 bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded hover:bg-purple-500/30 transition-colors flex items-center gap-1"
+                    title="View detailed OCR analysis"
+                  >
+                    <Zap className="w-3 h-3" />
+                    {document.showOCRResults ? 'Hide OCR' : 'Show OCR'}
+                  </button>
+                )}
 
                 {/* Add to Map Button */}
                 {document.processing_status === 'completed' && (

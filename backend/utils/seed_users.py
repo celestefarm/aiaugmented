@@ -33,7 +33,7 @@ async def seed_users():
     """Seed the database with default users"""
     db = get_database()
     if db is None:
-        print("❌ Database not available for seeding users")
+        print("Database not available for seeding users")
         return False
     
     users_collection = db.users
@@ -43,10 +43,10 @@ async def seed_users():
         existing_users = await users_collection.find({}).to_list(length=None)
         existing_count = len(existing_users)
         if existing_count > 0:
-            print(f"ℹ️  Found {existing_count} existing users. Clearing and re-seeding...")
+            print(f"Found {existing_count} existing users. Clearing and re-seeding...")
             await users_collection.delete_many({})
         else:
-            print("ℹ️  No existing users found. Proceeding with fresh seeding...")
+            print("No existing users found. Proceeding with fresh seeding...")
         
         # Create user documents
         user_docs = []
@@ -68,22 +68,22 @@ async def seed_users():
         # Insert all users
         for user_doc in user_docs:
             result = await users_collection.insert_one(user_doc)
-            print(f"✅ Created user: {user_doc['email']} (ID: {result.inserted_id})")
+            print(f"Created user: {user_doc['email']} (ID: {result.inserted_id})")
         
-        print(f"✅ Successfully seeded {len(user_docs)} default users")
+        print(f"Successfully seeded {len(user_docs)} default users")
         
         # Create indexes for better performance
         try:
             # Note: In-memory database might not support all index operations
             await users_collection.create_index("email", unique=True)
-            print("✅ Created email index for users collection")
+            print("Created email index for users collection")
         except Exception as e:
-            print(f"ℹ️  Index creation skipped (in-memory database): {e}")
+            print(f"Index creation skipped (in-memory database): {e}")
         
         return True
         
     except Exception as e:
-        print(f"❌ Failed to seed users: {e}")
+        print(f"Failed to seed users: {e}")
         return False
 
 

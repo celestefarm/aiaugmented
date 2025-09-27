@@ -320,17 +320,17 @@ async def connect_to_mongo():
     """Connect to in-memory database (for testing)"""
     global memory_client, memory_database
     
-    print("🧠 Using in-memory database for testing...")
+    print("Using in-memory database for testing...")
     memory_client = InMemoryClient()
     memory_database = memory_client.agentic_boardroom
     
     # Test connection
     try:
         await memory_client.admin.command('ping')
-        print("✅ Connected to in-memory database successfully")
+        print("Connected to in-memory database successfully")
         return memory_database
     except Exception as e:
-        print(f"❌ Failed to connect to in-memory database: {e}")
+        print(f"Failed to connect to in-memory database: {e}")
         return None
 
 
@@ -339,7 +339,7 @@ async def close_mongo_connection():
     global memory_client
     if memory_client:
         memory_client.close()
-        print("🔌 Disconnected from in-memory database")
+        print("Disconnected from in-memory database")
 
 
 def get_database():

@@ -235,7 +235,7 @@ async def seed_agents():
     """Seed the database with default agents"""
     db = get_database()
     if db is None:
-        print("❌ Database not available for seeding agents")
+        print("Database not available for seeding agents")
         return False
     
     agents_collection = db.agents
@@ -244,7 +244,7 @@ async def seed_agents():
         # Check if agents already exist
         existing_count = await agents_collection.count_documents({})
         if existing_count > 0:
-            print(f"ℹ️  Agents collection already has {existing_count} documents. Skipping seeding.")
+            print(f"Agents collection already has {existing_count} documents. Skipping seeding.")
             return True
         
         # Create agent documents
@@ -256,17 +256,17 @@ async def seed_agents():
         
         # Insert all agents
         result = await agents_collection.insert_many(agent_docs)
-        print(f"✅ Successfully seeded {len(result.inserted_ids)} default agents")
+        print(f"Successfully seeded {len(result.inserted_ids)} default agents")
         
         # Create indexes for better performance
         await agents_collection.create_index("agent_id", unique=True)
         await agents_collection.create_index("is_custom")
-        print("✅ Created indexes for agents collection")
+        print("Created indexes for agents collection")
         
         return True
         
     except Exception as e:
-        print(f"❌ Failed to seed agents: {e}")
+        print(f"Failed to seed agents: {e}")
         return False
 
 

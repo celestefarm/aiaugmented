@@ -51,7 +51,7 @@ async def seed_nodes():
     """Seed the database with default nodes for testing"""
     db = get_database()
     if db is None:
-        print("❌ Database not available for seeding nodes")
+        print("ERROR: Database not available for seeding nodes")
         return False
     
     nodes_collection = db.nodes
@@ -61,17 +61,17 @@ async def seed_nodes():
         # Check if nodes already exist
         existing_count = await nodes_collection.count_documents({})
         if existing_count > 0:
-            print(f"ℹ️  Nodes collection already has {existing_count} documents. Clearing and re-seeding...")
+            print(f"INFO: Nodes collection already has {existing_count} documents. Clearing and re-seeding...")
             await nodes_collection.delete_many({})
         else:
-            print("ℹ️  No existing nodes found. Proceeding with fresh seeding...")
+            print("INFO: No existing nodes found. Proceeding with fresh seeding...")
         
         # Verify that the target workspace exists
         target_workspace_id = "68d579e446ea8e53f748eef5"
         workspace_exists = await workspaces_collection.find_one({"_id": ObjectId(target_workspace_id)})
         
         if not workspace_exists:
-            print(f"⚠️  Target workspace {target_workspace_id} does not exist. Creating it first...")
+            print(f"WARNING: Target workspace {target_workspace_id} does not exist. Creating it first...")
             # Create the specific workspace needed for testing
             from utils.seed_users import get_user_by_email
             celeste_user = await get_user_by_email("celeste.fcp@gmail.com")
@@ -95,9 +95,9 @@ async def seed_nodes():
                     }
                 }
                 await workspaces_collection.insert_one(workspace_doc)
-                print(f"✅ Created target workspace: {target_workspace_id}")
+                print(f"SUCCESS: Created target workspace: {target_workspace_id}")
             else:
-                print("❌ Cannot create workspace - Celeste user not found")
+                print("ERROR: Cannot create workspace - Celeste user not found")
                 return False
         
         # Create node documents
@@ -126,22 +126,22 @@ async def seed_nodes():
         # Insert all nodes
         for node_doc in node_docs:
             result = await nodes_collection.insert_one(node_doc)
-            print(f"✅ Created node: '{node_doc['title']}' (ID: {node_doc['_id']}, Workspace: {node_doc['workspace_id']})")
+            print(f"SUCCESS: Created node: '{node_doc['title']}' (ID: {node_doc['_id']}, Workspace: {node_doc['workspace_id']})")
         
-        print(f"✅ Successfully seeded {len(node_docs)} default nodes")
+        print(f"SUCCESS: Successfully seeded {len(node_docs)} default nodes")
         
         # Create indexes for better performance
         try:
             await nodes_collection.create_index("workspace_id")
             await nodes_collection.create_index("type")
-            print("✅ Created indexes for nodes collection")
+            print("SUCCESS: Created indexes for nodes collection")
         except Exception as e:
-            print(f"ℹ️  Index creation skipped (in-memory database): {e}")
+            print(f"INFO: Index creation skipped (in-memory database): {e}")
         
         return True
         
     except Exception as e:
-        print(f"❌ Failed to seed nodes: {e}")
+        print(f"ERROR: Failed to seed nodes: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -238,7 +238,7 @@ if __name__ == "__main__":
         # Show test info
         test_info = await get_test_node_info()
         if test_info:
-            print(f"\n🧪 TEST NODE INFO:")
+            print(f"\nTEST NODE INFO:")
             print(f"   Target Workspace ID: {test_info['target_workspace_id']}")
             print(f"   Target Node ID: {test_info['target_node_id']}")
             print(f"   Workspace Exists: {test_info['workspace_exists']}")

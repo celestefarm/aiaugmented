@@ -68,7 +68,7 @@ async def seed_workspaces():
     """Seed the database with default workspaces and sample messages"""
     db = get_database()
     if db is None:
-        print("❌ Database not available for seeding workspaces")
+        print("ERROR: Database not available for seeding workspaces")
         return False
     
     workspaces_collection = db.workspaces
@@ -81,11 +81,11 @@ async def seed_workspaces():
         existing_messages = await messages_collection.find({}).to_list(length=None)
         
         if len(existing_workspaces) > 0:
-            print(f"ℹ️  Found {len(existing_workspaces)} existing workspaces. Clearing...")
+            print(f"INFO: Found {len(existing_workspaces)} existing workspaces. Clearing...")
             await workspaces_collection.delete_many({})
         
         if len(existing_messages) > 0:
-            print(f"ℹ️  Found {len(existing_messages)} existing messages. Clearing...")
+            print(f"INFO: Found {len(existing_messages)} existing messages. Clearing...")
             await messages_collection.delete_many({})
         
         # Get user IDs for workspace ownership
@@ -103,7 +103,7 @@ async def seed_workspaces():
             owner_id = user_emails_to_ids.get(owner_email)
             
             if not owner_id:
-                print(f"⚠️  Skipping workspace '{workspace_data['title']}' - owner '{owner_email}' not found")
+                print(f"WARNING: Skipping workspace '{workspace_data['title']}' - owner '{owner_email}' not found")
                 continue
             
             now = datetime.utcnow()
@@ -122,7 +122,7 @@ async def seed_workspaces():
             result = await workspaces_collection.insert_one(workspace_doc)
             workspace_id = str(result.inserted_id)
             
-            print(f"✅ Created workspace: '{workspace_data['title']}' (ID: {workspace_id}, Owner: {owner_email})")
+            print(f"SUCCESS: Created workspace: '{workspace_data['title']}' (ID: {workspace_id}, Owner: {owner_email})")
             
             created_workspaces.append({
                 "id": workspace_id,
@@ -135,7 +135,7 @@ async def seed_workspaces():
             workspace_id = test_workspace["id"]
             owner_id = test_workspace["owner_id"]
             
-            print(f"\n📝 Creating sample messages in workspace '{test_workspace['title']}'...")
+            print(f"\nCreating sample messages in workspace '{test_workspace['title']}'...")
             
             for i, message_data in enumerate(SAMPLE_MESSAGES):
                 message_create = MessageCreate(
@@ -151,16 +151,16 @@ async def seed_workspaces():
                 result = await messages_collection.insert_one(message_doc)
                 message_id = str(result.inserted_id)
                 
-                print(f"   ✅ Created {message_data['type']} message: {message_id} ({message_data['content'][:50]}...)")
+                print(f"   SUCCESS: Created {message_data['type']} message: {message_id} ({message_data['content'][:50]}...)")
         
-        print(f"\n✅ Successfully seeded {len(created_workspaces)} workspaces with sample data")
-        print(f"🎯 Test workspace ID: {created_workspaces[0]['id'] if created_workspaces else 'None'}")
-        print(f"🎯 Test user ID: {created_workspaces[0]['owner_id'] if created_workspaces else 'None'}")
+        print(f"\nSUCCESS: Successfully seeded {len(created_workspaces)} workspaces with sample data")
+        print(f"Test workspace ID: {created_workspaces[0]['id'] if created_workspaces else 'None'}")
+        print(f"Test user ID: {created_workspaces[0]['owner_id'] if created_workspaces else 'None'}")
         
         return True
         
     except Exception as e:
-        print(f"❌ Failed to seed workspaces: {e}")
+        print(f"ERROR: Failed to seed workspaces: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -213,7 +213,7 @@ if __name__ == "__main__":
         # Show test info
         test_info = await get_test_workspace_info()
         if test_info:
-            print(f"\n🧪 TEST WORKSPACE INFO:")
+            print(f"\nTEST WORKSPACE INFO:")
             print(f"   Workspace ID: {test_info['workspace_id']}")
             print(f"   Title: {test_info['workspace_title']}")
             print(f"   Owner ID: {test_info['owner_id']}")

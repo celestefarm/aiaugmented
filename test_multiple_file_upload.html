@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiple File Upload Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: #e5e7eb;
+        }
+        .upload-area {
+            border: 2px dashed #6B6B3A;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            margin: 20px 0;
+            background-color: #2a2a2a;
+        }
+        .upload-area.dragover {
+            background-color: #3a3a3a;
+            border-color: #8B8B5A;
+        }
+        .file-list {
+            margin: 20px 0;
+        }
+        .file-item {
+            background-color: #2a2a2a;
+            border: 1px solid #4a4a4a;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 5px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .file-icon {
+            width: 20px;
+            height: 20px;
+            background-color: #6B6B3A;
+            border-radius: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 10px;
+        }
+        .upload-button {
+            background-color: #6B6B3A;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        .upload-button:hover {
+            background-color: #8B8B5A;
+        }
+        .upload-button:disabled {
+            background-color: #4a4a4a;
+            cursor: not-allowed;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .status.success {
+            background-color: #065f46;
+            border: 1px solid #10b981;
+        }
+        .status.error {
+            background-color: #7f1d1d;
+            border: 1px solid #ef4444;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Multiple File Upload Test</h1>
+    <p>This test simulates the file upload functionality to verify that multiple files are properly handled.</p>
+    
+    <div class="upload-area" id="uploadArea">
+        <p>📁 Drop multiple files here or click to select</p>
+        <p style="font-size: 14px; color: #9ca3af;">Supports: PDF, DOCX, XLSX, PNG, JPG (max 20MB each)</p>
+        <input type="file" id="fileInput" multiple accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg" class="hidden">
+        <button class="upload-button" onclick="document.getElementById('fileInput').click()">
+            Select Files
+        </button>
+    </div>
+
+    <div id="status"></div>
+
+    <div class="file-list" id="fileList">
+        <h3>Selected Files:</h3>
+        <div id="selectedFiles"></div>
+    </div>
+
+    <button class="upload-button" id="uploadBtn" onclick="simulateUpload()" disabled>
+        Upload All Files
+    </button>
+
+    <div class="file-list" id="uploadedList">
+        <h3>Uploaded Documents (Chat Display Simulation):</h3>
+        <div id="uploadedFiles"></div>
+    </div>
+
+    <script>
+        let selectedFiles = [];
+        let uploadedDocuments = [];
+
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const selectedFilesDiv = document.getElementById('selectedFiles');
+        const uploadedFilesDiv = document.getElementById('uploadedFiles');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const statusDiv = document.getElementById('status');
+
+        // File type icons
+        const getFileIcon = (fileName) => {
+            const ext = fileName.split('.').pop().toLowerCase();
+            switch(ext) {
+                case 'pdf': return '📄';
+                case 'docx': return '📝';
+                case 'xlsx': return '📊';
+                case 'png':
+                case 'jpg':
+                case 'jpeg': return '🖼️';
+                default: return '📁';
+            }
+        };
+
+        // Handle file selection
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        // Handle drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        function handleFiles(files) {
+            console.log('=== MULTIPLE FILE SELECTION TEST ===');
+            console.log('Files selected:', files.length);
+            console.log('File names:', Array.from(files).map(f => f.name));
+
+            selectedFiles = Array.from(files);
+            displaySelectedFiles();
+            uploadBtn.disabled = selectedFiles.length === 0;
+
+            showStatus(`Selected ${files.length} file(s)`, 'success');
+        }
+
+        function displaySelectedFiles() {
+            selectedFilesDiv.innerHTML = '';
+            selectedFiles.forEach((file, index) => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.innerHTML = `
+                    <div class="file-info">
+                        <div class="file-icon">${getFileIcon(file.name)}</div>
+                        <span>${file.name}</span>
+                        <span style="color: #9ca3af; font-size: 12px;">(${(file.size / 1024 / 1024).toFixed(1)}MB)</span>
+                    </div>
+                    <button onclick="removeFile(${index})" style="background: #ef4444; color: white; border: none; padding: 4px 8px; border-radius: 2px; cursor: pointer;">Remove</button>
+                `;
+                selectedFilesDiv.appendChild(fileItem);
+            });
+        }
+
+        function removeFile(index) {
+            selectedFiles.splice(index, 1);
+            displaySelectedFiles();
+            uploadBtn.disabled = selectedFiles.length === 0;
+            showStatus(`Removed file. ${selectedFiles.length} file(s) remaining`, 'success');
+        }
+
+        function simulateUpload() {
+            if (selectedFiles.length === 0) return;
+
+            console.log('=== SIMULATING UPLOAD PROCESS ===');
+            console.log('Uploading files:', selectedFiles.map(f => f.name));
+
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = 'Uploading...';
+
+            showStatus(`Uploading ${selectedFiles.length} file(s)...`, 'success');
+
+            // Simulate upload delay
+            setTimeout(() => {
+                // Simulate successful upload response
+                const mockUploadedDocs = selectedFiles.map((file, index) => ({
+                    id: `doc_${Date.now()}_${index}`,
+                    filename: file.name,
+                    file_type: file.type,
+                    file_size: file.size,
+                    processing_status: 'completed',
+                    created_at: new Date().toISOString()
+                }));
+
+                console.log('=== UPLOAD SIMULATION COMPLETE ===');
+                console.log('Mock uploaded documents:', mockUploadedDocs);
+
+                // Simulate the DocumentMessage component behavior
+                uploadedDocuments = [...uploadedDocuments, ...mockUploadedDocs];
+                displayUploadedDocuments();
+
+                showStatus(`✅ Successfully uploaded ${mockUploadedDocs.length} document(s)! All files are now displayed in the chat.`, 'success');
+
+                // Reset
+                selectedFiles = [];
+                displaySelectedFiles();
+                uploadBtn.disabled = true;
+                uploadBtn.textContent = 'Upload All Files';
+                fileInput.value = '';
+            }, 2000);
+        }
+
+        function displayUploadedDocuments() {
+            uploadedFilesDiv.innerHTML = '';
+            uploadedDocuments.forEach((doc, index) => {
+                const docItem = document.createElement('div');
+                docItem.className = 'file-item';
+                docItem.style.backgroundColor = '#065f46';
+                docItem.style.borderColor = '#10b981';
+                docItem.innerHTML = `
+                    <div class="file-info">
+                        <div class="file-icon">${getFileIcon(doc.filename)}</div>
+                        <span>${doc.filename}</span>
+                        <span style="color: #9ca3af; font-size: 12px;">(${(doc.file_size / 1024 / 1024).toFixed(1)}MB)</span>
+                        <span style="color: #10b981; font-size: 12px; margin-left: 10px;">✅ Uploaded</span>
+                    </div>
+                    <button onclick="simulateAddToMap('${doc.id}')" style="background: #6B6B3A; color: white; border: none; padding: 4px 8px; border-radius: 2px; cursor: pointer;">Add to Map</button>
+                `;
+                uploadedFilesDiv.appendChild(docItem);
+            });
+        }
+
+        function simulateAddToMap(docId) {
+            const doc = uploadedDocuments.find(d => d.id === docId);
+            if (doc) {
+                showStatus(`📍 Document "${doc.filename}" added to exploration map!`, 'success');
+            }
+        }
+
+        function showStatus(message, type) {
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+            setTimeout(() => {
+                statusDiv.innerHTML = '';
+            }, 5000);
+        }
+
+        // Initial state
+        showStatus('Ready to test multiple file upload. Select multiple files to begin.', 'success');
+    </script>
+</body>
+</html>

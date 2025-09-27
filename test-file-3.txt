@@ -1,0 +1,10 @@
+This is test file number 3 for comprehensive multiple file upload testing.
+
+Testing scenarios:
+- Upload 3 files simultaneously
+- Verify each file appears as individual document card
+- Check that all files are accessible to AI agents
+- Confirm proper file metadata display
+- Test "Add to Map" functionality for documents
+
+This is the third file in the batch upload test. All three files should be visible in the chat interface after upload.

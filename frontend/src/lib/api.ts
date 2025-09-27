@@ -568,6 +568,16 @@ export interface DocumentProcessingResult {
     confidence: number;
     source_type: string;
   }>;
+  // Enhanced OCR metadata - aligned with OCRResultsDisplay component
+  ocr_metadata?: {
+    quality_assessment: string;
+    language_detected: string;
+    confidence_score: number;
+    processing_time: number;
+    regions_detected: number;
+    tables_detected: number;
+    chart_elements_detected: number;
+  };
 }
 
 export interface DocumentListResponse {

@@ -217,6 +217,88 @@ async def get_messages(
     )
 
 
+async def get_workspace_documents_content(database, workspace_id: str) -> str:
+    """
+    Get all processed document content for a workspace to provide context to AI agents.
+    
+    Args:
+        database: Database instance
+        workspace_id: Workspace ID
+        
+    Returns:
+        Formatted string containing all document content
+    """
+    try:
+        logger.info(f"📄 [DOCUMENT CONTEXT] Searching for documents in workspace: {workspace_id}")
+        logger.info(f"📄 [DOCUMENT CONTEXT] Workspace ID type: {type(workspace_id)}")
+        
+        # First, let's see ALL documents in the database to understand the data structure
+        all_docs_cursor = database.documents.find({})
+        all_docs = await all_docs_cursor.to_list(length=None)
+        logger.info(f"📄 [DOCUMENT CONTEXT] Found {len(all_docs)} total documents in entire database")
+        
+        for doc in all_docs:
+            logger.info(f"📄 [DOCUMENT CONTEXT] DB Document: {doc.get('original_filename', 'Unknown')} - Workspace: {doc.get('workspace_id')} (type: {type(doc.get('workspace_id'))}) - Status: {doc.get('processing_status', 'Unknown')}")
+        
+        # Now try to find documents for this specific workspace with multiple query approaches
+        logger.info(f"📄 [DOCUMENT CONTEXT] Trying ObjectId query...")
+        objectid_docs_cursor = database.documents.find({"workspace_id": ObjectId(workspace_id)})
+        objectid_docs = await objectid_docs_cursor.to_list(length=None)
+        logger.info(f"📄 [DOCUMENT CONTEXT] ObjectId query found: {len(objectid_docs)} documents")
+        
+        logger.info(f"📄 [DOCUMENT CONTEXT] Trying string query...")
+        string_docs_cursor = database.documents.find({"workspace_id": workspace_id})
+        string_docs = await string_docs_cursor.to_list(length=None)
+        logger.info(f"📄 [DOCUMENT CONTEXT] String query found: {len(string_docs)} documents")
+        
+        # Use whichever query found documents
+        document_docs = objectid_docs if len(objectid_docs) > 0 else string_docs
+        logger.info(f"📄 [DOCUMENT CONTEXT] Using {len(document_docs)} documents for context")
+        
+        # Filter for completed documents with extracted text
+        completed_docs = [doc for doc in document_docs if doc.get('processing_status') == 'completed' and doc.get('extracted_text')]
+        logger.info(f"📄 [DOCUMENT CONTEXT] Found {len(completed_docs)} completed documents with extracted text")
+        
+        for doc in completed_docs:
+            logger.info(f"📄 [DOCUMENT CONTEXT] Completed doc: {doc.get('original_filename', 'Unknown')} - Text length: {len(doc.get('extracted_text', ''))}")
+        
+        if not completed_docs:
+            logger.info(f"📄 [DOCUMENT CONTEXT] No completed documents with extracted text found")
+            return ""
+        
+        # Use completed_docs instead of document_docs
+        document_docs = completed_docs
+        
+        # Format document content for AI context
+        document_context = "\n=== UPLOADED DOCUMENTS CONTEXT ===\n"
+        document_context += f"The user has uploaded {len(document_docs)} document(s) to this workspace. Here is the extracted content:\n\n"
+        
+        for i, doc in enumerate(document_docs, 1):
+            filename = doc.get("original_filename", doc.get("filename", "Unknown"))
+            extracted_text = doc.get("extracted_text", "")
+            page_count = doc.get("page_count")
+            
+            document_context += f"--- Document {i}: {filename} ---\n"
+            if page_count:
+                document_context += f"Pages: {page_count}\n"
+            
+            # Limit content length to avoid token limits
+            if len(extracted_text) > 3000:
+                document_context += f"{extracted_text[:3000]}...\n[Content truncated - document contains more text]\n\n"
+            else:
+                document_context += f"{extracted_text}\n\n"
+        
+        document_context += "=== END DOCUMENTS CONTEXT ===\n\n"
+        document_context += "You can reference these documents in your response. When referencing content, mention the document name and provide specific insights based on the actual content.\n\n"
+        
+        logger.info(f"📄 Prepared document context for AI: {len(document_docs)} documents, {len(document_context)} characters")
+        return document_context
+        
+    except Exception as e:
+        logger.error(f"Error getting workspace documents: {e}")
+        return ""
+
+
 @router.post("/workspaces/{workspace_id}/messages", response_model=List[MessageResponse], status_code=status.HTTP_201_CREATED)
 async def send_message(
     workspace_id: str,
@@ -358,6 +440,9 @@ async def send_message(
                     logger.info(f"=== GENERATING AI RESPONSE ===")
                     logger.info(f"Using model: {model_name}")
                     
+                    # Get document context for AI agents
+                    document_context = await get_workspace_documents_content(database, workspace_id)
+                    
                     # Generate intelligent AI response using the proper framework
                     system_prompt = create_system_prompt(agent if agent else type('Agent', (), {
                         'name': agent_doc['name'],
@@ -365,7 +450,12 @@ async def send_message(
                         'human_role': agent_doc.get('human_role', ''),
                         'full_description': agent_doc.get('full_description', {})
                     })())
+                    
+                    # Combine user message with document context
                     user_prompt = message_data.content
+                    if document_context:
+                        user_prompt = f"{document_context}\nUser Question: {message_data.content}"
+                        logger.info(f"📄 Enhanced user prompt with document context ({len(document_context)} chars)")
                     
                     # Validate token limits before making API call
                     processed_model_name = model_name.split("/")[-1] if "/" in model_name else model_name

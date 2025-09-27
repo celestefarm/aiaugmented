@@ -246,10 +246,20 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
 
   // File upload handlers
   const handleFileUploaded = useCallback((documents: DocumentUploadResponse[]) => {
-    console.log('=== FILES UPLOADED ===');
-    console.log('Uploaded documents:', documents);
+    console.log('=== FILES UPLOADED CALLBACK CALLED ===');
+    console.log('Number of documents received:', documents.length);
+    console.log('Document names:', documents.map(d => d.filename));
+    console.log('Full documents array:', documents);
     
-    setUploadedDocuments(prev => [...prev, ...documents]);
+    // Ensure we're appending to existing documents, not replacing them
+    setUploadedDocuments(prev => {
+      console.log('Previous uploaded documents count:', prev.length);
+      console.log('Previous document names:', prev.map(d => d.filename));
+      const newDocuments = [...prev, ...documents];
+      console.log('Updated uploaded documents (total count):', newDocuments.length);
+      console.log('All document names after update:', newDocuments.map(d => d.filename));
+      return newDocuments;
+    });
     setUploadError(null);
     
     // Show success message

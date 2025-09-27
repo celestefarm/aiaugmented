@@ -1,0 +1,8 @@
+This is test file number 1 for testing multiple file upload functionality.
+
+Content includes:
+- Basic text content
+- Multiple lines
+- Test data for AI processing
+
+This file should appear in the chat stream when uploaded along with other files.

@@ -1,0 +1,9 @@
+This is test file number 2 for multiple file upload testing.
+
+Key features to test:
+- Multiple file selection
+- Batch upload processing
+- Individual file display in chat
+- AI agent access to all files
+
+This file should be uploaded simultaneously with other test files and appear as a separate entry in the chat stream.

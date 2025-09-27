@@ -1,0 +1,10 @@
+This is a test document for file upload functionality.
+
+The file upload system should be able to handle this text file and process it through the document processing pipeline.
+
+Test content includes:
+- Simple text
+- Multiple lines
+- Basic formatting
+
+This document will help verify that the GridFS compatibility issue has been resolved with the new in-memory file storage implementation.
