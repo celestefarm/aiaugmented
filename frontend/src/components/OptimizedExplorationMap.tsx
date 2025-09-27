@@ -364,7 +364,9 @@ const OptimizedExplorationMap: React.FC = () => {
     deactivateAgent,
     addMessageToMap,
     removeMessageFromMap,
-    loadMessages
+    loadMessages,
+    messages: chatMessages,
+    refreshMessages
   } = useAgentChat();
 
   // Optimized canvas state management
@@ -534,15 +536,34 @@ const OptimizedExplorationMap: React.FC = () => {
       setSelectedNode(null);
       showNotification(`Deleted node: ${node.title}`);
       
+      // DIAGNOSTIC: Log current message states before refresh
+      console.log('🗑️ [DELETE NODE] Current messages before refresh:', chatMessages.map(m => ({
+        id: m.id,
+        content: m.content.substring(0, 30) + '...',
+        added_to_map: m.added_to_map
+      })));
+      
       // ENHANCED FIX: Refresh both chat messages and map data to ensure UI consistency
       // This ensures both the chat sidebar and canvas are properly synchronized
       try {
         console.log('🗑️ [DELETE NODE] Refreshing chat messages and map data...');
+        
+        // Use refreshMessages instead of loadMessages for better state management
         await Promise.all([
-          loadMessages(),
-          refreshMapData()
+          refreshMessages(), // This will properly update the AgentChatContext messages
+          refreshMapData()   // This will update the map data
         ]);
+        
         console.log('🗑️ [DELETE NODE] ✅ Successfully refreshed chat and map data');
+        
+        // DIAGNOSTIC: Log message states after refresh with a delay to allow state updates
+        setTimeout(() => {
+          console.log('🗑️ [DELETE NODE] Messages after refresh (delayed check):', chatMessages.map(m => ({
+            id: m.id,
+            content: m.content.substring(0, 30) + '...',
+            added_to_map: m.added_to_map
+          })));
+        }, 1000);
         
       } catch (refreshError) {
         console.warn('🗑️ [DELETE NODE] ⚠️ Failed to refresh chat messages after node deletion:', refreshError);
@@ -553,7 +574,7 @@ const OptimizedExplorationMap: React.FC = () => {
       console.error('🗑️ [DELETE NODE] ❌ Failed to delete node:', error);
       showNotification('Failed to delete node');
     }
-  }, [nodes, showNotification, deleteNodeAPI, loadMessages, refreshMapData]);
+  }, [nodes, showNotification, deleteNodeAPI, refreshMessages, refreshMapData, chatMessages]);
 
   // Handle manual conversation summarization
   const handleSummarizeConversation = useCallback(async (nodeId: string) => {
@@ -866,7 +887,18 @@ const OptimizedExplorationMap: React.FC = () => {
       console.error('❌ [DELETE SELECTED] Failed to delete selected items:', error);
       showNotification('Failed to delete selected items');
     }
-  }, [selectedNodes, selectedEdges, nodes, edges, deleteNodeAPI, deleteEdgeAPI, addUndoOperation, clearSelections, showNotification, loadMessages, refreshMapData]);
+
+    // CRITICAL FIX: Refresh messages after successful deletion to update "Add to Map" button states
+    // This is done outside the try-catch to avoid interfering with the deletion process
+    try {
+      console.log('🗑️ [DELETE SELECTED] Refreshing chat messages to update button states...');
+      await refreshMessages(); // This will update the AgentChatContext and MessageMapStatusContext
+      console.log('✅ [DELETE SELECTED] Successfully refreshed chat messages');
+    } catch (refreshError) {
+      console.warn('⚠️ [DELETE SELECTED] Failed to refresh chat messages (non-critical):', refreshError);
+      // This is non-critical - deletion was successful, just UI state might not update immediately
+    }
+  }, [selectedNodes, selectedEdges, nodes, edges, deleteNodeAPI, deleteEdgeAPI, addUndoOperation, clearSelections, showNotification, refreshMessages, refreshMapData]);
 
   // Handle drag to trash
   const handleDragToTrash = useCallback((nodeId: string) => {
@@ -964,15 +996,9 @@ const OptimizedExplorationMap: React.FC = () => {
     }
   }, []);
 
-  // Handle mouse move for panning and connection preview with requestAnimationFrame optimization
+  // Handle mouse move for panning with requestAnimationFrame optimization
   const handleCanvasMouseMove = useCallback((e: React.MouseEvent) => {
-    // Handle connection preview
-    if (canvasState.isConnecting && canvasState.connectionStart) {
-      setCanvasState(prev => ({
-        ...prev,
-        connectionPreview: { x: e.clientX, y: e.clientY }
-      }));
-    }
+    // No connection preview handling needed anymore
 
     if (!canvasState.isPanning || !canvasState.panStart || !canvasState.panStartTransform) {
       return;
@@ -999,7 +1025,7 @@ const OptimizedExplorationMap: React.FC = () => {
         };
       });
     });
-  }, [canvasState.isPanning, canvasState.panStart, canvasState.panStartTransform, canvasState.isConnecting, canvasState.connectionStart]);
+  }, [canvasState.isPanning, canvasState.panStart, canvasState.panStartTransform]);
 
   // Handle mouse up to end panning
   const handleCanvasMouseUp = useCallback((e: React.MouseEvent) => {
@@ -1026,13 +1052,7 @@ const OptimizedExplorationMap: React.FC = () => {
 
   // Global mouse event handlers
   const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
-    // Handle connection preview
-    if (canvasState.isConnecting && canvasState.connectionStart) {
-      setCanvasState(prev => ({
-        ...prev,
-        connectionPreview: { x: e.clientX, y: e.clientY }
-      }));
-    }
+    // No connection preview handling needed anymore
 
     // Handle node dragging
     if (canvasState.isDragging && canvasState.draggedNodeId && canvasState.dragOffset && canvasRef.current) {
@@ -1166,17 +1186,35 @@ const OptimizedExplorationMap: React.FC = () => {
     
     // Handle connection mode
     if (canvasState.isConnecting) {
+      console.log('🔗 [CONNECTOR DEBUG] Node clicked in connection mode:', {
+        nodeId,
+        connectionStart: canvasState.connectionStart,
+        connectionPreview: canvasState.connectionPreview,
+        isSameNode: canvasState.connectionStart === nodeId
+      });
+      
       if (!canvasState.connectionStart) {
         // Start connection from this node
+        console.log('🔗 [CONNECTOR DEBUG] Starting connection from node:', nodeId);
+        
         setCanvasState(prev => ({
           ...prev,
           connectionStart: nodeId,
-          connectionPreview: { x: e.clientX, y: e.clientY }
+          connectionPreview: null // No preview line needed
         }));
+        
         showNotification(`Connection started from ${nodes.find(n => n.id === nodeId)?.title || 'node'}`);
       } else if (canvasState.connectionStart !== nodeId) {
         // Complete connection to this node
+        console.log('🔗 [CONNECTOR DEBUG] Completing connection:', {
+          from: canvasState.connectionStart,
+          to: nodeId
+        });
+        
+        // Create the connection
         createConnection(canvasState.connectionStart, nodeId);
+        
+        // Clear connection state immediately after creating connection
         setCanvasState(prev => ({
           ...prev,
           isConnecting: false,
@@ -1184,14 +1222,13 @@ const OptimizedExplorationMap: React.FC = () => {
           connectionPreview: null
         }));
       } else {
-        // Cancel connection if clicking the same node
-        setCanvasState(prev => ({
-          ...prev,
-          connectionStart: null,
-          connectionPreview: null
-        }));
-        showNotification('Connection cancelled');
+        // Same node clicked - do nothing to maintain connection state
+        console.log('🔗 [CONNECTOR DEBUG] Same node clicked, maintaining connection state');
       }
+      
+      // Prevent event propagation to avoid conflicts with node dragging
+      e.preventDefault();
+      e.stopPropagation();
       return;
     }
 
@@ -1635,13 +1672,36 @@ const OptimizedExplorationMap: React.FC = () => {
                   >
                     {(() => {
                       const startNode = nodes.find(n => n.id === canvasState.connectionStart);
-                      if (!startNode || !canvasRef.current) return null;
+                      if (!startNode || !canvasRef.current) {
+                        console.log('🔗 [CONNECTOR DEBUG] Connection preview - missing startNode or canvasRef:', {
+                          startNode: !!startNode,
+                          canvasRef: !!canvasRef.current,
+                          connectionStart: canvasState.connectionStart
+                        });
+                        return null;
+                      }
 
                       const canvasRect = canvasRef.current.getBoundingClientRect();
+                      
+                      // Calculate start position (center of start node)
                       const startX = (startNode.x + 120) * canvasState.transform.scale + canvasState.transform.x + 2000;
                       const startY = (startNode.y + 60) * canvasState.transform.scale + canvasState.transform.y + 2000;
-                      const endX = (canvasState.connectionPreview.x - canvasRect.left - canvasState.transform.x) / canvasState.transform.scale + 120 + 2000;
-                      const endY = (canvasState.connectionPreview.y - canvasRect.top - canvasState.transform.y) / canvasState.transform.scale + 60 + 2000;
+                      
+                      // Calculate end position (mouse position converted to canvas coordinates)
+                      const mouseCanvasX = (canvasState.connectionPreview.x - canvasRect.left - canvasState.transform.x) / canvasState.transform.scale;
+                      const mouseCanvasY = (canvasState.connectionPreview.y - canvasRect.top - canvasState.transform.y) / canvasState.transform.scale;
+                      const endX = mouseCanvasX + 2000;
+                      const endY = mouseCanvasY + 2000;
+
+                      console.log('🔗 [CONNECTOR DEBUG] Connection preview coordinates:', {
+                        startNode: { x: startNode.x, y: startNode.y },
+                        mousePosition: { x: canvasState.connectionPreview.x, y: canvasState.connectionPreview.y },
+                        canvasRect: { left: canvasRect.left, top: canvasRect.top },
+                        transform: canvasState.transform,
+                        calculatedStart: { x: startX - 2000, y: startY - 2000 },
+                        calculatedEnd: { x: endX - 2000, y: endY - 2000 },
+                        svgCoords: { startX, startY, endX, endY }
+                      });
 
                       return (
                         <line
@@ -1649,7 +1709,7 @@ const OptimizedExplorationMap: React.FC = () => {
                           y1={startY}
                           x2={endX}
                           y2={endY}
-                          stroke="#6B6B3A"
+                          stroke="rgba(156, 163, 175, 0.8)"
                           strokeWidth="2"
                           strokeDasharray="5,5"
                           opacity="0.8"

@@ -45,6 +45,12 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
   } = useAgentChat();
 
   useEffect(() => {
+    console.log('🔄 [SPARRING SESSION] Messages updated, reinitializing status:', messages.map(m => ({
+      id: m.id,
+      content: m.content.substring(0, 30) + '...',
+      added_to_map: m.added_to_map
+    })));
+    
     if (messages.length > 0) {
       initializeStatus(messages);
     }
