@@ -95,6 +95,7 @@ export class InteractionManager {
   private onStateChange?: (mode: InteractionMode, data: any) => void;
   private onNodeSelect?: (nodeId: string) => void;
   private onConnectionCreate?: (fromNodeId: string, toNodeId: string) => void;
+  private onSelectionReset?: () => void;
   
   // EVENT LISTENER FIX: Single global event listener management
   private globalListenersAttached: boolean = false;
@@ -108,13 +109,15 @@ export class InteractionManager {
     onTransformUpdate?: (transform: Transform) => void,
     onStateChange?: (mode: InteractionMode, data: any) => void,
     onNodeSelect?: (nodeId: string) => void,
-    onConnectionCreate?: (fromNodeId: string, toNodeId: string) => void
+    onConnectionCreate?: (fromNodeId: string, toNodeId: string) => void,
+    onSelectionReset?: () => void
   ) {
     this.onNodePositionUpdate = onNodePositionUpdate;
     this.onTransformUpdate = onTransformUpdate;
     this.onStateChange = onStateChange;
     this.onNodeSelect = onNodeSelect;
     this.onConnectionCreate = onConnectionCreate;
+    this.onSelectionReset = onSelectionReset;
     
     // EVENT LISTENER FIX: Create bound handlers once to avoid memory leaks
     this.boundHandlers = {
@@ -661,6 +664,10 @@ export class InteractionManager {
       button: event.button,
       timestamp: performance.now()
     });
+    
+    // CANVAS CLICK FIX: Reset delete button states when clicking empty canvas
+    console.log('🎯 [CANVAS-CLICK] Empty canvas clicked - resetting delete button states');
+    this.onSelectionReset?.();
     
     const startPosition = { x: event.clientX, y: event.clientY };
     

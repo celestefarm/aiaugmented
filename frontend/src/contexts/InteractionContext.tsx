@@ -63,6 +63,7 @@ interface InteractionContextType {
   registerTransformUpdateCallback: (callback: (transform: Transform) => void) => void;
   registerNodeSelectCallback: (callback: (nodeId: string) => void) => void;
   registerConnectionCreateCallback: (callback: (fromNodeId: string, toNodeId: string) => void) => void;
+  registerSelectionResetCallback: (callback: () => void) => void;
 }
 
 // Create context
@@ -85,6 +86,7 @@ export const InteractionProvider: React.FC<InteractionProviderProps> = ({ childr
   const transformUpdateRef = useRef<((transform: Transform) => void) | null>(null);
   const nodeSelectRef = useRef<((nodeId: string) => void) | null>(null);
   const connectionCreateRef = useRef<((fromNodeId: string, toNodeId: string) => void) | null>(null);
+  const selectionResetRef = useRef<(() => void) | null>(null);
 
   // Create InteractionManager instance with callbacks
   const interactionManager = useMemo(() => {
@@ -161,6 +163,12 @@ export const InteractionProvider: React.FC<InteractionProviderProps> = ({ childr
         if (connectionCreateRef.current) {
           connectionCreateRef.current(fromNodeId, toNodeId);
         }
+      },
+      // onSelectionReset callback
+      () => {
+        if (selectionResetRef.current) {
+          selectionResetRef.current();
+        }
       }
     );
   }, []);
@@ -187,6 +195,10 @@ export const InteractionProvider: React.FC<InteractionProviderProps> = ({ childr
 
   const registerConnectionCreateCallback = useCallback((callback: (fromNodeId: string, toNodeId: string) => void) => {
     connectionCreateRef.current = callback;
+  }, []);
+
+  const registerSelectionResetCallback = useCallback((callback: () => void) => {
+    selectionResetRef.current = callback;
   }, []);
 
   // New unified event handlers that delegate to InteractionManager
@@ -325,6 +337,7 @@ export const InteractionProvider: React.FC<InteractionProviderProps> = ({ childr
     registerTransformUpdateCallback,
     registerNodeSelectCallback,
     registerConnectionCreateCallback,
+    registerSelectionResetCallback,
   };
 
   return (

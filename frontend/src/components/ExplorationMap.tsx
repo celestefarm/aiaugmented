@@ -282,7 +282,8 @@ const ExplorationMap: React.FC<ExplorationMapProps> = ({ onNodeDeleted }) => {
     registerNodePositionUpdateCallback,
     registerTransformUpdateCallback,
     registerNodeSelectCallback,
-    registerConnectionCreateCallback
+    registerConnectionCreateCallback,
+    registerSelectionResetCallback
   } = useInteraction();
   
   // Canvas transform state (separate from interaction state)
@@ -1015,11 +1016,19 @@ const ExplorationMap: React.FC<ExplorationMapProps> = ({ onNodeDeleted }) => {
         throw error;
       }
     });
+
+    // Register selection reset callback
+    registerSelectionResetCallback(() => {
+      console.log('🎯 [CANVAS-CLICK] Selection reset callback triggered');
+      setSelectedNode(null);
+      setFocusedNode(null);
+    });
   }, [
     registerNodePositionUpdateCallback,
     registerTransformUpdateCallback,
     registerNodeSelectCallback,
     registerConnectionCreateCallback,
+    registerSelectionResetCallback,
     nodes,
     updateNodeAPI,
     showNotification,

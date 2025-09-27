@@ -511,6 +511,15 @@ const UnifiedExplorationMap: React.FC = () => {
       }
     }
     
+    // CANVAS CLICK FIX: Reset delete button states when clicking empty canvas
+    console.log('🎯 [CANVAS-CLICK] Empty canvas clicked - resetting delete button states');
+    console.log('🎯 [CANVAS-CLICK] Before reset:', {
+      selectedNode: selectedNode
+    });
+    
+    // Clear selection (this will reset delete button states)
+    setSelectedNode(null);
+    
     // Start panning
     try {
       e.preventDefault();
@@ -528,7 +537,7 @@ const UnifiedExplorationMap: React.FC = () => {
     if (canvasRef.current) {
       canvasRef.current.style.cursor = 'grabbing';
     }
-  }, [transform]);
+  }, [transform, selectedNode]);
 
   // Handle mouse move for panning - optimized with requestAnimationFrame
   const handleCanvasMouseMove = useCallback((e: React.MouseEvent) => {
