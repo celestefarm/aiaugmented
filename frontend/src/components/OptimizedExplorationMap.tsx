@@ -118,7 +118,7 @@ const OptimizedNode: React.FC<{
   return (
     <div
       id={`node-${node.id}`}
-      className={`absolute glass-pane p-4 w-60 cursor-grab active:cursor-grabbing hover:scale-105 transition-all duration-200 group pointer-events-auto select-none ${
+      className={`absolute glass-pane p-4 w-60 cursor-grab active:cursor-grabbing hover:scale-105 group pointer-events-auto select-none ${
         isSelected ? 'ring-2 ring-[#6B6B3A] ring-opacity-70 shadow-lg shadow-[#6B6B3A]/20' : ''
       } ${
         node.type === 'human' ? 'pulse-glow border-[#6B6B3A]/30 bg-gradient-to-br from-[#6B6B3A]/5 to-[#6B6B3A]/10' :
@@ -127,13 +127,18 @@ const OptimizedNode: React.FC<{
         node.type === 'dependency' ? 'bg-gradient-to-br from-gray-500/10 to-slate-500/10 border-gray-400/40 shadow-lg shadow-gray-500/10' :
         node.type === 'decision' ? 'bg-gradient-to-br from-yellow-500/10 to-amber-500/10 border-yellow-400/40 shadow-lg shadow-yellow-500/10' :
         'bg-gradient-to-br from-gray-400/5 to-gray-500/10 border-gray-400/30'
+      } ${
+        isDragging ? 'drag-active' : ''
       }`}
       style={style}
       onMouseDown={handleMouseDown}
       onContextMenu={(e) => {
-        // Remove preventDefault to avoid passive event listener errors
         if (isDragging) {
-          // Just handle the dragging state without preventDefault
+          try {
+            e.preventDefault();
+          } catch (error) {
+            // Passive event listener - ignore
+          }
         }
       }}
     >
@@ -1041,7 +1046,7 @@ const OptimizedExplorationMap: React.FC = () => {
       // Snap to grid
       const snappedPos = snapToGrid(newX, newY);
       
-      // Update node position in real-time by updating the DOM element directly
+      // Update node position directly in DOM for smooth dragging
       const nodeElement = document.getElementById(`node-${canvasState.draggedNodeId}`);
       if (nodeElement) {
         nodeElement.style.transform = `translate(${snappedPos.x}px, ${snappedPos.y}px)`;
@@ -1099,6 +1104,7 @@ const OptimizedExplorationMap: React.FC = () => {
           };
           
           await updateNodeAPI(canvasState.draggedNodeId, updateData);
+          
         } catch (error) {
           console.error('Failed to update node position:', error);
           showNotification('Failed to update node position');

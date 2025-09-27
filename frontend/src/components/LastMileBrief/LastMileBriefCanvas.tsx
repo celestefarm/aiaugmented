@@ -1129,23 +1129,6 @@ ${displayData.executiveSummary?.recommendations?.slice(0, 3).map((rec, index) =>
           isEditing={briefState.isEditing}
           onContentEdit={handleContentEdit}
         />
-        {/* Debug info */}
-        {process.env.NODE_ENV === 'development' && (
-          <div style={{
-            position: 'fixed',
-            top: '10px',
-            right: '10px',
-            background: 'rgba(0,0,0,0.8)',
-            color: 'white',
-            padding: '10px',
-            borderRadius: '5px',
-            fontSize: '12px',
-            zIndex: 9999
-          }}>
-            <div>Edit Mode: {briefState.isEditing ? 'ON' : 'OFF'}</div>
-            <div>Has Changes: {briefState.hasUnsavedChanges ? 'YES' : 'NO'}</div>
-          </div>
-        )}
 
         <VisualizationGrid
           visualizations={displayData.visualizations || []}
