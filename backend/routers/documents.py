@@ -1,18 +1,23 @@
-from fastapi import APIRouter, HTTPException, status, Depends, Response
+from fastapi import APIRouter, HTTPException, status, Depends, Response, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from models.user import UserResponse
 from models.node import NodeInDB
 from models.edge import EdgeInDB
 from models.workspace import WorkspaceInDB
+from models.document import UploadedDocument, DocumentUploadResponse, DocumentProcessingResult, DocumentListResponse
 from utils.dependencies import get_current_active_user
+from utils.document_processor import DocumentProcessor
 from database_memory import get_database
 from bson import ObjectId
 from typing import Dict, Any, List
 import json
+import motor.motor_asyncio
 from datetime import datetime
+import logging
 
 router = APIRouter(tags=["Documents"])
+logger = logging.getLogger(__name__)
 
 
 class GenerateBriefResponse(BaseModel):
@@ -376,3 +381,373 @@ def _generate_brief_content(workspace: WorkspaceInDB, nodes: List[NodeInDB], edg
         brief_lines.append("decisions, risks, and dependencies to generate a comprehensive strategic brief.")
     
     return "\n".join(brief_lines)
+
+
+@router.post("/workspaces/{workspace_id}/upload", response_model=List[DocumentUploadResponse])
+async def upload_documents(
+    workspace_id: str,
+    files: List[UploadFile] = File(...),
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Upload one or more documents to a workspace.
+    
+    Supports PDF, DOCX, XLSX, PNG, JPG, and JPEG files.
+    Files are stored in GridFS and processed asynchronously.
+    
+    Args:
+        workspace_id: Workspace ID to upload documents to
+        files: List of files to upload
+        current_user: Current authenticated user
+        
+    Returns:
+        List of upload responses with document metadata
+        
+    Raises:
+        HTTPException: If workspace not found, file validation fails, or upload fails
+    """
+    logger.info(f"=== DOCUMENT UPLOAD ENDPOINT CALLED ===")
+    logger.info(f"Workspace ID: {workspace_id}")
+    logger.info(f"Number of files: {len(files)}")
+    logger.info(f"Current User: {current_user.email}")
+    
+    # Validate ObjectId format
+    if not ObjectId.is_valid(workspace_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid workspace ID format"
+        )
+    
+    # Get database instance
+    database = get_database()
+    
+    # Verify workspace exists and user owns it
+    workspace_doc = await database.workspaces.find_one({
+        "_id": ObjectId(workspace_id),
+        "owner_id": ObjectId(current_user.id)
+    })
+    
+    if not workspace_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Workspace not found or access denied"
+        )
+    
+    uploaded_documents = []
+    
+    for file in files:
+        try:
+            # Read file content
+            file_content = await file.read()
+            file_size = len(file_content)
+            
+            logger.info(f"Processing file: {file.filename}, size: {file_size} bytes")
+            
+            # Validate file
+            if not DocumentProcessor.is_supported_file(file.filename, file.content_type):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Unsupported file type: {file.filename}"
+                )
+            
+            if not DocumentProcessor.validate_file_size(file_size):
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=f"File too large: {file.filename}. Maximum size is 20MB."
+                )
+            
+            # Store file in our in-memory file storage
+            # Create a unique filename to avoid conflicts
+            import uuid
+            unique_filename = f"{uuid.uuid4()}_{file.filename}"
+            
+            gridfs_file_id = await database.file_storage.upload_from_stream(
+                unique_filename,
+                file_content,
+                metadata={
+                    "original_filename": file.filename,
+                    "content_type": file.content_type,
+                    "workspace_id": workspace_id,
+                    "uploaded_by": current_user.id,
+                    "upload_timestamp": datetime.utcnow()
+                }
+            )
+            
+            logger.info(f"File stored in GridFS with ID: {gridfs_file_id}")
+            
+            # Create document record
+            now = datetime.utcnow()
+            document = UploadedDocument(
+                workspace_id=workspace_id,  # Keep as string for Pydantic validation
+                filename=unique_filename,
+                original_filename=file.filename,
+                file_size=file_size,
+                content_type=file.content_type,
+                file_extension=DocumentProcessor.get_file_extension(file.filename),
+                gridfs_file_id=str(gridfs_file_id),  # Convert to string for Pydantic validation
+                processing_status="pending",
+                created_at=now,
+                updated_at=now
+            )
+            
+            # Insert document record
+            result = await database.documents.insert_one(document.model_dump(by_alias=True, exclude={"id"}))
+            document.id = result.inserted_id
+            
+            logger.info(f"Document record created with ID: {document.id}")
+            
+            # Process document asynchronously (in background)
+            try:
+                processing_result = await DocumentProcessor.process_document(
+                    file_content, file.filename, file.content_type
+                )
+                
+                # Update document with processing results
+                await database.documents.update_one(
+                    {"_id": document.id},
+                    {
+                        "$set": {
+                            "extracted_text": processing_result.get("extracted_text"),
+                            "extracted_data": processing_result.get("extracted_data"),
+                            "page_count": processing_result.get("page_count"),
+                            "processing_status": processing_result.get("processing_status", "completed"),
+                            "processing_error": processing_result.get("processing_error"),
+                            "updated_at": datetime.utcnow()
+                        }
+                    }
+                )
+                
+                logger.info(f"Document processing completed for: {file.filename}")
+                
+            except Exception as processing_error:
+                logger.error(f"Document processing failed for {file.filename}: {str(processing_error)}")
+                # Update document with error status
+                await database.documents.update_one(
+                    {"_id": document.id},
+                    {
+                        "$set": {
+                            "processing_status": "failed",
+                            "processing_error": str(processing_error),
+                            "updated_at": datetime.utcnow()
+                        }
+                    }
+                )
+            
+            # Create response with current processing status
+            # Get the updated document to ensure we have the latest status
+            updated_doc = await database.documents.find_one({"_id": document.id})
+            current_status = updated_doc.get("processing_status", "pending") if updated_doc else "pending"
+            
+            upload_response = DocumentUploadResponse(
+                id=str(document.id),
+                filename=file.filename,
+                file_size=file_size,
+                content_type=file.content_type,
+                processing_status=current_status,
+                created_at=document.created_at
+            )
+            
+            uploaded_documents.append(upload_response)
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error uploading file {file.filename}: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to upload file {file.filename}: {str(e)}"
+            )
+    
+    logger.info(f"Successfully uploaded {len(uploaded_documents)} documents")
+    return uploaded_documents
+
+
+@router.get("/workspaces/{workspace_id}/documents", response_model=DocumentListResponse)
+async def list_documents(
+    workspace_id: str,
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    List all documents in a workspace.
+    
+    Args:
+        workspace_id: Workspace ID to list documents for
+        current_user: Current authenticated user
+        
+    Returns:
+        List of documents with metadata
+        
+    Raises:
+        HTTPException: If workspace not found or access denied
+    """
+    # Validate ObjectId format
+    if not ObjectId.is_valid(workspace_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid workspace ID format"
+        )
+    
+    # Get database instance
+    database = get_database()
+    
+    # Verify workspace exists and user owns it
+    workspace_doc = await database.workspaces.find_one({
+        "_id": ObjectId(workspace_id),
+        "owner_id": ObjectId(current_user.id)
+    })
+    
+    if not workspace_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Workspace not found or access denied"
+        )
+    
+    # Fetch documents
+    documents_cursor = database.documents.find({"workspace_id": ObjectId(workspace_id)})
+    document_docs = await documents_cursor.to_list(length=None)
+    
+    documents = []
+    for doc in document_docs:
+        documents.append(DocumentUploadResponse(
+            id=str(doc["_id"]),
+            filename=doc["original_filename"],
+            file_size=doc["file_size"],
+            content_type=doc["content_type"],
+            processing_status=doc["processing_status"],
+            created_at=doc["created_at"]
+        ))
+    
+    return DocumentListResponse(
+        documents=documents,
+        total=len(documents)
+    )
+
+
+@router.get("/workspaces/{workspace_id}/documents/{document_id}/content")
+async def get_document_content(
+    workspace_id: str,
+    document_id: str,
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Get processed content from a document.
+    
+    Args:
+        workspace_id: Workspace ID
+        document_id: Document ID
+        current_user: Current authenticated user
+        
+    Returns:
+        Document processing result with extracted content
+        
+    Raises:
+        HTTPException: If document not found or access denied
+    """
+    # Validate ObjectId formats
+    if not ObjectId.is_valid(workspace_id) or not ObjectId.is_valid(document_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid workspace or document ID format"
+        )
+    
+    # Get database instance
+    database = get_database()
+    
+    # Verify workspace exists and user owns it
+    workspace_doc = await database.workspaces.find_one({
+        "_id": ObjectId(workspace_id),
+        "owner_id": ObjectId(current_user.id)
+    })
+    
+    if not workspace_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Workspace not found or access denied"
+        )
+    
+    # Fetch document
+    document_doc = await database.documents.find_one({
+        "_id": ObjectId(document_id),
+        "workspace_id": ObjectId(workspace_id)
+    })
+    
+    if not document_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found"
+        )
+    
+    return DocumentProcessingResult(
+        document_id=document_id,
+        extracted_text=document_doc.get("extracted_text"),
+        extracted_data=document_doc.get("extracted_data"),
+        page_count=document_doc.get("page_count"),
+        processing_status=document_doc["processing_status"],
+        processing_error=document_doc.get("processing_error")
+    )
+
+
+@router.delete("/workspaces/{workspace_id}/documents/{document_id}")
+async def delete_document(
+    workspace_id: str,
+    document_id: str,
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Delete a document and its associated file.
+    
+    Args:
+        workspace_id: Workspace ID
+        document_id: Document ID to delete
+        current_user: Current authenticated user
+        
+    Returns:
+        Success message
+        
+    Raises:
+        HTTPException: If document not found or access denied
+    """
+    # Validate ObjectId formats
+    if not ObjectId.is_valid(workspace_id) or not ObjectId.is_valid(document_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid workspace or document ID format"
+        )
+    
+    # Get database instance
+    database = get_database()
+    
+    # Verify workspace exists and user owns it
+    workspace_doc = await database.workspaces.find_one({
+        "_id": ObjectId(workspace_id),
+        "owner_id": ObjectId(current_user.id)
+    })
+    
+    if not workspace_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Workspace not found or access denied"
+        )
+    
+    # Fetch document
+    document_doc = await database.documents.find_one({
+        "_id": ObjectId(document_id),
+        "workspace_id": ObjectId(workspace_id)
+    })
+    
+    if not document_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found"
+        )
+    
+    # Delete file from our in-memory file storage
+    try:
+        await database.file_storage.delete(ObjectId(document_doc["gridfs_file_id"]))
+    except Exception as e:
+        logger.warning(f"Failed to delete file: {str(e)}")
+    
+    # Delete document record
+    await database.documents.delete_one({"_id": ObjectId(document_id)})
+    
+    return {"message": "Document deleted successfully"}

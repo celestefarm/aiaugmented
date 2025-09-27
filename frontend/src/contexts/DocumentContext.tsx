@@ -20,6 +20,10 @@ interface DocumentState {
   // Strategic analysis integration
   strategicAnalysis: EnhancedStrategicAnalysis | null;
   strategicSessionId: string | null;
+  // Document upload state
+  uploadedDocuments: any[];
+  isUploading: boolean;
+  uploadError: string | null;
 }
 
 interface DocumentContextType {
@@ -62,6 +66,9 @@ export const DocumentProvider: React.FC<DocumentProviderProps> = ({ children }) 
     isLoadingEnhanced: false,
     strategicAnalysis: null,
     strategicSessionId: null,
+    uploadedDocuments: [],
+    isUploading: false,
+    uploadError: null,
   });
 
   const generateBriefForWorkspace = async (workspaceId: string): Promise<void> => {

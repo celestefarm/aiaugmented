@@ -223,12 +223,62 @@ class InMemoryCollection:
         return True
 
 
+class InMemoryFileStorage:
+    """Simple in-memory file storage to replace GridFS"""
+    
+    def __init__(self):
+        self.files: Dict[str, Dict[str, Any]] = {}
+    
+    async def upload_from_stream(self, filename: str, file_content: bytes, metadata: Dict = None) -> ObjectId:
+        """Upload a file and return its ID"""
+        file_id = ObjectId()
+        self.files[str(file_id)] = {
+            '_id': file_id,
+            'filename': filename,
+            'content': file_content,
+            'metadata': metadata or {},
+            'upload_date': datetime.utcnow()
+        }
+        return file_id
+    
+    async def download_to_stream(self, file_id: ObjectId) -> bytes:
+        """Download a file by ID"""
+        file_data = self.files.get(str(file_id))
+        if not file_data:
+            raise FileNotFoundError(f"File with ID {file_id} not found")
+        return file_data['content']
+    
+    async def delete(self, file_id: ObjectId):
+        """Delete a file by ID"""
+        if str(file_id) in self.files:
+            del self.files[str(file_id)]
+    
+    async def find(self, filter_dict: Dict = None) -> List[Dict]:
+        """Find files matching filter"""
+        results = []
+        for file_data in self.files.values():
+            if filter_dict:
+                # Simple metadata matching
+                metadata = file_data.get('metadata', {})
+                match = True
+                for key, value in filter_dict.items():
+                    if key not in metadata or metadata[key] != value:
+                        match = False
+                        break
+                if match:
+                    results.append(file_data)
+            else:
+                results.append(file_data)
+        return results
+
+
 class InMemoryDatabase:
     """Simulates a MongoDB database with in-memory collections"""
     
     def __init__(self, name: str):
         self.name = name
         self.collections: Dict[str, InMemoryCollection] = {}
+        self.file_storage = InMemoryFileStorage()
     
     def __getattr__(self, collection_name: str) -> InMemoryCollection:
         """Get or create a collection"""

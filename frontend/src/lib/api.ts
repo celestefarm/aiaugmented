@@ -130,6 +130,9 @@ export interface Node {
   confidence?: number;
   feasibility?: string;
   source_agent?: string;
+  source_document_id?: string;
+  source_document_name?: string;
+  source_document_page?: number;
   summarized_titles?: Record<string, string>;
   key_message?: string;
   keynote_points?: string[];
@@ -146,6 +149,9 @@ export interface NodeCreateRequest {
   confidence?: number;
   feasibility?: string;
   source_agent?: string;
+  source_document_id?: string;
+  source_document_name?: string;
+  source_document_page?: number;
 }
 
 export interface NodeUpdateRequest {
@@ -157,6 +163,9 @@ export interface NodeUpdateRequest {
   confidence?: number;
   feasibility?: string;
   source_agent?: string;
+  source_document_id?: string;
+  source_document_name?: string;
+  source_document_page?: number;
 }
 
 export interface NodeListResponse {
@@ -532,6 +541,38 @@ export interface ExecutiveSummaryResponse {
   method_used: string;
   sources_analyzed: number;
   related_messages_count: number;
+}
+
+// Document upload types
+export interface DocumentUploadResponse {
+  id: string;
+  filename: string;
+  file_size: number;
+  content_type: string;
+  processing_status: string;
+  created_at: string;
+}
+
+export interface DocumentProcessingResult {
+  document_id: string;
+  extracted_text?: string;
+  extracted_data?: Record<string, any>;
+  page_count?: number;
+  processing_status: string;
+  processing_error?: string;
+  key_insights?: string[];
+  suggested_nodes?: Array<{
+    title: string;
+    description: string;
+    type: string;
+    confidence: number;
+    source_type: string;
+  }>;
+}
+
+export interface DocumentListResponse {
+  documents: DocumentUploadResponse[];
+  total: number;
 }
 
 // API client class
@@ -1433,6 +1474,153 @@ class ApiClient {
     );
   }
 
+  // Document upload methods
+  async uploadDocuments(workspaceId: string, files: File[]): Promise<DocumentUploadResponse[]> {
+    console.log('=== UPLOAD DOCUMENTS API CALL ===');
+    console.log('Workspace ID:', workspaceId);
+    console.log('Number of files:', files.length);
+    
+    if (!workspaceId || workspaceId.trim() === '') {
+      console.error('CRITICAL: No workspace ID provided to uploadDocuments');
+      throw new Error('No workspace ID provided - please select a valid workspace');
+    }
+    
+    if (!files || files.length === 0) {
+      throw new Error('No files provided for upload');
+    }
+    
+    try {
+      const formData = new FormData();
+      files.forEach((file) => {
+        formData.append('files', file);
+      });
+      
+      const token = this.getToken();
+      const url = `${this.baseUrl}/workspaces/${workspaceId}/upload`;
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+          // Don't set Content-Type for FormData - let browser set it with boundary
+        },
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        const errorData: ApiError = await response.json().catch(() => ({
+          detail: `HTTP ${response.status}: ${response.statusText}`,
+        }));
+        throw new Error(errorData.detail);
+      }
+      
+      const result = await response.json();
+      console.log('Upload documents response:', result);
+      
+      // Validate response structure
+      if (!Array.isArray(result)) {
+        console.error('CRITICAL: uploadDocuments returned non-array:', typeof result);
+        throw new Error('Document upload failed - API returned invalid data type');
+      }
+      
+      console.log('✅ Document upload successful');
+      return result;
+    } catch (error) {
+      console.error('=== UPLOAD DOCUMENTS ERROR ===');
+      console.error('Error in uploadDocuments:', error);
+      throw error;
+    }
+  }
+
+  async getDocuments(workspaceId: string): Promise<DocumentListResponse> {
+    console.log('=== GET DOCUMENTS API CALL ===');
+    console.log('Workspace ID:', workspaceId);
+    
+    if (!workspaceId || workspaceId.trim() === '') {
+      throw new Error('No workspace ID provided');
+    }
+    
+    try {
+      const response = await this.request<DocumentListResponse>(`/workspaces/${workspaceId}/documents`);
+      
+      console.log('Get documents response:', response);
+      
+      // Validate response structure
+      if (!response || typeof response !== 'object') {
+        throw new Error('Failed to fetch documents - API returned invalid data');
+      }
+      
+      if (!Array.isArray(response.documents)) {
+        throw new Error('Failed to fetch documents - documents is not an array');
+      }
+      
+      console.log('✅ Get documents successful');
+      return response;
+    } catch (error) {
+      console.error('=== GET DOCUMENTS ERROR ===');
+      console.error('Error in getDocuments:', error);
+      throw error;
+    }
+  }
+
+  async getDocumentContent(workspaceId: string, documentId: string): Promise<DocumentProcessingResult> {
+    console.log('=== GET DOCUMENT CONTENT API CALL ===');
+    console.log('Workspace ID:', workspaceId);
+    console.log('Document ID:', documentId);
+    
+    if (!workspaceId || workspaceId.trim() === '') {
+      throw new Error('No workspace ID provided');
+    }
+    
+    if (!documentId || documentId.trim() === '') {
+      throw new Error('No document ID provided');
+    }
+    
+    try {
+      const response = await this.request<DocumentProcessingResult>(`/workspaces/${workspaceId}/documents/${documentId}/content`);
+      
+      console.log('Get document content response:', response);
+      
+      // Validate response structure
+      if (!response || typeof response !== 'object') {
+        throw new Error('Failed to fetch document content - API returned invalid data');
+      }
+      
+      console.log('✅ Get document content successful');
+      return response;
+    } catch (error) {
+      console.error('=== GET DOCUMENT CONTENT ERROR ===');
+      console.error('Error in getDocumentContent:', error);
+      throw error;
+    }
+  }
+
+  async deleteDocument(workspaceId: string, documentId: string): Promise<void> {
+    console.log('=== DELETE DOCUMENT API CALL ===');
+    console.log('Workspace ID:', workspaceId);
+    console.log('Document ID:', documentId);
+    
+    if (!workspaceId || workspaceId.trim() === '') {
+      throw new Error('No workspace ID provided');
+    }
+    
+    if (!documentId || documentId.trim() === '') {
+      throw new Error('No document ID provided');
+    }
+    
+    try {
+      await this.request<void>(`/workspaces/${workspaceId}/documents/${documentId}`, {
+        method: 'DELETE',
+      });
+      
+      console.log('✅ Delete document successful');
+    } catch (error) {
+      console.error('=== DELETE DOCUMENT ERROR ===');
+      console.error('Error in deleteDocument:', error);
+      throw error;
+    }
+  }
+
   // Check if user is authenticated
   isAuthenticated(): boolean {
     const token = this.getToken();
@@ -1493,3 +1681,7 @@ export const generateRedTeamChallenge = apiClient.generateRedTeamChallenge.bind(
 export const evaluateRedTeamResponse = apiClient.evaluateRedTeamResponse.bind(apiClient);
 export const getStrategicSessionStatus = apiClient.getStrategicSessionStatus.bind(apiClient);
 export const removeMessageFromMap = apiClient.removeMessageFromMap.bind(apiClient);
+export const uploadDocuments = apiClient.uploadDocuments.bind(apiClient);
+export const getDocuments = apiClient.getDocuments.bind(apiClient);
+export const getDocumentContent = apiClient.getDocumentContent.bind(apiClient);
+export const deleteDocument = apiClient.deleteDocument.bind(apiClient);

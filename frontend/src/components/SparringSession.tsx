@@ -1,10 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Mic, Upload, Check, MessageSquare, Bot, User, Loader2, Zap, Shield, Target, Eye } from 'lucide-react';
 import { useAgentChat, ChatMessage } from '@/contexts/AgentChatContext';
 import { useMessageMapStatus } from '@/contexts/MessageMapStatusContext';
+import { DocumentUploadResponse } from '@/lib/api';
 import LightningBriefDisplay from './LightningBriefDisplay';
 import RedTeamInterface from './RedTeamInterface';
 import EvidenceQualityDashboard from './EvidenceQualityDashboard';
+import FileUpload from './FileUpload';
+import DocumentMessage from './DocumentMessage';
 
 interface SparringSessionProps {
   onAddToMap?: (messageId: string) => void;
@@ -16,6 +19,8 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
   const [isSending, setIsSending] = useState(false);
   const [addingToMap, setAddingToMap] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<'chat' | 'lightning' | 'redteam' | 'evidence'>('chat');
+  const [uploadedDocuments, setUploadedDocuments] = useState<DocumentUploadResponse[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { messageMapStatus, initializeStatus } = useMessageMapStatus();
   
@@ -239,6 +244,38 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
     }, 3000);
   };
 
+  // File upload handlers
+  const handleFileUploaded = useCallback((documents: DocumentUploadResponse[]) => {
+    console.log('=== FILES UPLOADED ===');
+    console.log('Uploaded documents:', documents);
+    
+    setUploadedDocuments(prev => [...prev, ...documents]);
+    setUploadError(null);
+    
+    // Show success message
+    showToast(`Successfully uploaded ${documents.length} document(s)!`, 'success');
+  }, []);
+
+  const handleUploadError = useCallback((error: string) => {
+    console.error('=== FILE UPLOAD ERROR ===');
+    console.error('Upload error:', error);
+    
+    setUploadError(error);
+    showToast(`Upload failed: ${error}`, 'error');
+  }, []);
+
+  const handleDocumentAddToMap = useCallback((documentId: string, nodeId: string) => {
+    console.log('=== DOCUMENT ADDED TO MAP ===');
+    console.log('Document ID:', documentId);
+    console.log('Node ID:', nodeId);
+    
+    showToast('Document successfully added to exploration map!', 'success');
+    
+    // Call the parent callback if provided
+    if (onAddToMap) {
+      onAddToMap(nodeId);
+    }
+  }, [onAddToMap]);
 
   const getActiveAgentNames = () => {
     return activeAgents
@@ -376,6 +413,19 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
         </div>
       )}
 
+      {/* Upload Error Display */}
+      {uploadError && (
+        <div className="mb-2 p-2 bg-red-500/10 border border-red-500/20 rounded-md">
+          <p className="text-xs text-red-400">{uploadError}</p>
+          <button
+            onClick={() => setUploadError(null)}
+            className="text-xs text-red-300 hover:text-red-200 mt-1"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Messages Container */}
       <div className="flex-1 space-y-3 overflow-y-auto mb-3 pr-1 scrollbar-thin scrollbar-track-gray-800 scrollbar-thumb-gray-600">
         {isLoadingMessages ? (
@@ -462,6 +512,21 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
             </div>
           ))
         )}
+
+        {/* Uploaded Documents Display */}
+        {uploadedDocuments.length > 0 && (
+          <div className="mb-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Upload className="w-4 h-4 text-[#6B6B3A]" />
+              <span className="text-xs font-medium text-[#6B6B3A]">Uploaded Documents</span>
+            </div>
+            <DocumentMessage
+              documents={uploadedDocuments}
+              onAddToMap={handleDocumentAddToMap}
+            />
+          </div>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -492,13 +557,11 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
             >
               <Mic className="w-4 h-4" />
             </button>
-            <button 
-              className="text-gray-400 hover:text-[#6B6B3A] transition-colors disabled:opacity-50"
+            <FileUpload
+              onFileUploaded={handleFileUploaded}
+              onError={handleUploadError}
               disabled={isSending}
-              aria-label="Upload file"
-            >
-              <Upload className="w-4 h-4" />
-            </button>
+            />
             {isSending && (
               <Loader2 className="w-4 h-4 animate-spin text-[#6B6B3A]" />
             )}

@@ -16,6 +16,9 @@ class NodeCreateRequest(BaseModel):
     confidence: Optional[int] = Field(None, ge=0, le=100, description="Confidence percentage (0-100)")
     feasibility: Optional[str] = Field(None, description="Feasibility rating (low, medium, high)")
     source_agent: Optional[str] = Field(None, description="Creating agent ID")
+    source_document_id: Optional[str] = Field(None, description="ID of source document if created from upload")
+    source_document_name: Optional[str] = Field(None, description="Name of source document if created from upload")
+    source_document_page: Optional[int] = Field(None, description="Page number in source document")
 
 
 class NodeUpdateRequest(BaseModel):
@@ -28,6 +31,9 @@ class NodeUpdateRequest(BaseModel):
     confidence: Optional[int] = Field(None, ge=0, le=100, description="Confidence percentage (0-100)")
     feasibility: Optional[str] = Field(None, description="Feasibility rating (low, medium, high)")
     source_agent: Optional[str] = Field(None, description="Creating agent ID")
+    source_document_id: Optional[str] = Field(None, description="ID of source document if created from upload")
+    source_document_name: Optional[str] = Field(None, description="Name of source document if created from upload")
+    source_document_page: Optional[int] = Field(None, description="Page number in source document")
 
 
 class NodeResponse(BaseModel):
@@ -50,6 +56,9 @@ class NodeResponse(BaseModel):
     confidence: Optional[int] = None
     feasibility: Optional[str] = None
     source_agent: Optional[str] = None
+    source_document_id: Optional[str] = None
+    source_document_name: Optional[str] = None
+    source_document_page: Optional[int] = None
     summarized_titles: Optional[Dict[str, str]] = Field(default_factory=dict, description="Context-specific summarized titles")
     key_message: Optional[str] = Field(None, description="Concise 2-line summary of conversation content")
     keynote_points: Optional[List[str]] = Field(default_factory=list, description="3-5 bullet points highlighting key discussion points")
@@ -82,6 +91,9 @@ class NodeInDB(BaseModel):
     confidence: Optional[int] = None
     feasibility: Optional[str] = None
     source_agent: Optional[str] = None
+    source_document_id: Optional[str] = None
+    source_document_name: Optional[str] = None
+    source_document_page: Optional[int] = None
     summarized_titles: Optional[Dict[str, str]] = Field(default_factory=dict, description="Context-specific summarized titles")
     key_message: Optional[str] = Field(None, description="Concise 2-line summary of conversation content")
     keynote_points: Optional[List[str]] = Field(default_factory=list, description="3-5 bullet points highlighting key discussion points")
@@ -102,6 +114,9 @@ class NodeInDB(BaseModel):
             confidence=self.confidence,
             feasibility=self.feasibility,
             source_agent=self.source_agent,
+            source_document_id=self.source_document_id,
+            source_document_name=self.source_document_name,
+            source_document_page=self.source_document_page,
             summarized_titles=self.summarized_titles or {},
             key_message=self.key_message,
             keynote_points=self.keynote_points or [],
@@ -121,6 +136,9 @@ class NodeCreate(BaseModel):
     confidence: Optional[int] = None
     feasibility: Optional[str] = None
     source_agent: Optional[str] = None
+    source_document_id: Optional[str] = None
+    source_document_name: Optional[str] = None
+    source_document_page: Optional[int] = None
     summarized_titles: Optional[Dict[str, str]] = Field(default_factory=dict, description="Context-specific summarized titles")
     key_message: Optional[str] = Field(None, description="Concise 2-line summary of conversation content")
     keynote_points: Optional[List[str]] = Field(default_factory=list, description="3-5 bullet points highlighting key discussion points")
