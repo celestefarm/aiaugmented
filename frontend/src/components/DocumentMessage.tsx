@@ -60,20 +60,70 @@ const DocumentMessage: React.FC<DocumentMessageProps> = ({
     });
   }, [documents]);
 
-  // FIXED: Listen for status changes but prevent premature clearing of local node ID
+  // ENHANCED: Listen for status changes and handle node deletion properly
   useEffect(() => {
     setDocumentsWithContent(prev => prev.map(doc => {
-      // CRITICAL FIX: Only clear local node ID if the message status is explicitly false
-      // AND we can confirm the node doesn't exist in the canvas
-      // This prevents premature clearing during sync operations
+      // CRITICAL FIX: Clear local node ID when message status is explicitly false
+      // This handles the case when a node is deleted from the map
       if (messageMapStatus[doc.id] === false && doc.added_to_map_node_id) {
-        console.log('🔄 [DOCUMENT MESSAGE] Message status is false, but preserving local node ID during sync');
-        // Don't clear the local node ID immediately - let the sync process handle it
-        return doc;
+        console.log('🔄 [DOCUMENT MESSAGE] Node deleted, clearing local node ID for document:', doc.id);
+        
+        // PERSISTENCE FIX: Also clear the database relationship when node is deleted
+        if (currentWorkspace && doc.added_to_map_node_id) {
+          // Async operation to clear database relationship
+          (async () => {
+            try {
+              console.log('💾 Clearing document-to-node relationship in database...');
+              
+              // Find the document message containing this document
+              const messagesResponse = await fetch(
+                `/api/v1/workspaces/${currentWorkspace.id}/messages`,
+                {
+                  headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+                    'Content-Type': 'application/json'
+                  }
+                }
+              );
+              
+              if (messagesResponse.ok) {
+                const messagesData = await messagesResponse.json();
+                const documentMessage = messagesData.messages.find((msg: any) =>
+                  msg.type === 'document' &&
+                  msg.documents?.some((d: any) => d.id === doc.id)
+                );
+                
+                if (documentMessage) {
+                  // Clear the relationship in database
+                  const response = await fetch(
+                    `/api/v1/workspaces/${currentWorkspace.id}/messages/${documentMessage.id}/document/${doc.id}/add-to-map?node_id=`,
+                    {
+                      method: 'PUT',
+                      headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+                        'Content-Type': 'application/json'
+                      }
+                    }
+                  );
+                  
+                  if (response.ok) {
+                    console.log('✅ Document-to-node relationship cleared in database');
+                  } else {
+                    console.error('❌ Failed to clear document-to-node relationship in database');
+                  }
+                }
+              }
+            } catch (error) {
+              console.error('❌ Error clearing document-to-node relationship:', error);
+            }
+          })();
+        }
+        
+        return { ...doc, added_to_map_node_id: null };
       }
       return doc;
     }));
-  }, [messageMapStatus]);
+  }, [messageMapStatus, currentWorkspace]);
 
   const getFileIcon = (contentType: string, size: 'sm' | 'md' = 'md') => {
     const iconSize = size === 'sm' ? 'w-4 h-4' : 'w-6 h-6';
@@ -228,6 +278,64 @@ const DocumentMessage: React.FC<DocumentMessageProps> = ({
           source_document_name: newNode.source_document_name
         });
         
+        // CRITICAL FIX: Persist document-to-node relationship to database
+        try {
+          console.log('💾 Persisting document-to-node relationship to database...');
+          
+          // We need to find the document message ID that contains this document
+          // Since we don't have direct access to messages here, we'll use the API to get messages
+          // and find the one containing this document
+          const messagesResponse = await fetch(
+            `/api/v1/workspaces/${currentWorkspace.id}/messages`,
+            {
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+          
+          if (messagesResponse.ok) {
+            const messagesData = await messagesResponse.json();
+            const documentMessage = messagesData.messages.find((msg: any) =>
+              msg.type === 'document' &&
+              msg.documents?.some((doc: any) => doc.id === document.id)
+            );
+            
+            if (documentMessage) {
+              console.log('📄 Found document message:', documentMessage.id);
+              
+              // Call backend API to persist the relationship
+              const response = await fetch(
+                `/api/v1/workspaces/${currentWorkspace.id}/messages/${documentMessage.id}/document/${document.id}/add-to-map?node_id=${newNode.id}`,
+                {
+                  method: 'PUT',
+                  headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+                    'Content-Type': 'application/json'
+                  }
+                }
+              );
+              
+              if (response.ok) {
+                console.log('✅ Document-to-node relationship persisted to database');
+              } else {
+                console.error('❌ Failed to persist document-to-node relationship:', response.status);
+                // Continue anyway - local state is updated
+              }
+            } else {
+              console.error('❌ Could not find document message to update');
+              // Continue anyway - local state is updated
+            }
+          } else {
+            console.error('❌ Failed to fetch messages for document message lookup');
+            // Continue anyway - local state is updated
+          }
+        } catch (error) {
+          console.error('❌ Error persisting document-to-node relationship:', error);
+          // Continue anyway - local state is updated
+        }
+        
         // Update local state with the new node ID
         setDocumentsWithContent(prev => prev.map(doc =>
           doc.id === document.id
@@ -249,7 +357,7 @@ const DocumentMessage: React.FC<DocumentMessageProps> = ({
         // CRITICAL FIX: Don't call parent callback for documents
         // This prevents the creation of the unwanted "New Message" node
         // onAddToMap?.(document.id, newNode.id); // REMOVED
-        console.log('✅ Document successfully added to map (no parent callback)');
+        console.log('✅ Document successfully added to map (with database persistence)');
       } else {
         console.log('❌ Node creation returned null');
       }

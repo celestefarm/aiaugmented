@@ -634,7 +634,7 @@ async def update_document_add_to_map_status(
     workspace_id: str,
     message_id: str,
     document_id: str,
-    node_id: str,
+    node_id: str = "",
     current_user: UserResponse = Depends(get_current_active_user)
 ):
     """
@@ -644,7 +644,7 @@ async def update_document_add_to_map_status(
         workspace_id: Workspace ID
         message_id: Message ID containing the document
         document_id: Document ID to update
-        node_id: Node ID that was created for this document
+        node_id: Node ID that was created for this document (empty string to clear)
         current_user: Current authenticated user
         
     Returns:
@@ -694,7 +694,8 @@ async def update_document_add_to_map_status(
     
     for doc in document_attachments:
         if doc.get("id") == document_id:
-            doc["added_to_map_node_id"] = node_id
+            # Set to None if node_id is empty (clearing the relationship)
+            doc["added_to_map_node_id"] = node_id if node_id else None
             updated = True
             break
     

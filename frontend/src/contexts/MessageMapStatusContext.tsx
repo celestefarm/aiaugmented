@@ -117,9 +117,17 @@ export const MessageMapStatusProvider: React.FC<{ children: ReactNode }> = ({ ch
       if (message.type === 'document' && message.documents) {
         // For document messages, check if any document has a corresponding node
         message.documents.forEach((doc: any) => {
-          // Check if there's a node that corresponds to this document
+          // ENHANCED FIX: First check if document has a persisted node ID
+          const hasPersistedNodeId = doc.added_to_map_node_id;
+          
+          // Then check if there's a node that corresponds to this document
           const matchingNode = nodes.find(node => {
-            // Check multiple ways a document might be linked to a node:
+            // Primary check: exact node ID match (most reliable)
+            if (hasPersistedNodeId && node.id === doc.added_to_map_node_id) {
+              return true;
+            }
+            
+            // Fallback checks for legacy nodes without persisted relationships
             const matchesDocumentId = node.source_document_id === doc.id;
             const matchesSourceName = node.source_document_name === doc.filename;
             
@@ -135,19 +143,31 @@ export const MessageMapStatusProvider: React.FC<{ children: ReactNode }> = ({ ch
           
           const hasNode = !!matchingNode;
           
-          // CRITICAL FIX: Only update status if there's a definitive change
-          // If we currently think it's added (true) but can't find the node, only reset if we're sure
-          // If we currently think it's not added (false) but found a node, set to true
-          if (messageMapStatus[doc.id] === true && !hasNode) {
-            // Node was removed - set to false
-            console.log('🔄 [MESSAGE MAP STATUS] Document node removed:', doc.id);
-            newStatus[doc.id] = false;
-          } else if (messageMapStatus[doc.id] !== true && hasNode) {
-            // Node was added - set to true
-            console.log('🔄 [MESSAGE MAP STATUS] Document node found:', doc.id);
-            newStatus[doc.id] = true;
+          // ENHANCED LOGIC: Use persisted relationship as primary source of truth
+          let shouldBeAdded = false;
+          
+          if (hasPersistedNodeId && hasNode) {
+            // Document has persisted node ID and node exists - should be added
+            shouldBeAdded = true;
+            console.log('🔄 [MESSAGE MAP STATUS] Document has persisted node relationship:', doc.id, '→', doc.added_to_map_node_id);
+          } else if (hasPersistedNodeId && !hasNode) {
+            // Document has persisted node ID but node doesn't exist - should not be added
+            shouldBeAdded = false;
+            console.log('🔄 [MESSAGE MAP STATUS] Document has persisted node ID but node missing:', doc.id);
+          } else if (!hasPersistedNodeId && hasNode) {
+            // No persisted relationship but node exists (legacy case) - should be added
+            shouldBeAdded = true;
+            console.log('🔄 [MESSAGE MAP STATUS] Document has no persisted relationship but node exists (legacy):', doc.id);
+          } else {
+            // No persisted relationship and no node - should not be added
+            shouldBeAdded = false;
           }
-          // If status matches reality, don't change it
+          
+          // Update status if it doesn't match the expected state
+          if (messageMapStatus[doc.id] !== shouldBeAdded) {
+            console.log('🔄 [MESSAGE MAP STATUS] Updating document status:', doc.id, messageMapStatus[doc.id], '→', shouldBeAdded);
+            newStatus[doc.id] = shouldBeAdded;
+          }
         });
       } else {
         // For chat messages, check if there's a corresponding node
