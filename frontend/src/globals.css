@@ -142,25 +142,7 @@
   border-radius: 0.75rem;
 }
 
-/* Pulse glow animation */
-@keyframes pulse-glow {
-  0%, 100% {
-    box-shadow: 0 0 20px -8px rgba(107, 107, 58, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 30px -8px rgba(107, 107, 58, 0.6);
-  }
-}
-
-.pulse-glow {
-  animation: pulse-glow 5s ease-in-out infinite;
-}
-
-/* Glow text effect */
-.glow-olive-text {
-  color: #6B6B3A;
-  text-shadow: 0 0 8px rgba(107, 107, 58, 0.5);
-}
+/* Removed glow effects */
 
 /* Node creator-based styling */
 .node-human-created {

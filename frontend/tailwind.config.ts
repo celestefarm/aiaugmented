@@ -87,6 +87,20 @@ export default {
           800: '#92400e',
           900: '#78350f',
         },
+        // Olive green color for human nodes
+        olive: {
+          DEFAULT: '#6B6B3A',
+          50: '#F5F5F0',
+          100: '#EAEAE0',
+          200: '#D5D5C1',
+          300: '#C0C0A2',
+          400: '#ABAB83',
+          500: '#6B6B3A',
+          600: '#5A5A31',
+          700: '#494928',
+          800: '#38381F',
+          900: '#272716',
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

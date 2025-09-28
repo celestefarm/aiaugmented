@@ -845,24 +845,6 @@ const HybridExplorationMap: React.FC = () => {
                       </label>
                     </div>
                     
-                    {activeAgents.includes(agent.agent_id) && (
-                      <div className="space-y-1 text-[10px] leading-tight mt-2 pl-5">
-                        <div className="flex items-start space-x-1.5">
-                          <Target className="w-2.5 h-2.5 text-blue-400 mt-0.5 flex-shrink-0" />
-                          <div className="flex-1">
-                            <span className="font-medium text-[#E5E7EB]">AI:</span>
-                            <span className="text-gray-400 ml-1">{agent.ai_role}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-start space-x-1.5">
-                          <User className="w-2.5 h-2.5 text-[#6B6B3A] mt-0.5 flex-shrink-0" />
-                          <div className="flex-1">
-                            <span className="font-medium text-[#E5E7EB]">Human:</span>
-                            <span className="text-gray-400 ml-1">{agent.human_role}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>

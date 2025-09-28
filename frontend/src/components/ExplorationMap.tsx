@@ -104,7 +104,7 @@ const SimpleNode: React.FC<SimpleNodeProps> = ({
   const getNodeTypeColor = (type: string) => {
     switch (type) {
       case 'human':
-        return 'glow-olive-text';
+        return 'text-olive-500';
       case 'ai':
         return 'text-blue-300';
       case 'risk':
@@ -165,7 +165,7 @@ const SimpleNode: React.FC<SimpleNodeProps> = ({
         <div className={node.source_agent ? 'pt-8' : ''}>
           <div className="flex items-center gap-2 mb-2">
             {getNodeIcon(node.type)}
-            <h3 className={`font-bold text-sm ${getNodeTypeColor(node.type)}`}>
+            <h3 className={`font-bold text-sm ${getNodeTypeColor(node.type)} ${node.type === 'human' ? 'drop-shadow-[0_0_8px_rgba(107,107,58,0.4)]' : ''}`}>
               {node.title.length > 25 ? node.title.substring(0, 25) + '...' : node.title}
             </h3>
           </div>
@@ -1779,28 +1779,6 @@ const handleModalClose = useCallback(() => {
                       </label>
                     </div>
                     
-                    {activeAgents.includes(agent.agent_id) && (
-                      <div className="space-y-1 text-[10px] leading-tight mt-2 pl-5">
-                        <div className="flex items-start space-x-1.5">
-                          <Target className="w-2.5 h-2.5 text-blue-400 mt-0.5 flex-shrink-0" />
-                          <div className="flex-1">
-                            <span className={`font-medium ${
-                              agent.is_custom ? 'text-blue-300' : 'text-[#E5E7EB]'
-                            }`}>AI:</span>
-                            <span className="text-gray-400 ml-1">{agent.ai_role}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-start space-x-1.5">
-                          <User className="w-2.5 h-2.5 text-[#6B6B3A] mt-0.5 flex-shrink-0" />
-                          <div className="flex-1">
-                            <span className={`font-medium ${
-                              agent.is_custom ? 'text-blue-300' : 'text-[#E5E7EB]'
-                            }`}>Human:</span>
-                            <span className="text-gray-400 ml-1">{agent.human_role}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>

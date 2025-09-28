@@ -1,0 +1,28 @@
+/* Luxurious Glassmorphism Effects */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Additional glassmorphism utilities */
+.glass-luxury {
+  backdrop-filter: blur(24px) saturate(180%) brightness(120%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%) brightness(120%);
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.4) 0%, rgba(15, 23, 42, 0.6) 25%, rgba(30, 41, 59, 0.3) 50%, rgba(15, 23, 42, 0.5) 75%, rgba(30, 41, 59, 0.4) 100%);
+  border: 1px solid rgba(203, 213, 225, 0.2);
+  box-shadow: 0 0 60px rgba(139, 92, 246, 0.15), 0 20px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(139, 92, 246, 0.1);
+}
+
+.glass-luxury-glow {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(59, 130, 246, 0.06) 25%, rgba(168, 85, 247, 0.04) 50%, rgba(59, 130, 246, 0.06) 75%, rgba(139, 92, 246, 0.08) 100%);
+}
+
+.glass-luxury-shimmer {
+  background: linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.1) 50%, transparent 70%);
+  background-size: 200% 200%;
+  animation: shimmer 3s ease-in-out infinite;
+}

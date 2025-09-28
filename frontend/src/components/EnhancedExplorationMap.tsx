@@ -691,7 +691,6 @@ const EnhancedExplorationMap: React.FC = () => {
                         Details
                       </button>
                     </div>
-                    <p className="text-xs text-gray-300 mb-2">{agent.ai_role}</p>
                   </div>
                 ))}
               </div>

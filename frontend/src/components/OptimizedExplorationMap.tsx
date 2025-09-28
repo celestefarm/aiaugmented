@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { Plus, ChevronLeft, ChevronRight, X, User, Target, Trash2, ZoomIn, ZoomOut, Link, RefreshCw, Info, Users, Briefcase, Check, HelpCircle, Undo2, Home } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, X, User, Target, Trash2, ZoomIn, ZoomOut, Link, RefreshCw, Info, Users, Briefcase, Check, HelpCircle, Undo2, Home, Palette } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useMap } from '@/contexts/MapContext';
@@ -102,7 +102,7 @@ const OptimizedNode: React.FC<{
   const getNodeTypeColor = (type: string) => {
     switch (type) {
       case 'human':
-        return 'glow-olive-text';
+        return 'text-olive-500';
       case 'ai':
         return 'text-blue-300';
       case 'risk':
@@ -120,14 +120,14 @@ const OptimizedNode: React.FC<{
     <div
       id={`node-${node.id}`}
       className={`absolute glass-pane p-4 w-60 cursor-grab active:cursor-grabbing hover:scale-105 group pointer-events-auto select-none ${
-        isSelected ? 'ring-2 ring-[#6B6B3A] ring-opacity-70 shadow-lg shadow-[#6B6B3A]/20' : ''
+        isSelected ? 'ring-2 ring-blue-400 ring-opacity-70 shadow-lg shadow-blue-400/20' : ''
       } ${
-        node.type === 'human' ? 'pulse-glow border-[#6B6B3A]/30 bg-gradient-to-br from-[#6B6B3A]/5 to-[#6B6B3A]/10' :
-        node.type === 'ai' ? 'bg-gradient-to-br from-blue-500/10 to-purple-500/10 border-blue-400/40 shadow-lg shadow-blue-500/10' :
-        node.type === 'risk' ? 'bg-gradient-to-br from-red-500/10 to-orange-500/10 border-red-400/40 shadow-lg shadow-red-500/10' :
-        node.type === 'dependency' ? 'bg-gradient-to-br from-gray-500/10 to-slate-500/10 border-gray-400/40 shadow-lg shadow-gray-500/10' :
-        node.type === 'decision' ? 'bg-gradient-to-br from-yellow-500/10 to-amber-500/10 border-yellow-400/40 shadow-lg shadow-yellow-500/10' :
-        'bg-gradient-to-br from-gray-400/5 to-gray-500/10 border-gray-400/30'
+        node.type === 'human' ? 'border-green-400/30 bg-green-500/5' :
+        node.type === 'ai' ? 'border-blue-400/30 bg-blue-500/5' :
+        node.type === 'risk' ? 'border-red-400/30 bg-red-500/5' :
+        node.type === 'dependency' ? 'border-gray-400/30 bg-gray-500/5' :
+        node.type === 'decision' ? 'border-yellow-400/30 bg-yellow-500/5' :
+        'border-gray-400/30 bg-gray-500/5'
       } ${
         isDragging ? 'drag-active' : ''
       }`}
@@ -399,6 +399,12 @@ const OptimizedExplorationMap: React.FC = () => {
     const saved = localStorage.getItem('rightSidebarWidth');
     return saved ? parseInt(saved, 10) : 320;
   });
+  
+  // Canvas background color state with localStorage persistence
+  const [canvasTheme, setCanvasTheme] = useState<'charcoal' | 'black' | 'navy'>(() => {
+    const saved = localStorage.getItem('explorationMapCanvasTheme');
+    return (saved === 'black' || saved === 'navy') ? saved as 'black' | 'navy' : 'charcoal'; // Default to charcoal
+  });
   const [isResizingRightSidebar, setIsResizingRightSidebar] = useState(false);
   const [resizeStartX, setResizeStartX] = useState(0);
   const [resizeStartWidth, setResizeStartWidth] = useState(0);
@@ -444,6 +450,48 @@ const OptimizedExplorationMap: React.FC = () => {
     setNotification(message);
     setTimeout(() => setNotification(null), 3000);
   }, []);
+
+  // Canvas theme toggle handler with persistence - cycles through 3 themes
+  const toggleCanvasTheme = useCallback(() => {
+    const themeOrder: Array<'charcoal' | 'black' | 'navy'> = ['charcoal', 'black', 'navy'];
+    const currentIndex = themeOrder.indexOf(canvasTheme);
+    const nextIndex = (currentIndex + 1) % themeOrder.length;
+    const newTheme = themeOrder[nextIndex];
+    
+    setCanvasTheme(newTheme);
+    localStorage.setItem('explorationMapCanvasTheme', newTheme);
+    showNotification(`Canvas theme changed to ${newTheme}`);
+  }, [canvasTheme, showNotification]);
+
+  // Get canvas background styles based on theme
+  const getCanvasBackgroundStyle = useCallback(() => {
+    switch (canvasTheme) {
+      case 'charcoal':
+        return {
+          backgroundColor: '#1a1a1a',
+          backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.08) 1px, transparent 0)',
+          boxShadow: 'inset 0 0 40px -10px rgba(64, 64, 64, 0.3)'
+        };
+      case 'black':
+        return {
+          backgroundColor: '#0A0A0A',
+          backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.1) 1px, transparent 0)',
+          boxShadow: 'inset 0 0 40px -10px rgba(107, 107, 58, 0.3)'
+        };
+      case 'navy':
+        return {
+          backgroundColor: '#0f1419',
+          backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.06) 1px, transparent 0)',
+          boxShadow: 'inset 0 0 40px -10px rgba(59, 130, 246, 0.2)'
+        };
+      default:
+        return {
+          backgroundColor: '#1a1a1a',
+          backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.08) 1px, transparent 0)',
+          boxShadow: 'inset 0 0 40px -10px rgba(64, 64, 64, 0.3)'
+        };
+    }
+  }, [canvasTheme]);
 
   // Handle right sidebar resize start
   const handleRightSidebarResizeStart = useCallback((e: React.MouseEvent) => {
@@ -1502,7 +1550,7 @@ const OptimizedExplorationMap: React.FC = () => {
   // Render loading state
   if (mapLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+      <div className="flex-1 flex items-center justify-center bg-gray-900">
         <div className="text-center">
           <RefreshCw className="w-8 h-8 animate-spin text-[#6B6B3A] mx-auto mb-4" />
           <p className="text-gray-300">Loading exploration map...</p>
@@ -1514,7 +1562,7 @@ const OptimizedExplorationMap: React.FC = () => {
   // Render error state
   if (mapError) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+      <div className="flex-1 flex items-center justify-center bg-gray-900">
         <div className="text-center">
           <X className="w-8 h-8 text-red-400 mx-auto mb-4" />
           <p className="text-red-300 mb-4">Failed to load exploration map</p>
@@ -1532,7 +1580,7 @@ const OptimizedExplorationMap: React.FC = () => {
   return (
     <ErrorBoundary>
       <TooltipProvider>
-        <div className="flex h-full w-full bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 overflow-hidden">
+        <div className="flex h-full w-full bg-gray-900 overflow-hidden">
           {/* Left Sidebar */}
           <div className={`transition-all duration-300 glass-pane border-r border-gray-600/30 flex flex-col ${
             leftSidebarCollapsed ? 'w-16' : 'w-80'
@@ -1570,17 +1618,24 @@ const OptimizedExplorationMap: React.FC = () => {
                           Details
                         </button>
                       </div>
-                      <p className="text-xs text-gray-300 mb-3">{agent.ai_role}</p>
-                      <div className="flex gap-2">
+                      <div className="flex items-center justify-end">
                         <button
                           onClick={() => activeAgents.includes(agent.agent_id) ? deactivateAgent(agent.agent_id) : activateAgent(agent.agent_id)}
-                          className={`flex-1 px-3 py-1.5 text-xs rounded transition-colors ${
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#6B6B3A]/50 focus:ring-offset-2 focus:ring-offset-gray-800 ${
                             activeAgents.includes(agent.agent_id)
-                              ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30'
-                              : 'bg-[#6B6B3A]/20 text-[#6B6B3A] hover:bg-[#6B6B3A]/30'
+                              ? 'bg-[#6B6B3A] hover:bg-[#7B7B4A]'
+                              : 'bg-gray-600 hover:bg-gray-500'
                           }`}
+                          role="switch"
+                          aria-checked={activeAgents.includes(agent.agent_id)}
+                          aria-label={`${activeAgents.includes(agent.agent_id) ? 'Deactivate' : 'Activate'} ${agent.name}`}
+                          title={`${activeAgents.includes(agent.agent_id) ? 'Deactivate' : 'Activate'} ${agent.name}`}
                         >
-                          {activeAgents.includes(agent.agent_id) ? 'Deactivate' : 'Activate'}
+                          <span
+                            className={`inline-block h-3 w-3 transform rounded-full bg-white shadow-lg transition-transform duration-200 ease-in-out ${
+                              activeAgents.includes(agent.agent_id) ? 'translate-x-5' : 'translate-x-1'
+                            }`}
+                          />
                         </button>
                       </div>
                     </div>
@@ -1648,6 +1703,17 @@ const OptimizedExplorationMap: React.FC = () => {
                 <Link className="w-4 h-4" />
               </button>
               <button
+                onClick={toggleCanvasTheme}
+                className={`p-2 glass-pane hover:bg-white/10 transition-colors rounded ${
+                  canvasTheme === 'charcoal' ? 'bg-gray-500/20 text-gray-300' :
+                  canvasTheme === 'black' ? 'bg-gray-800/20 text-gray-200' :
+                  canvasTheme === 'navy' ? 'bg-blue-500/20 text-blue-300' : 'text-white'
+                }`}
+                title={`Current: ${canvasTheme} theme - Click to cycle themes`}
+              >
+                <Palette className="w-4 h-4" />
+              </button>
+              <button
                 onClick={handleDeleteSelected}
                 onDrop={handleDropOnTrash}
                 onDragOver={(e) => e.preventDefault()}
@@ -1678,7 +1744,7 @@ const OptimizedExplorationMap: React.FC = () => {
                 canvasState.isPanning ? 'cursor-grabbing' : 'cursor-grab'
               }`}
               style={{
-                backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.1) 1px, transparent 0)`,
+                ...getCanvasBackgroundStyle(),
                 backgroundSize: `${GRID_SIZE * canvasState.transform.scale}px ${GRID_SIZE * canvasState.transform.scale}px`,
                 backgroundPosition: `${canvasState.transform.x}px ${canvasState.transform.y}px`
               }}
