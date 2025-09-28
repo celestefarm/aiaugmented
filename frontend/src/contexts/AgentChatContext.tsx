@@ -15,6 +15,7 @@ import {
 } from '../lib/api';
 import { useWorkspace } from './WorkspaceContext';
 import { useMap } from './MapContext';
+import { useMessageMapStatus } from './MessageMapStatusContext';
 
 // Agent types
 export interface Agent {
@@ -44,11 +45,16 @@ export interface ChatMessage {
   id: string;
   workspace_id: string;
   author: string;
-  type: 'human' | 'ai';
+  type: 'human' | 'ai' | 'document';
   content: string;
   created_at: string;
   added_to_map: boolean;
+  // Document-specific fields (optional)
+  documents?: DocumentAttachment[];
 }
+
+// Import document types
+import { DocumentUploadResponse, DocumentAttachment, createDocumentMessage } from '../lib/api';
 
 // Agent Chat context types
 interface AgentChatContextType {
@@ -62,6 +68,7 @@ interface AgentChatContextType {
   messages: ChatMessage[];
   isLoadingMessages: boolean;
   chatError: string | null;
+  isInitialLoad: boolean;
   
   // STATE MANAGEMENT FIX: Add-to-map loading state
   addToMapLoading: Record<string, boolean>;
@@ -82,6 +89,7 @@ interface AgentChatContextType {
   // Chat actions
   loadMessages: () => Promise<void>;
   sendMessage: (content: string) => Promise<ChatMessage[]>;
+  addDocumentMessage: (documents: DocumentUploadResponse[]) => Promise<void>;
   addMessageToMap: (messageId: string, nodeTitle?: string, nodeType?: string) => Promise<boolean>;
   removeMessageFromMap: (nodeId: string) => Promise<ChatMessage | null>;
   clearMessages: () => void;
@@ -120,6 +128,7 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   
   // STATE MANAGEMENT FIX: Loading state for add-to-map operations
   const [addToMapLoading, setAddToMapLoading] = useState<Record<string, boolean>>({});
@@ -133,7 +142,8 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
   const [isStrategicMode, setIsStrategicMode] = useState(false);
   
   const { currentWorkspace } = useWorkspace();
-  const { refreshMapData } = useMap();
+  const { refreshMapData, nodes } = useMap();
+  const { syncWithCanvasState } = useMessageMapStatus();
 
   // Load all available agents
   const loadAgents = useCallback(async (): Promise<void> => {
@@ -206,27 +216,51 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
     }
   }, [currentWorkspace]);
 
-  // Load chat messages for current workspace
+  // OPTIMIZED: Load chat messages for current workspace - prevent loading flicker
   const loadMessages = useCallback(async (): Promise<void> => {
     if (!currentWorkspace?.id) {
       setMessages([]);
+      setIsInitialLoad(false);
       return;
     }
 
+    // FLICKER FIX: Only show loading if we don't have messages yet or it's initial load
+    const shouldShowLoading = messages.length === 0 || isInitialLoad;
+    
     try {
-      setIsLoadingMessages(true);
+      if (shouldShowLoading) {
+        setIsLoadingMessages(true);
+      }
       setChatError(null);
       
       const response = await apiClient.getMessages(currentWorkspace.id);
       setMessages(response.messages);
+      
+      // CONSERVATIVE SYNC: Only sync after a longer delay to ensure nodes are established
+      console.log('🔄 [AGENT CHAT CONTEXT] Messages loaded, scheduling conservative sync...');
+      if (nodes && nodes.length >= 0 && response.messages.length > 0) {
+        // Longer delay to ensure document nodes are properly established
+        setTimeout(() => {
+          console.log('🔄 [AGENT CHAT CONTEXT] Executing conservative sync after node establishment');
+          syncWithCanvasState(nodes, response.messages);
+        }, 2000); // Increased delay to prevent premature sync
+      }
+      
+      // Mark initial load as complete after messages are set
+      if (isInitialLoad) {
+        setTimeout(() => setIsInitialLoad(false), 200);
+      }
     } catch (error) {
       console.error('Failed to load messages:', error);
       setChatError(error instanceof Error ? error.message : 'Failed to load messages');
       setMessages([]);
+      setIsInitialLoad(false);
     } finally {
-      setIsLoadingMessages(false);
+      if (shouldShowLoading) {
+        setIsLoadingMessages(false);
+      }
     }
-  }, [currentWorkspace]);
+  }, [currentWorkspace, messages.length, isInitialLoad, nodes, syncWithCanvasState]);
 
   // Send a message and get AI responses
   const sendMessage = useCallback(async (content: string): Promise<ChatMessage[]> => {
@@ -338,11 +372,12 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
     }
   }, [currentWorkspace, messages, loadMessages, refreshMapData, addToMapLoading]);
 
-  // Remove message from map - reverts "Added to map" state
+  // OPTIMIZED: Remove message from map - reverts "Added to map" state without loading flicker
   const refreshMessages = useCallback(async (): Promise<void> => {
     if (currentWorkspace?.id) {
       try {
         console.log('🔄 [AGENT CHAT CONTEXT] Refreshing messages for workspace:', currentWorkspace.id);
+        // FLICKER FIX: Don't show loading indicator for refresh operations
         const response = await apiClient.getMessages(currentWorkspace.id);
         setMessages(response.messages);
       } catch (error) {
@@ -387,6 +422,30 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
       return null;
     }
   }, [currentWorkspace, refreshMessages]);
+
+  // Add document message to timeline - now persists to database
+  const addDocumentMessage = useCallback(async (documents: DocumentUploadResponse[]): Promise<void> => {
+    if (!currentWorkspace?.id) {
+      setChatError('No workspace selected');
+      return;
+    }
+
+    try {
+      setChatError(null);
+      
+      // Create persistent document message in database
+      const documentIds = documents.map(doc => doc.id);
+      const documentMessage = await createDocumentMessage(currentWorkspace.id, documentIds);
+      
+      // Add to local messages state
+      setMessages(prev => [...prev, documentMessage]);
+      
+      console.log('✅ Document message created and persisted:', documentMessage.id);
+    } catch (error) {
+      console.error('Failed to create document message:', error);
+      setChatError(error instanceof Error ? error.message : 'Failed to create document message');
+    }
+  }, [currentWorkspace]);
 
   // Clear chat messages
   const clearMessages = useCallback((): void => {
@@ -564,32 +623,109 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
     }
   }, [loadAgents, loadMessages, currentStrategicSession, getSessionStatus]);
 
-  // Load data when workspace changes
+  // OPTIMIZED: Load data when workspace changes or authentication state changes - prevent excessive calls
   useEffect(() => {
+    const authStatus = isAuthenticated();
+    console.log('🔄 [AGENT CHAT CONTEXT] useEffect triggered:', {
+      isAuthenticated: authStatus,
+      hasCurrentWorkspace: !!currentWorkspace,
+      workspaceId: currentWorkspace?.id,
+      workspaceTitle: currentWorkspace?.title,
+      timestamp: new Date().toISOString()
+    });
+    
     // Only load data if user is authenticated
-    if (isAuthenticated()) {
+    if (authStatus) {
       console.log('🔐 [AGENT CHAT CONTEXT] User is authenticated, loading agents...');
       // Always load agents (they're global)
       loadAgents();
       
       if (currentWorkspace) {
-        console.log('🔐 [AGENT CHAT CONTEXT] Loading messages for workspace:', currentWorkspace.id);
-        loadMessages();
+        console.log('🔐 [AGENT CHAT CONTEXT] Loading messages for workspace:', {
+          id: currentWorkspace.id,
+          title: currentWorkspace.title,
+          timestamp: new Date().toISOString()
+        });
+        
+        // FLICKER FIX: Only set initial load if we don't have messages for this workspace
+        if (messages.length === 0) {
+          setIsInitialLoad(true);
+        }
+        
+        // FLICKER FIX: Debounce message loading to prevent rapid calls
+        const loadTimer = setTimeout(() => {
+          loadMessages();
+        }, 100);
+        
+        return () => clearTimeout(loadTimer);
       } else {
+        console.log('🔐 [AGENT CHAT CONTEXT] No workspace selected, clearing workspace-specific data');
         // Clear workspace-specific data when no workspace is selected
         setMessages([]);
         setChatError(null);
+        setIsInitialLoad(false);
       }
     } else {
-      console.log('🔐 [AGENT CHAT CONTEXT] User not authenticated, clearing data');
+      console.log('🔐 [AGENT CHAT CONTEXT] User not authenticated, clearing all data');
       // Clear all data when not authenticated
       setAgents([]);
       setActiveAgents([]);
       setMessages([]);
       setAgentError(null);
       setChatError(null);
+      setIsInitialLoad(false);
     }
-  }, [currentWorkspace, loadAgents, loadMessages]);
+  }, [currentWorkspace?.id, loadAgents]); // FLICKER FIX: Only depend on workspace ID, not the full loadMessages function
+
+  // FLICKER FIX: Separate effect for authentication state changes
+  useEffect(() => {
+    const authStatus = isAuthenticated();
+    console.log('🔐 [AGENT CHAT CONTEXT] Authentication state changed:', {
+      isAuthenticated: authStatus,
+      timestamp: new Date().toISOString()
+    });
+    
+    // If user just logged in and we have a workspace, ensure data is loaded
+    if (authStatus && currentWorkspace && messages.length === 0 && !isLoadingMessages) {
+      console.log('🔄 [AGENT CHAT CONTEXT] User logged in with workspace but no messages, forcing reload');
+      const loadTimer = setTimeout(() => {
+        loadMessages();
+      }, 200);
+      
+      return () => clearTimeout(loadTimer);
+    }
+  }, [isAuthenticated(), currentWorkspace?.id, messages.length, isLoadingMessages]);
+
+  // Additional effect to handle authentication state changes more explicitly
+  useEffect(() => {
+    const authStatus = isAuthenticated();
+    console.log('🔐 [AGENT CHAT CONTEXT] Authentication state changed:', {
+      isAuthenticated: authStatus,
+      timestamp: new Date().toISOString()
+    });
+    
+    // If user just logged in and we have a workspace, ensure data is loaded
+    if (authStatus && currentWorkspace && messages.length === 0 && !isLoadingMessages) {
+      console.log('🔄 [AGENT CHAT CONTEXT] User logged in with workspace but no messages, forcing reload');
+      loadMessages();
+    }
+  }, [isAuthenticated(), currentWorkspace, messages.length, isLoadingMessages, loadMessages]);
+
+  // CONSERVATIVE SYNC: Only sync when absolutely necessary and after sufficient delay
+  useEffect(() => {
+    // Only sync when workspace is fully loaded and stable
+    if (currentWorkspace && messages.length > 0 && nodes && !isLoadingMessages && !isInitialLoad) {
+      console.log('🔄 [AGENT CHAT CONTEXT] Scheduling conservative stable state sync');
+      
+      // Much longer debounce to ensure document nodes are established
+      const syncTimer = setTimeout(() => {
+        console.log('🔄 [AGENT CHAT CONTEXT] Executing conservative stable state sync');
+        syncWithCanvasState(nodes, messages);
+      }, 3000); // Increased delay to prevent interference with document button states
+
+      return () => clearTimeout(syncTimer);
+    }
+  }, [currentWorkspace?.id, messages.length, nodes?.length, isLoadingMessages, isInitialLoad]);
 
   // Context value
   const value: AgentChatContextType = {
@@ -603,6 +739,7 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
     messages,
     isLoadingMessages,
     chatError,
+    isInitialLoad,
     
     // STATE MANAGEMENT FIX: Add-to-map loading state
     addToMapLoading,
@@ -623,6 +760,7 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
     // Chat actions
     loadMessages,
     sendMessage,
+    addDocumentMessage,
     addMessageToMap,
     removeMessageFromMap,
     clearMessages,

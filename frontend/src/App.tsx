@@ -49,9 +49,9 @@ function App() {
             <WorkspaceProvider>
               <ErrorBoundary context="Map Provider">
                 <MapProvider>
-                  <ErrorBoundary context="Agent Chat Provider">
-                    <AgentChatProvider>
-                      <MessageMapStatusProvider>
+                  <MessageMapStatusProvider>
+                    <ErrorBoundary context="Agent Chat Provider">
+                      <AgentChatProvider>
                         <ErrorBoundary context="Document Provider">
                           <DocumentProvider>
                             <ErrorBoundary context="Interaction Provider">
@@ -101,9 +101,9 @@ function App() {
                             </ErrorBoundary>
                           </DocumentProvider>
                         </ErrorBoundary>
-                      </MessageMapStatusProvider>
-                    </AgentChatProvider>
-                  </ErrorBoundary>
+                      </AgentChatProvider>
+                    </ErrorBoundary>
+                  </MessageMapStatusProvider>
                 </MapProvider>
               </ErrorBoundary>
             </WorkspaceProvider>

@@ -525,6 +525,194 @@ async def send_message(
     return all_messages
 
 
+@router.post("/workspaces/{workspace_id}/messages/document", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
+async def create_document_message(
+    workspace_id: str,
+    document_ids: List[str] = [],
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Create a document message with attached documents.
+    
+    Args:
+        workspace_id: Workspace ID
+        document_ids: List of document IDs to attach
+        current_user: Current authenticated user (from dependency)
+        
+    Returns:
+        Created document message
+        
+    Raises:
+        HTTPException: If workspace not found or access denied
+    """
+    # Validate ObjectId format
+    if not ObjectId.is_valid(workspace_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid workspace ID format"
+        )
+    
+    # Validate document IDs
+    for doc_id in document_ids:
+        if not ObjectId.is_valid(doc_id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid document ID format: {doc_id}"
+            )
+    
+    # Get database instance
+    database = get_database()
+    
+    # Verify workspace exists and user owns it
+    workspace_doc = await database.workspaces.find_one({
+        "_id": ObjectId(workspace_id),
+        "owner_id": current_user.id
+    })
+    
+    if not workspace_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Workspace not found"
+        )
+    
+    # Fetch document details
+    document_attachments = []
+    document_names = []
+    
+    for doc_id in document_ids:
+        doc = await database.documents.find_one({
+            "_id": ObjectId(doc_id),
+            "workspace_id": ObjectId(workspace_id)
+        })
+        
+        if not doc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Document not found: {doc_id}"
+            )
+        
+        document_attachments.append({
+            "id": str(doc["_id"]),
+            "filename": doc["original_filename"],
+            "file_size": doc["file_size"],
+            "content_type": doc["content_type"],
+            "processing_status": doc["processing_status"],
+            "created_at": doc["created_at"],
+            "added_to_map_node_id": None  # Initially not added to map
+        })
+        
+        document_names.append(doc["original_filename"])
+    
+    # Create document message
+    now = datetime.utcnow()
+    content = f"Uploaded {len(document_ids)} document(s): {', '.join(document_names)}"
+    
+    document_message = MessageCreate(
+        workspace_id=workspace_id,
+        author=current_user.name,
+        type="document",
+        content=content,
+        created_at=now,
+        added_to_map=False,
+        document_attachments=document_attachments
+    )
+    
+    # Insert document message
+    result = await database.messages.insert_one(document_message.model_dump())
+    message_doc = await database.messages.find_one({"_id": result.inserted_id})
+    
+    # Convert ObjectId to string for Pydantic validation
+    message_doc["_id"] = str(message_doc["_id"])
+    message_doc["workspace_id"] = str(message_doc["workspace_id"])
+    message_response = MessageInDB(**message_doc).to_response()
+    
+    return message_response
+
+
+@router.put("/workspaces/{workspace_id}/messages/{message_id}/document/{document_id}/add-to-map")
+async def update_document_add_to_map_status(
+    workspace_id: str,
+    message_id: str,
+    document_id: str,
+    node_id: str,
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Update the "Add to Map" status for a specific document in a message.
+    
+    Args:
+        workspace_id: Workspace ID
+        message_id: Message ID containing the document
+        document_id: Document ID to update
+        node_id: Node ID that was created for this document
+        current_user: Current authenticated user
+        
+    Returns:
+        Success response
+        
+    Raises:
+        HTTPException: If message/document not found or access denied
+    """
+    # Validate ObjectId formats
+    if not ObjectId.is_valid(workspace_id) or not ObjectId.is_valid(message_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid workspace or message ID format"
+        )
+    
+    # Get database instance
+    database = get_database()
+    
+    # Verify workspace exists and user owns it
+    workspace_doc = await database.workspaces.find_one({
+        "_id": ObjectId(workspace_id),
+        "owner_id": current_user.id
+    })
+    
+    if not workspace_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Workspace not found"
+        )
+    
+    # Find and update the message
+    message_doc = await database.messages.find_one({
+        "_id": ObjectId(message_id),
+        "workspace_id": workspace_id,
+        "type": "document"
+    })
+    
+    if not message_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document message not found"
+        )
+    
+    # Update the specific document's add_to_map status
+    document_attachments = message_doc.get("document_attachments", [])
+    updated = False
+    
+    for doc in document_attachments:
+        if doc.get("id") == document_id:
+            doc["added_to_map_node_id"] = node_id
+            updated = True
+            break
+    
+    if not updated:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found in message"
+        )
+    
+    # Update the message in database
+    await database.messages.update_one(
+        {"_id": ObjectId(message_id)},
+        {"$set": {"document_attachments": document_attachments}}
+    )
+    
+    return {"success": True, "message": "Document add-to-map status updated"}
+
+
 @router.post("/workspaces/{workspace_id}/messages/{message_id}/add-to-map", response_model=AddToMapResponse)
 async def add_message_to_map(
     workspace_id: str,
@@ -748,7 +936,7 @@ async def add_message_to_map(
         
         # Create node from message
         now = datetime.utcnow()
-        node_title = request_data.node_title or f"From Chat: {message_doc['content'][:50]}..."
+        node_title = request_data.node_title or f"Chat: {message_doc['content'][:50]}..."
         node_type = request_data.node_type or ("ai" if message_doc["type"] == "ai" else "human")
         
         node_create = NodeCreate(

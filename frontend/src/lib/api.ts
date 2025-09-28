@@ -269,15 +269,27 @@ export interface AgentListResponse {
   total: number;
 }
 
+// Document attachment types
+export interface DocumentAttachment {
+  id: string;
+  filename: string;
+  file_size: number;
+  content_type: string;
+  processing_status: string;
+  created_at: string;
+  added_to_map_node_id?: string;
+}
+
 // Message types
 export interface ChatMessage {
   id: string;
   workspace_id: string;
   author: string;
-  type: 'human' | 'ai';
+  type: 'human' | 'ai' | 'document';
   content: string;
   created_at: string;
   added_to_map: boolean;
+  documents?: DocumentAttachment[];
 }
 
 export interface MessageCreateRequest {
@@ -1631,6 +1643,42 @@ class ApiClient {
     }
   }
 
+  // Create document message
+  async createDocumentMessage(workspaceId: string, documentIds: string[]): Promise<ChatMessage> {
+    console.log('=== CREATE DOCUMENT MESSAGE API CALL ===');
+    console.log('Workspace ID:', workspaceId);
+    console.log('Document IDs:', documentIds);
+    
+    if (!workspaceId || workspaceId.trim() === '') {
+      throw new Error('No workspace ID provided');
+    }
+    
+    if (!documentIds || documentIds.length === 0) {
+      throw new Error('No document IDs provided');
+    }
+    
+    try {
+      const response = await this.request<ChatMessage>(`/workspaces/${workspaceId}/messages/document`, {
+        method: 'POST',
+        body: JSON.stringify(documentIds),
+      });
+      
+      console.log('Create document message response:', response);
+      
+      // Validate response structure
+      if (!response || typeof response !== 'object') {
+        throw new Error('Failed to create document message - API returned invalid data');
+      }
+      
+      console.log('✅ Create document message successful');
+      return response;
+    } catch (error) {
+      console.error('=== CREATE DOCUMENT MESSAGE ERROR ===');
+      console.error('Error in createDocumentMessage:', error);
+      throw error;
+    }
+  }
+
   // Check if user is authenticated
   isAuthenticated(): boolean {
     const token = this.getToken();
@@ -1695,3 +1743,4 @@ export const uploadDocuments = apiClient.uploadDocuments.bind(apiClient);
 export const getDocuments = apiClient.getDocuments.bind(apiClient);
 export const getDocumentContent = apiClient.getDocumentContent.bind(apiClient);
 export const deleteDocument = apiClient.deleteDocument.bind(apiClient);
+export const createDocumentMessage = apiClient.createDocumentMessage.bind(apiClient);

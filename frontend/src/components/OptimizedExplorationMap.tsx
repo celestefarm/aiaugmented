@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useMap } from '@/contexts/MapContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useAgentChat, Agent } from '@/contexts/AgentChatContext';
+import { useMessageMapStatus } from '@/contexts/MessageMapStatusContext';
 import { Node, Edge, NodeCreateRequest, NodeUpdateRequest, EdgeCreateRequest, clearAllNodes, summarizeConversation } from '@/lib/api';
 import { ErrorBoundary } from './ErrorBoundary';
 import SparringSession from './SparringSession';
@@ -369,6 +370,12 @@ const OptimizedExplorationMap: React.FC = () => {
     refreshMessages
   } = useAgentChat();
 
+  // Add MessageMapStatus context for button state synchronization
+  const { syncWithCanvasState } = useMessageMapStatus();
+
+  // Reference to SparringSession's node deletion handler
+  const sparringSessionNodeDeletedRef = useRef<((nodeId: string) => void) | null>(null);
+
   // Optimized canvas state management
   const [canvasState, setCanvasState] = useState<CanvasState>({
     transform: { x: 0, y: 0, scale: 1 },
@@ -510,6 +517,14 @@ const OptimizedExplorationMap: React.FC = () => {
       if (newNode) {
         setSelectedNode(newNode.id);
         showNotification(`Created node: ${newNode.title}`);
+        
+        // CONSERVATIVE: Sync button states after node creation with longer delay
+        setTimeout(() => {
+          if (syncWithCanvasState) {
+            console.log('🔄 [EXPLORATION MAP] Syncing after node creation with conservative delay');
+            syncWithCanvasState(nodes.concat(newNode), chatMessages);
+          }
+        }, 1500); // Longer delay to ensure document button state is established
       }
       return newNode;
     } catch (error) {
@@ -535,6 +550,12 @@ const OptimizedExplorationMap: React.FC = () => {
       await deleteNodeAPI(nodeId);
       setSelectedNode(null);
       showNotification(`Deleted node: ${node.title}`);
+      
+      // CRITICAL: Call SparringSession's node deletion handler to reset document button states
+      if (sparringSessionNodeDeletedRef.current) {
+        console.log('🗑️ [DELETE NODE] Calling SparringSession node deletion handler');
+        sparringSessionNodeDeletedRef.current(nodeId);
+      }
       
       // DIAGNOSTIC: Log current message states before refresh
       console.log('🗑️ [DELETE NODE] Current messages before refresh:', chatMessages.map(m => ({
@@ -894,6 +915,15 @@ const OptimizedExplorationMap: React.FC = () => {
       console.log('🗑️ [DELETE SELECTED] Refreshing chat messages to update button states...');
       await refreshMessages(); // This will update the AgentChatContext and MessageMapStatusContext
       console.log('✅ [DELETE SELECTED] Successfully refreshed chat messages');
+      
+      // IMMEDIATE: Sync button states after bulk deletion - should be immediate
+      setTimeout(() => {
+        if (syncWithCanvasState) {
+          console.log('🔄 [EXPLORATION MAP] Syncing after bulk deletion - immediate update');
+          const updatedNodes = nodes.filter(n => !selectedNodesList.includes(n.id));
+          syncWithCanvasState(updatedNodes, chatMessages);
+        }
+      }, 500); // Shorter delay for deletion - should be immediate
     } catch (refreshError) {
       console.warn('⚠️ [DELETE SELECTED] Failed to refresh chat messages (non-critical):', refreshError);
       // This is non-critical - deletion was successful, just UI state might not update immediately
@@ -1435,9 +1465,16 @@ const OptimizedExplorationMap: React.FC = () => {
     return styles;
   }, [nodes, selectedNode]);
 
-  // Handle add message to map from sidebar
+  // Handle add message to map from sidebar - ONLY for regular chat messages, NOT documents
   const handleAddToMap = useCallback(async (messageId: string, messageData: any) => {
     if (!canvasRef.current) return;
+    
+    // CRITICAL FIX: Check if this is a document message and skip the wrong API call
+    // Documents should handle their own node creation through DocumentMessage component
+    if (messageData.type === 'document' || messageData.documents) {
+      console.log('🚫 [HANDLE-ADD-TO-MAP] Skipping document message - should use DocumentMessage component');
+      return;
+    }
     
     const rect = canvasRef.current.getBoundingClientRect();
     const centerX = rect.width / 2;
@@ -1456,7 +1493,8 @@ const OptimizedExplorationMap: React.FC = () => {
     
     const newNode = await createNode(canvasPos.x, canvasPos.y, nodeData);
     if (newNode) {
-      // Update the message to reflect it's been added to map
+      // ONLY call addMessageToMap for regular chat messages, NOT documents
+      console.log('📝 [HANDLE-ADD-TO-MAP] Creating node for regular chat message:', messageId);
       await addMessageToMap(messageId, newNode.id);
     }
   }, [screenToCanvas, createNode, addMessageToMap]);
@@ -1841,7 +1879,18 @@ const OptimizedExplorationMap: React.FC = () => {
             </div>
             
             <div className="flex-1 overflow-hidden pl-4 pb-4 pr-4">
-              <SparringSession onAddToMap={(messageId) => handleAddToMap(messageId, {})} />
+              <SparringSession
+                onAddToMap={(messageId) => handleAddToMap(messageId, {})}
+                onNodeDeleted={(nodeId) => {
+                  console.log('=== NODE DELETED FROM OPTIMIZED MAP ===');
+                  console.log('Node ID:', nodeId);
+                  // This callback is called by the parent when a node is deleted
+                }}
+                onRegisterNodeDeletedHandler={(handler) => {
+                  console.log('=== REGISTERING NODE DELETED HANDLER ===');
+                  sparringSessionNodeDeletedRef.current = handler;
+                }}
+              />
             </div>
           </div>
 

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from bson import ObjectId
 from models.user import PyObjectId
@@ -9,6 +9,18 @@ from models.user import PyObjectId
 class MessageCreateRequest(BaseModel):
     """Message creation request model"""
     content: str = Field(..., min_length=1, max_length=2000, description="Message content")
+
+
+class DocumentAttachment(BaseModel):
+    """Document attachment model for messages"""
+    id: str = Field(..., description="Document ID")
+    filename: str = Field(..., description="Original filename")
+    file_size: int = Field(..., description="File size in bytes")
+    content_type: str = Field(..., description="MIME content type")
+    processing_status: str = Field(..., description="Processing status")
+    created_at: datetime = Field(..., description="Upload timestamp")
+    # Add to Map status for this document
+    added_to_map_node_id: Optional[str] = Field(None, description="Node ID if added to map")
 
 
 class MessageResponse(BaseModel):
@@ -22,10 +34,12 @@ class MessageResponse(BaseModel):
     id: str = Field(..., description="Message ID as string")
     workspace_id: str = Field(..., description="Workspace ID as string")
     author: str
-    type: str  # "human" or "ai"
+    type: str  # "human", "ai", or "document"
     content: str
     created_at: datetime
     added_to_map: bool = False
+    # Document attachments for document messages
+    documents: Optional[List[DocumentAttachment]] = Field(None, description="Attached documents")
 
 
 class MessageListResponse(BaseModel):
@@ -71,10 +85,12 @@ class MessageInDB(BaseModel):
     id: Optional[PyObjectId] = Field(default=None, alias="_id")
     workspace_id: PyObjectId
     author: str
-    type: str  # "human" or "ai"
+    type: str  # "human", "ai", or "document"
     content: str
     created_at: datetime
     added_to_map: bool = False
+    # Document attachments stored as list of document IDs and metadata
+    document_attachments: Optional[List[Dict[str, Any]]] = Field(None, description="Document attachments metadata")
 
     def to_response(self) -> MessageResponse:
         """Convert to response model"""
@@ -83,6 +99,22 @@ class MessageInDB(BaseModel):
             raise ValueError("Message ID cannot be None when converting to response")
         if not self.workspace_id:
             raise ValueError("Workspace ID cannot be None when converting to response")
+        
+        # Convert document attachments to response format
+        documents = None
+        if self.document_attachments:
+            documents = [
+                DocumentAttachment(
+                    id=doc.get("id", ""),
+                    filename=doc.get("filename", ""),
+                    file_size=doc.get("file_size", 0),
+                    content_type=doc.get("content_type", ""),
+                    processing_status=doc.get("processing_status", "unknown"),
+                    created_at=doc.get("created_at", self.created_at),
+                    added_to_map_node_id=doc.get("added_to_map_node_id")
+                )
+                for doc in self.document_attachments
+            ]
             
         return MessageResponse(
             id=str(self.id),
@@ -91,7 +123,8 @@ class MessageInDB(BaseModel):
             type=self.type,
             content=self.content,
             created_at=self.created_at,
-            added_to_map=self.added_to_map
+            added_to_map=self.added_to_map,
+            documents=documents
         )
 
 
@@ -103,3 +136,4 @@ class MessageCreate(BaseModel):
     content: str
     created_at: datetime
     added_to_map: bool = False
+    document_attachments: Optional[List[Dict[str, Any]]] = Field(None, description="Document attachments metadata")

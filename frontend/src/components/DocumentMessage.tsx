@@ -1,22 +1,22 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { FileText, Image, File, Eye, Download, Plus, Check, Loader2, AlertCircle, Zap } from 'lucide-react';
-import { DocumentUploadResponse, DocumentProcessingResult, getDocumentContent, createNode } from '@/lib/api';
+import { DocumentAttachment, DocumentProcessingResult, getDocumentContent, createNode } from '@/lib/api';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useMap } from '@/contexts/MapContext';
+import { useMessageMapStatus } from '@/contexts/MessageMapStatusContext';
 import OCRResultsDisplay from './OCRResultsDisplay';
 
 interface DocumentMessageProps {
-  documents: DocumentUploadResponse[];
+  documents: DocumentAttachment[];
   onAddToMap?: (documentId: string, nodeId: string) => void;
   className?: string;
 }
 
-interface DocumentWithContent extends DocumentUploadResponse {
+interface DocumentWithContent extends DocumentAttachment {
   content?: DocumentProcessingResult;
   isLoadingContent?: boolean;
   contentError?: string;
   isAddingToMap?: boolean;
-  addedToMapNodeId?: string;
   showOCRResults?: boolean;
 }
 
@@ -29,7 +29,11 @@ const DocumentMessage: React.FC<DocumentMessageProps> = ({
     documents.map(doc => ({ ...doc }))
   );
   const { currentWorkspace } = useWorkspace();
-  const { createNode: createNodeAPI } = useMap();
+  const { createNode: createNodeAPI, nodes } = useMap();
+  const { messageMapStatus, setMessageStatus, resetDocumentStatus, resetDocumentStatusByNodeId } = useMessageMapStatus();
+  
+  // Debouncing ref to prevent rapid clicks
+  const lastClickTimeRef = useRef<Record<string, number>>({});
 
   // Update documentsWithContent when documents prop changes
   useEffect(() => {
@@ -55,6 +59,21 @@ const DocumentMessage: React.FC<DocumentMessageProps> = ({
       return prev;
     });
   }, [documents]);
+
+  // FIXED: Listen for status changes but prevent premature clearing of local node ID
+  useEffect(() => {
+    setDocumentsWithContent(prev => prev.map(doc => {
+      // CRITICAL FIX: Only clear local node ID if the message status is explicitly false
+      // AND we can confirm the node doesn't exist in the canvas
+      // This prevents premature clearing during sync operations
+      if (messageMapStatus[doc.id] === false && doc.added_to_map_node_id) {
+        console.log('🔄 [DOCUMENT MESSAGE] Message status is false, but preserving local node ID during sync');
+        // Don't clear the local node ID immediately - let the sync process handle it
+        return doc;
+      }
+      return doc;
+    }));
+  }, [messageMapStatus]);
 
   const getFileIcon = (contentType: string, size: 'sm' | 'md' = 'md') => {
     const iconSize = size === 'sm' ? 'w-4 h-4' : 'w-6 h-6';
@@ -110,30 +129,85 @@ const DocumentMessage: React.FC<DocumentMessageProps> = ({
   const handleAddToMap = useCallback(async (document: DocumentWithContent) => {
     if (!currentWorkspace || !createNodeAPI) return;
 
-    // Load content if not already loaded
-    if (!document.content && !document.isLoadingContent) {
-      await loadDocumentContent(document.id);
-      // Get updated document with content
-      const updatedDoc = documentsWithContent.find(d => d.id === document.id);
-      if (!updatedDoc?.content) {
-        return;
-      }
-      document = updatedDoc;
+    console.log('=== DOCUMENT ADD TO MAP - SINGLE CLICK FIX ===');
+    console.log('Document ID:', document.id);
+    console.log('Document filename:', document.filename);
+    console.log('Current nodes count:', nodes.length);
+    
+    // DEBOUNCE FIX: Prevent rapid clicks (500ms debounce)
+    const now = Date.now();
+    const lastClickTime = lastClickTimeRef.current[document.id] || 0;
+    const timeSinceLastClick = now - lastClickTime;
+    
+    if (timeSinceLastClick < 500) {
+      console.log('🚫 DEBOUNCE: Click too soon after last click, ignoring');
+      return;
+    }
+    
+    // Update last click time
+    lastClickTimeRef.current[document.id] = now;
+    
+    // SINGLE CLICK FIX: Only check if already processing (not messageMapStatus)
+    if (document.isAddingToMap) {
+      console.log('🚫 Already processing this document, skipping');
+      return;
+    }
+    
+    // SINGLE CLICK FIX: Check for existing nodes but don't auto-update status
+    // This is just for logging/debugging, not for blocking the action
+    const existingNode = nodes.find(node => {
+      const matchesDocumentId = node.source_document_id === document.id;
+      const matchesFilename = node.source_document_name === document.filename && node.type === 'human';
+      const matchesTitle = node.title === document.filename.replace(/\.[^/.]+$/, '') && node.type === 'human';
+      
+      return matchesDocumentId || matchesFilename || matchesTitle;
+    });
+    
+    if (existingNode) {
+      console.log('ℹ️ Found existing node, but allowing user action:', existingNode.id);
+      // Don't return here - let the user proceed if they want to try again
     }
 
-    if (!document.content) return;
+    console.log('✅ Proceeding with node creation');
 
-    setDocumentsWithContent(prev => prev.map(doc => 
-      doc.id === document.id 
+    console.log('🔄 Setting loading state...');
+    setDocumentsWithContent(prev => prev.map(doc =>
+      doc.id === document.id
         ? { ...doc, isAddingToMap: true }
         : doc
     ));
 
     try {
-      // Create a node from the document
+      // SINGLE CLICK FIX: Create node immediately without requiring content loading
+      // Use basic document info for node creation
+      
+      // Create document title with "Document:" prefix and handle edge cases
+      const baseTitle = document.filename.replace(/\.[^/.]+$/, ''); // Remove file extension
+      let documentTitle: string;
+      
+      // Edge case: Don't duplicate "Document" if it's already in the filename
+      if (baseTitle.toLowerCase().startsWith('document')) {
+        documentTitle = baseTitle;
+      } else {
+        documentTitle = `Document: ${baseTitle}`;
+      }
+      
+      // Handle long filenames - truncate but keep "Document:" visible
+      if (documentTitle.length > 25) {
+        if (documentTitle.startsWith('Document: ')) {
+          // Keep "Document: " and truncate the rest
+          const remainingSpace = 25 - 'Document: '.length - 3; // 3 for "..."
+          const truncatedName = baseTitle.substring(0, remainingSpace);
+          documentTitle = `Document: ${truncatedName}...`;
+        } else {
+          // Just truncate normally
+          documentTitle = documentTitle.substring(0, 22) + '...';
+        }
+      }
+      
       const nodeData = {
-        title: document.filename.replace(/\.[^/.]+$/, ''), // Remove file extension
-        description: document.content.extracted_text?.substring(0, 500) + '...' || 'Uploaded document',
+        title: documentTitle,
+        description: `Document: ${document.filename} (${formatFileSize(document.file_size)})`,
         type: 'human' as const,
         x: Math.random() * 400 + 100, // Random position
         y: Math.random() * 400 + 100,
@@ -142,27 +216,62 @@ const DocumentMessage: React.FC<DocumentMessageProps> = ({
         source_document_page: 1
       };
 
+      console.log('🏗️ Creating node with data:', nodeData);
       const newNode = await createNodeAPI(nodeData);
       
       if (newNode) {
-        setDocumentsWithContent(prev => prev.map(doc => 
-          doc.id === document.id 
-            ? { ...doc, isAddingToMap: false, addedToMapNodeId: newNode.id }
+        console.log('✅ Node created successfully:', newNode.id);
+        console.log('Node details:', {
+          id: newNode.id,
+          title: newNode.title,
+          source_document_id: newNode.source_document_id,
+          source_document_name: newNode.source_document_name
+        });
+        
+        // Update local state with the new node ID
+        setDocumentsWithContent(prev => prev.map(doc =>
+          doc.id === document.id
+            ? { ...doc, isAddingToMap: false, added_to_map_node_id: newNode.id }
             : doc
         ));
 
-        onAddToMap?.(document.id, newNode.id);
+        // Update global message status with force refresh
+        setMessageStatus(document.id, true);
+        console.log('✅ Updated global message status');
+        
+        // Force component re-render to ensure button state updates immediately
+        setDocumentsWithContent(prev => prev.map(doc =>
+          doc.id === document.id
+            ? { ...doc, added_to_map_node_id: newNode.id }
+            : doc
+        ));
+
+        // CRITICAL FIX: Don't call parent callback for documents
+        // This prevents the creation of the unwanted "New Message" node
+        // onAddToMap?.(document.id, newNode.id); // REMOVED
+        console.log('✅ Document successfully added to map (no parent callback)');
+      } else {
+        console.log('❌ Node creation returned null');
       }
     } catch (error) {
-      console.error('Failed to add document to map:', error);
+      console.error('❌ Failed to add document to map:', error);
       
-      setDocumentsWithContent(prev => prev.map(doc => 
-        doc.id === document.id 
+      // CRITICAL FIX: Reset both loading state AND message status on error
+      setDocumentsWithContent(prev => prev.map(doc =>
+        doc.id === document.id
           ? { ...doc, isAddingToMap: false }
           : doc
       ));
+      
+      // Reset message status so user can retry
+      setMessageStatus(document.id, false);
+      
+      // Reset debounce timer so user can click again immediately after error
+      if (lastClickTimeRef.current[document.id]) {
+        delete lastClickTimeRef.current[document.id];
+      }
     }
-  }, [currentWorkspace, createNodeAPI, loadDocumentContent, documentsWithContent, onAddToMap]);
+  }, [currentWorkspace, createNodeAPI, loadDocumentContent, documentsWithContent, onAddToMap, nodes, setMessageStatus]);
 
   const handlePreview = useCallback(async (document: DocumentWithContent) => {
     if (!document.content && !document.isLoadingContent) {
@@ -312,9 +421,10 @@ const DocumentMessage: React.FC<DocumentMessageProps> = ({
                   </button>
                 )}
 
-                {/* Add to Map Button */}
+                {/* Add to Map Button - Enhanced with Global State Integration */}
                 {document.processing_status === 'completed' && (
-                  document.addedToMapNodeId ? (
+                  // Check both global status and local node ID for comprehensive state tracking
+                  (messageMapStatus[document.id] || document.added_to_map_node_id) ? (
                     <div className="text-xs px-2 py-1 bg-green-500/20 text-green-300 border border-green-500/30 rounded flex items-center gap-1">
                       <Check className="w-3 h-3" />
                       Added to Map

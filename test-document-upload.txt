@@ -1,0 +1,11 @@
+Test Document for Chronological Upload Testing
+
+This is a test document to verify that document uploads appear in the correct chronological order in the chat timeline.
+
+Key points to test:
+1. Document should appear at the exact point in time when uploaded
+2. Subsequent messages should appear AFTER the document, not above it
+3. Multiple documents should maintain chronological order
+4. Document messages should integrate seamlessly with text messages
+
+Test timestamp: 2025-09-28T10:26:00Z

@@ -210,20 +210,28 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
     // Only load workspaces if user is authenticated
     if (isAuthenticated()) {
       console.log('🔐 [WORKSPACE CONTEXT] User is authenticated, loading workspaces...');
-      // Load workspaces from API first
+      
+      // Try to restore current workspace from localStorage first
+      const savedWorkspace = localStorage.getItem('currentWorkspace');
+      let savedWorkspaceData = null;
+      
+      if (savedWorkspace) {
+        try {
+          savedWorkspaceData = JSON.parse(savedWorkspace);
+          console.log('🔄 [WORKSPACE CONTEXT] Found saved workspace in localStorage:', savedWorkspaceData.id);
+        } catch (error) {
+          console.error('Failed to parse saved workspace:', error);
+          localStorage.removeItem('currentWorkspace');
+        }
+      }
+      
+      // Load workspaces from API
       loadWorkspaces().then(() => {
-        // Try to restore current workspace from localStorage after workspaces are loaded
-        const savedWorkspace = localStorage.getItem('currentWorkspace');
-        if (savedWorkspace) {
-          try {
-            const workspace = JSON.parse(savedWorkspace);
-            // Validate that the saved workspace still exists and belongs to the user
-            // This will be validated when workspaces are loaded
-            setCurrentWorkspace(workspace);
-          } catch (error) {
-            console.error('Failed to parse saved workspace:', error);
-            localStorage.removeItem('currentWorkspace');
-          }
+        // After workspaces are loaded, restore the saved workspace if it exists and is valid
+        if (savedWorkspaceData) {
+          console.log('🔄 [WORKSPACE CONTEXT] Attempting to restore saved workspace...');
+          // This will trigger the validation in the next useEffect
+          setCurrentWorkspace(savedWorkspaceData);
         }
       });
     } else {

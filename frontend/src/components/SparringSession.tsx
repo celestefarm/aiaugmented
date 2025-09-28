@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Mic, Upload, Check, MessageSquare, Bot, User, Loader2, Zap, Shield, Target, Eye } from 'lucide-react';
 import { useAgentChat, ChatMessage } from '@/contexts/AgentChatContext';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useMessageMapStatus } from '@/contexts/MessageMapStatusContext';
 import { DocumentUploadResponse } from '@/lib/api';
 import LightningBriefDisplay from './LightningBriefDisplay';
@@ -12,17 +13,24 @@ import DocumentMessage from './DocumentMessage';
 interface SparringSessionProps {
   onAddToMap?: (messageId: string) => void;
   onNodeDeleted?: (messageId: string) => void;
+  onRegisterNodeDeletedHandler?: (handler: (nodeId: string) => void) => void;
 }
 
-const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDeleted }) => {
+const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDeleted, onRegisterNodeDeletedHandler }) => {
   const [chatMessage, setChatMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [addingToMap, setAddingToMap] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<'chat' | 'lightning' | 'redteam' | 'evidence'>('chat');
-  const [uploadedDocuments, setUploadedDocuments] = useState<DocumentUploadResponse[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [lastReadMessageId, setLastReadMessageId] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isUserAtBottom, setIsUserAtBottom] = useState(true);
+  const [previousMessageCount, setPreviousMessageCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { messageMapStatus, initializeStatus } = useMessageMapStatus();
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const intersectionObserver = useRef<IntersectionObserver | null>(null);
+  const { messageMapStatus, initializeStatus, resetStatusByNodeId } = useMessageMapStatus();
   
   const {
     messages,
@@ -30,7 +38,9 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
     agents,
     isLoadingMessages,
     chatError,
+    isInitialLoad,
     sendMessage,
+    addDocumentMessage,
     addMessageToMap,
     clearMessages,
     refreshMessages,
@@ -49,6 +59,10 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
     resetStrategicSession
   } = useAgentChat();
 
+  // Get workspace ID for localStorage key
+  const { currentWorkspace } = useWorkspace();
+  const workspaceId = currentWorkspace?.id;
+
   useEffect(() => {
     console.log('🔄 [SPARRING SESSION] Messages updated, reinitializing status:', messages.map(m => ({
       id: m.id,
@@ -61,10 +75,223 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
     }
   }, [messages, initializeStatus]);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Check if user is at bottom of chat
+  const checkIfUserAtBottom = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return false;
+    
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 50; // 50px threshold
+    setIsUserAtBottom(isAtBottom);
+    return isAtBottom;
+  }, []);
+
+  // Monitor scroll position to track if user is at bottom
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      checkIfUserAtBottom();
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    
+    // Check initial state
+    checkIfUserAtBottom();
+
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [checkIfUserAtBottom]);
+
+  // Conditional auto-scroll: only scroll if user is at bottom or it's initial load
+  useEffect(() => {
+    const hasNewMessages = messages.length > previousMessageCount;
+    setPreviousMessageCount(messages.length);
+
+    if (messages.length > 0) {
+      const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({
+          behavior: isInitialLoad ? 'auto' : 'smooth',
+          block: 'end'
+        });
+      };
+      
+      // Always scroll on initial load
+      if (isInitialLoad) {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(scrollToBottom);
+        });
+      }
+      // Only auto-scroll for new messages if user is at bottom
+      else if (hasNewMessages && isUserAtBottom) {
+        const timeoutId = setTimeout(scrollToBottom, 100);
+        return () => clearTimeout(timeoutId);
+      }
+      // If user is not at bottom and there are new messages, don't scroll
+      // The unread indicator will handle showing new messages
+    }
+  }, [messages, isInitialLoad, isUserAtBottom, previousMessageCount]);
+
+  // Ensure scroll to bottom when loading completes (initial load only)
+  useEffect(() => {
+    if (!isLoadingMessages && messages.length > 0 && isInitialLoad) {
+      const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({
+          behavior: 'auto',
+          block: 'end'
+        });
+      };
+      
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setTimeout(scrollToBottom, 50);
+        });
+      });
+    }
+  }, [isLoadingMessages, messages.length, isInitialLoad]);
+
+  // Load last read message ID from localStorage
+  useEffect(() => {
+    if (workspaceId) {
+      const savedLastRead = localStorage.getItem(`lastReadMessage_${workspaceId}`);
+      if (savedLastRead) {
+        setLastReadMessageId(savedLastRead);
+      }
+    }
+  }, [workspaceId]);
+
+  // Set up intersection observer for message visibility tracking
+  useEffect(() => {
+    if (!messagesContainerRef.current) return;
+
+    intersectionObserver.current = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
+            const messageId = entry.target.getAttribute('data-message-id');
+            if (messageId) {
+              markMessageAsRead(messageId);
+            }
+          }
+        });
+      },
+      {
+        root: messagesContainerRef.current,
+        rootMargin: '0px',
+        threshold: 0.5
+      }
+    );
+
+    return () => {
+      if (intersectionObserver.current) {
+        intersectionObserver.current.disconnect();
+      }
+    };
+  }, []);
+
+  // Mark message as read and update localStorage
+  const markMessageAsRead = useCallback((messageId: string) => {
+    setLastReadMessageId(prev => {
+      // Only update if this message is newer than the current last read
+      const messageIndex = messages.findIndex(m => m.id === messageId);
+      const currentLastReadIndex = prev ? messages.findIndex(m => m.id === prev) : -1;
+      
+      if (messageIndex > currentLastReadIndex) {
+        if (workspaceId) {
+          localStorage.setItem(`lastReadMessage_${workspaceId}`, messageId);
+        }
+        return messageId;
+      }
+      return prev;
+    });
+  }, [messages, workspaceId]);
+
+  // Calculate unread messages count
+  useEffect(() => {
+    if (!lastReadMessageId || messages.length === 0) {
+      setUnreadCount(0);
+      return;
+    }
+
+    const lastReadIndex = messages.findIndex(m => m.id === lastReadMessageId);
+    if (lastReadIndex === -1) {
+      // Last read message not found, consider all messages as unread
+      setUnreadCount(messages.length);
+    } else {
+      // Count messages after the last read message
+      const unreadMessages = messages.slice(lastReadIndex + 1);
+      setUnreadCount(unreadMessages.length);
+    }
+  }, [messages, lastReadMessageId]);
+
+  // Observe new messages for visibility tracking
+  useEffect(() => {
+    if (!intersectionObserver.current) return;
+
+    // Observe all message elements
+    messageRefs.current.forEach((element, messageId) => {
+      if (element) {
+        intersectionObserver.current?.observe(element);
+      }
+    });
+
+    return () => {
+      if (intersectionObserver.current) {
+        messageRefs.current.forEach((element) => {
+          if (element) {
+            intersectionObserver.current?.unobserve(element);
+          }
+        });
+      }
+    };
   }, [messages]);
+
+  // Auto-mark messages as read when user is at bottom
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container || messages.length === 0) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+      
+      if (isAtBottom && messages.length > 0) {
+        // Mark the last message as read when user is at bottom
+        const lastMessage = messages[messages.length - 1];
+        markMessageAsRead(lastMessage.id);
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    
+    // Check initial state
+    handleScroll();
+
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [messages, markMessageAsRead]);
+
+  // Function to manually scroll to bottom
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'end'
+    });
+    
+    // Mark all messages as read when manually scrolling to bottom
+    if (messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      markMessageAsRead(lastMessage.id);
+    }
+  }, [messages, markMessageAsRead]);
+
+  // Set message ref for intersection observer
+  const setMessageRef = useCallback((messageId: string, element: HTMLDivElement | null) => {
+    if (element) {
+      messageRefs.current.set(messageId, element);
+    } else {
+      messageRefs.current.delete(messageId);
+    }
+  }, []);
 
   const handleSendMessage = async () => {
     if (!chatMessage.trim() || isSending) return;
@@ -127,6 +354,12 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
       const message = messages.find(m => m.id === messageId);
       console.log('Found message in local state:', message);
       console.log('Current messages state:', messages.map(m => ({ id: m.id, type: m.type, added_to_map: m.added_to_map })));
+      
+      // CRITICAL FIX: Skip document messages - they have their own Add to Map system
+      if (message?.type === 'document') {
+        console.log('🚫 [SPARRING SESSION] Skipping document message - handled by DocumentMessage component');
+        return;
+      }
       
       // Validate message ID format
       if (!messageId || typeof messageId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(messageId)) {
@@ -245,26 +478,25 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
   };
 
   // File upload handlers
-  const handleFileUploaded = useCallback((documents: DocumentUploadResponse[]) => {
+  const handleFileUploaded = useCallback(async (documents: DocumentUploadResponse[]) => {
     console.log('=== FILES UPLOADED CALLBACK CALLED ===');
     console.log('Number of documents received:', documents.length);
     console.log('Document names:', documents.map(d => d.filename));
     console.log('Full documents array:', documents);
     
-    // Ensure we're appending to existing documents, not replacing them
-    setUploadedDocuments(prev => {
-      console.log('Previous uploaded documents count:', prev.length);
-      console.log('Previous document names:', prev.map(d => d.filename));
-      const newDocuments = [...prev, ...documents];
-      console.log('Updated uploaded documents (total count):', newDocuments.length);
-      console.log('All document names after update:', newDocuments.map(d => d.filename));
-      return newDocuments;
-    });
-    setUploadError(null);
-    
-    // Show success message
-    showToast(`Successfully uploaded ${documents.length} document(s)!`, 'success');
-  }, []);
+    try {
+      // Add documents to the message timeline and persist to database
+      await addDocumentMessage(documents);
+      setUploadError(null);
+      
+      // Show success message
+      showToast(`Successfully uploaded ${documents.length} document(s)!`, 'success');
+    } catch (error) {
+      console.error('Failed to create document message:', error);
+      setUploadError(error instanceof Error ? error.message : 'Failed to create document message');
+      showToast('Failed to create document message', 'error');
+    }
+  }, [addDocumentMessage]);
 
   const handleUploadError = useCallback((error: string) => {
     console.error('=== FILE UPLOAD ERROR ===');
@@ -286,6 +518,41 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
       onAddToMap(nodeId);
     }
   }, [onAddToMap]);
+
+  // Handle node deletion callback to reset document button states
+  const handleNodeDeleted = useCallback((nodeId: string) => {
+    console.log('=== NODE DELETED CALLBACK ===');
+    console.log('Deleted Node ID:', nodeId);
+    
+    // Collect all documents from all document messages
+    const allDocuments: { id: string; added_to_map_node_id?: string }[] = [];
+    
+    messages.forEach(message => {
+      if (message.type === 'document' && message.documents) {
+        message.documents.forEach(doc => {
+          allDocuments.push({
+            id: doc.id,
+            added_to_map_node_id: doc.added_to_map_node_id
+          });
+        });
+      }
+    });
+    
+    // Reset status for any documents that had this node
+    resetStatusByNodeId(nodeId, allDocuments);
+    
+    // Call the parent callback if provided
+    if (onNodeDeleted) {
+      onNodeDeleted(nodeId);
+    }
+  }, [messages, onNodeDeleted, resetStatusByNodeId]);
+
+  // Register the node deletion handler with the parent component
+  useEffect(() => {
+    if (onRegisterNodeDeletedHandler) {
+      onRegisterNodeDeletedHandler(handleNodeDeleted);
+    }
+  }, [onRegisterNodeDeletedHandler, handleNodeDeleted]);
 
   const getActiveAgentNames = () => {
     return activeAgents
@@ -437,7 +704,11 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
       )}
 
       {/* Messages Container */}
-      <div className="flex-1 space-y-3 overflow-y-auto mb-3 pr-1 scrollbar-thin scrollbar-track-gray-800 scrollbar-thumb-gray-600">
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 space-y-3 overflow-y-auto mb-3 pr-1 scrollbar-thin scrollbar-track-gray-800 scrollbar-thumb-gray-600 scroll-smooth"
+        style={{ scrollBehavior: 'smooth' }}
+      >
         {isLoadingMessages ? (
           <div className="flex items-center justify-center py-6">
             <Loader2 className="w-4 h-4 animate-spin text-[#6B6B3A]" />
@@ -453,92 +724,112 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
           messages.map((message) => (
             <div
               key={message.id}
-              className={`flex ${message.type === 'human' ? 'justify-end' : 'justify-start'}`}
+              className={`flex ${message.type === 'human' || message.type === 'document' ? 'justify-end' : 'justify-start'}`}
             >
-              <div
-                className={`max-w-[90%] glass-pane rounded-lg p-2.5 ${
-                  message.type === 'human'
-                    ? 'border-[#6B6B3A]/30 bg-[#6B6B3A]/5'
-                    : 'border-blue-400/30 bg-blue-500/5'
-                }`}
-              >
-                {/* Message Header */}
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center space-x-1.5">
-                    {message.type === 'human' ? (
-                      <User className="w-3 h-3 text-[#6B6B3A]" />
-                    ) : (
-                      <Bot className="w-3 h-3 text-blue-400" />
-                    )}
-                    <span className={`text-xs font-medium ${
-                      message.type === 'human' ? 'text-[#6B6B3A]' : 'text-blue-300'
-                    }`}>
-                      {message.author}
+              {message.type === 'document' ? (
+                // Document Message Display
+                <div className="max-w-[90%] glass-pane rounded-lg p-2.5 border-[#6B6B3A]/30 bg-[#6B6B3A]/5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Upload className="w-4 h-4 text-[#6B6B3A]" />
+                    <span className="text-xs font-medium text-[#6B6B3A]">Document Upload</span>
+                    <span className="text-xs text-gray-400">
+                      {new Date(message.created_at).toLocaleTimeString()}
                     </span>
                   </div>
+                  {message.documents && (
+                    <DocumentMessage
+                      documents={message.documents}
+                      onAddToMap={handleDocumentAddToMap}
+                    />
+                  )}
                 </div>
+              ) : (
+                // Regular Text Message Display
+                <div
+                  className={`max-w-[90%] glass-pane rounded-lg p-2.5 ${
+                    message.type === 'human'
+                      ? 'border-[#6B6B3A]/30 bg-[#6B6B3A]/5'
+                      : 'border-blue-400/30 bg-blue-500/5'
+                  }`}
+                >
+                  {/* Message Header */}
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center space-x-1.5">
+                      {message.type === 'human' ? (
+                        <User className="w-3 h-3 text-[#6B6B3A]" />
+                      ) : (
+                        <Bot className="w-3 h-3 text-blue-400" />
+                      )}
+                      <span className={`text-xs font-medium ${
+                        message.type === 'human' ? 'text-[#6B6B3A]' : 'text-blue-300'
+                      }`}>
+                        {message.author}
+                      </span>
+                    </div>
+                  </div>
 
-                {/* Message Content */}
-                <p className="text-xs text-[#E5E7EB] mb-1.5 leading-relaxed whitespace-pre-wrap">
-                  {message.content}
-                </p>
-                
-                {/* Enhanced Add to Map Button Implementation - Now supports both AI and Human messages */}
-                {(message.type === 'ai' || message.type === 'human') && (
-                  messageMapStatus[message.id] ? (
-                    <div className={`flex items-center space-x-1 text-[10px] px-2 py-1 rounded border ${
-                      message.type === 'human'
-                        ? 'bg-green-500/20 text-green-300 border-green-500/30'
-                        : 'bg-green-500/20 text-green-300 border-green-500/30'
-                    }`}>
-                      <Check className="w-3 h-3" />
-                      <span>Added to Map</span>
-                    </div>
-                  ) : addingToMap.has(message.id) ? (
-                    <div className={`flex items-center space-x-1 text-[10px] px-2 py-1 rounded border ${
-                      message.type === 'human'
-                        ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30'
-                        : 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30'
-                    }`}>
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      <span>Adding...</span>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => handleAddToMap(message.id)}
-                      className={`text-[10px] px-2 py-1 rounded hover:opacity-80 transition-colors border font-medium ${
+                  {/* Message Content */}
+                  <p className="text-xs text-[#E5E7EB] mb-1.5 leading-relaxed whitespace-pre-wrap">
+                    {message.content}
+                  </p>
+                  
+                  {/* Enhanced Add to Map Button Implementation - Now supports both AI and Human messages */}
+                  {(message.type === 'ai' || message.type === 'human') && (
+                    messageMapStatus[message.id] ? (
+                      <div className={`flex items-center space-x-1 text-[10px] px-2 py-1 rounded border ${
                         message.type === 'human'
-                          ? 'bg-[#6B6B3A]/20 text-[#6B6B3A] border-[#6B6B3A]/30 hover:bg-[#6B6B3A]/30'
-                          : 'bg-blue-500/20 text-blue-300 border-blue-500/30 hover:bg-blue-500/30'
-                      }`}
-                      aria-label={`Add ${message.type} message from ${message.author} to exploration map`}
-                      title={`Convert this ${message.type === 'human' ? 'human input' : 'AI response'} into a visual node on the exploration canvas`}
-                    >
-                      ➕ Add to Map
-                    </button>
-                  )
-                )}
-              </div>
+                          ? 'bg-green-500/20 text-green-300 border-green-500/30'
+                          : 'bg-green-500/20 text-green-300 border-green-500/30'
+                      }`}>
+                        <Check className="w-3 h-3" />
+                        <span>Added to Map</span>
+                      </div>
+                    ) : addingToMap.has(message.id) ? (
+                      <div className={`flex items-center space-x-1 text-[10px] px-2 py-1 rounded border ${
+                        message.type === 'human'
+                          ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30'
+                          : 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30'
+                      }`}>
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <span>Adding...</span>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleAddToMap(message.id)}
+                        className={`text-[10px] px-2 py-1 rounded hover:opacity-80 transition-colors border font-medium ${
+                          message.type === 'human'
+                            ? 'bg-[#6B6B3A]/20 text-[#6B6B3A] border-[#6B6B3A]/30 hover:bg-[#6B6B3A]/30'
+                            : 'bg-blue-500/20 text-blue-300 border-blue-500/30 hover:bg-blue-500/30'
+                        }`}
+                        aria-label={`Add ${message.type} message from ${message.author} to exploration map`}
+                        title={`Convert this ${message.type === 'human' ? 'human input' : 'AI response'} into a visual node on the exploration canvas`}
+                      >
+                        ➕ Add to Map
+                      </button>
+                    )
+                  )}
+                </div>
+              )}
             </div>
           ))
         )}
 
-        {/* Uploaded Documents Display */}
-        {uploadedDocuments.length > 0 && (
-          <div className="mb-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Upload className="w-4 h-4 text-[#6B6B3A]" />
-              <span className="text-xs font-medium text-[#6B6B3A]">Uploaded Documents</span>
-            </div>
-            <DocumentMessage
-              documents={uploadedDocuments}
-              onAddToMap={handleDocumentAddToMap}
-            />
-          </div>
-        )}
-
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Unread Messages Indicator */}
+      {unreadCount > 0 && (
+        <div className="absolute bottom-20 right-4 z-10 animate-in fade-in duration-300">
+          <button
+            onClick={scrollToBottom}
+            className="bg-[#6B6B3A] hover:bg-[#6B6B3A]/80 text-white px-3 py-2 rounded-full shadow-lg transition-all duration-200 flex items-center gap-2 text-xs font-medium"
+            title={`${unreadCount} unread message${unreadCount > 1 ? 's' : ''}`}
+          >
+            <span>↓</span>
+            <span>{unreadCount} new message{unreadCount > 1 ? 's' : ''}</span>
+          </button>
+        </div>
+      )}
 
       {/* Input Area */}
       <div className="flex-shrink-0">
