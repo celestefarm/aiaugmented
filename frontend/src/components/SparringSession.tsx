@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Mic, Upload, Check, MessageSquare, Bot, User, Loader2, Zap, Shield, Target, Eye, X, RefreshCw } from 'lucide-react';
+import { Mic, Upload, Check, MessageSquare, Bot, User, Loader2, Zap, Shield, Target, Eye, X, RefreshCw, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { useAgentChat, ChatMessage } from '@/contexts/AgentChatContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useMessageMapStatus } from '@/contexts/MessageMapStatusContext';
@@ -578,6 +578,17 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
     }
   };
 
+  // Placeholder functions for thumbs up/down buttons
+  const handleThumbsUp = useCallback((messageId: string) => {
+    console.log('👍 Thumbs up clicked for message:', messageId);
+    showToast('Thanks for your feedback! 👍', 'success');
+  }, []);
+
+  const handleThumbsDown = useCallback((messageId: string) => {
+    console.log('👎 Thumbs down clicked for message:', messageId);
+    showToast('Thanks for your feedback! 👎', 'success');
+  }, []);
+
   // Toast notification helper
   const showToast = (message: string, type: 'success' | 'error' | 'warning' = 'success') => {
     // Create a simple toast notification
@@ -940,41 +951,68 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
                     )}
                   </div>
                   
-                  {/* Enhanced Add to Map Button Implementation - Now supports both AI and Human messages */}
-                  {(message.type === 'ai' || message.type === 'human') && (
-                    messageMapStatus[message.id] ? (
-                      <div className={`flex items-center space-x-1 text-[10px] px-2 py-1 rounded border ${
-                        message.type === 'human'
-                          ? 'bg-green-500/20 text-green-300 border-green-500/30'
-                          : 'bg-green-500/20 text-green-300 border-green-500/30'
-                      }`}>
-                        <Check className="w-3 h-3" />
-                        <span>Added to Map</span>
+                  {/* Bottom section with Add to Map button and Thumbs Up/Down for AI messages */}
+                  <div className="flex items-center justify-between">
+                    {/* Enhanced Add to Map Button Implementation - Now supports both AI and Human messages */}
+                    <div>
+                      {(message.type === 'ai' || message.type === 'human') && (
+                        messageMapStatus[message.id] ? (
+                          <div className={`flex items-center space-x-1 text-[10px] px-2 py-1 rounded border ${
+                            message.type === 'human'
+                              ? 'bg-green-500/20 text-green-300 border-green-500/30'
+                              : 'bg-green-500/20 text-green-300 border-green-500/30'
+                          }`}>
+                            <Check className="w-3 h-3" />
+                            <span>Added to Map</span>
+                          </div>
+                        ) : addingToMap.has(message.id) ? (
+                          <div className={`flex items-center space-x-1 text-[10px] px-2 py-1 rounded border ${
+                            message.type === 'human'
+                              ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30'
+                              : 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30'
+                          }`}>
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            <span>Adding...</span>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleAddToMap(message.id)}
+                            className={`text-[10px] px-2 py-1 rounded hover:opacity-80 transition-colors border font-medium ${
+                              message.type === 'human'
+                                ? 'bg-[#6B6B3A]/20 text-[#6B6B3A] border-[#6B6B3A]/30 hover:bg-[#6B6B3A]/30'
+                                : 'bg-blue-500/20 text-blue-300 border-blue-500/30 hover:bg-blue-500/30'
+                            }`}
+                            aria-label={`Add ${message.type} message from ${message.author} to exploration map`}
+                            title={`Convert this ${message.type === 'human' ? 'human input' : 'AI response'} into a visual node on the exploration canvas`}
+                          >
+                            ➕ Add to Map
+                          </button>
+                        )
+                      )}
+                    </div>
+                    
+                    {/* Thumbs Up/Down buttons for AI messages only */}
+                    {message.type === 'ai' && !message.id.startsWith('temp_ai_') && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleThumbsUp(message.id)}
+                          className="p-1 rounded hover:bg-green-500/20 transition-colors group"
+                          title="Good response"
+                          aria-label="Rate response as helpful"
+                        >
+                          <ThumbsUp className="w-3 h-3 text-gray-400 group-hover:text-green-400 transition-colors" />
+                        </button>
+                        <button
+                          onClick={() => handleThumbsDown(message.id)}
+                          className="p-1 rounded hover:bg-red-500/20 transition-colors group"
+                          title="Poor response"
+                          aria-label="Rate response as unhelpful"
+                        >
+                          <ThumbsDown className="w-3 h-3 text-gray-400 group-hover:text-red-400 transition-colors" />
+                        </button>
                       </div>
-                    ) : addingToMap.has(message.id) ? (
-                      <div className={`flex items-center space-x-1 text-[10px] px-2 py-1 rounded border ${
-                        message.type === 'human'
-                          ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30'
-                          : 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30'
-                      }`}>
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                        <span>Adding...</span>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => handleAddToMap(message.id)}
-                        className={`text-[10px] px-2 py-1 rounded hover:opacity-80 transition-colors border font-medium ${
-                          message.type === 'human'
-                            ? 'bg-[#6B6B3A]/20 text-[#6B6B3A] border-[#6B6B3A]/30 hover:bg-[#6B6B3A]/30'
-                            : 'bg-blue-500/20 text-blue-300 border-blue-500/30 hover:bg-blue-500/30'
-                        }`}
-                        aria-label={`Add ${message.type} message from ${message.author} to exploration map`}
-                        title={`Convert this ${message.type === 'human' ? 'human input' : 'AI response'} into a visual node on the exploration canvas`}
-                      >
-                        ➕ Add to Map
-                      </button>
-                    )
-                  )}
+                    )}
+                  </div>
                 </div>
               )}
             </div>
