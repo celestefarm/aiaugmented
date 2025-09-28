@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Mic, Upload, Check, MessageSquare, Bot, User, Loader2, Zap, Shield, Target, Eye } from 'lucide-react';
+import { Mic, Upload, Check, MessageSquare, Bot, User, Loader2, Zap, Shield, Target, Eye, X, RefreshCw } from 'lucide-react';
 import { useAgentChat, ChatMessage } from '@/contexts/AgentChatContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useMessageMapStatus } from '@/contexts/MessageMapStatusContext';
@@ -40,10 +40,15 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
     chatError,
     isInitialLoad,
     sendMessage,
+    sendStreamingMessage,
     addDocumentMessage,
     addMessageToMap,
     clearMessages,
     refreshMessages,
+    // Streaming state
+    isStreaming,
+    streamingStatus,
+    cancelStream,
     // Strategic functionality
     isStrategicMode,
     currentStrategicSession,
@@ -58,6 +63,9 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
     toggleStrategicMode,
     resetStrategicSession
   } = useAgentChat();
+
+  // Local error state for UI-specific errors
+  const [localError, setLocalError] = useState<string | null>(null);
 
   // Get workspace ID for localStorage key
   const { currentWorkspace } = useWorkspace();
@@ -92,7 +100,27 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
     if (!container) return;
 
     const handleScroll = () => {
-      checkIfUserAtBottom();
+      const wasAtBottom = isUserAtBottom;
+      const nowAtBottom = checkIfUserAtBottom();
+      
+      // STREAMING AUTO-SCROLL: If user scrolled back to bottom during streaming, resume auto-scroll
+      if (!wasAtBottom && nowAtBottom && isStreaming) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🌊 [STREAMING AUTO-SCROLL] User returned to bottom during streaming - resuming auto-scroll');
+        }
+        
+        const scrollToBottom = () => {
+          messagesEndRef.current?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'end'
+          });
+        };
+        
+        // Small delay to ensure smooth transition
+        setTimeout(() => {
+          requestAnimationFrame(scrollToBottom);
+        }, 100);
+      }
     };
 
     container.addEventListener('scroll', handleScroll);
@@ -101,15 +129,31 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
     checkIfUserAtBottom();
 
     return () => container.removeEventListener('scroll', handleScroll);
-  }, [checkIfUserAtBottom]);
+  }, [checkIfUserAtBottom, isUserAtBottom, isStreaming]);
 
   // Conditional auto-scroll: only scroll if user is at bottom or it's initial load
   useEffect(() => {
     const hasNewMessages = messages.length > previousMessageCount;
     setPreviousMessageCount(messages.length);
 
+    // DIAGNOSTIC: Log auto-scroll decisions for debugging (remove in production)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔄 [AUTO-SCROLL] Auto-scroll effect triggered:', {
+        messagesLength: messages.length,
+        previousMessageCount,
+        hasNewMessages,
+        isInitialLoad,
+        isUserAtBottom,
+        isStreaming,
+        lastMessageContent: messages[messages.length - 1]?.content?.substring(0, 50) + '...'
+      });
+    }
+
     if (messages.length > 0) {
       const scrollToBottom = () => {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('📜 [AUTO-SCROLL] Executing scroll to bottom');
+        }
         messagesEndRef.current?.scrollIntoView({
           behavior: isInitialLoad ? 'auto' : 'smooth',
           block: 'end'
@@ -118,19 +162,97 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
       
       // Always scroll on initial load
       if (isInitialLoad) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('📜 [AUTO-SCROLL] Initial load - scrolling to bottom');
+        }
         requestAnimationFrame(() => {
           requestAnimationFrame(scrollToBottom);
         });
       }
       // Only auto-scroll for new messages if user is at bottom
       else if (hasNewMessages && isUserAtBottom) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('📜 [AUTO-SCROLL] New messages detected and user at bottom - scrolling');
+        }
         const timeoutId = setTimeout(scrollToBottom, 100);
         return () => clearTimeout(timeoutId);
+      }
+      // DIAGNOSTIC: Log when auto-scroll is skipped (development only)
+      else if (process.env.NODE_ENV === 'development') {
+        if (hasNewMessages && !isUserAtBottom) {
+          console.log('📜 [AUTO-SCROLL] New messages detected but user not at bottom - skipping scroll');
+        }
+        else if (!hasNewMessages && isUserAtBottom) {
+          console.log('📜 [AUTO-SCROLL] No new messages but user at bottom - streaming handled separately');
+        }
       }
       // If user is not at bottom and there are new messages, don't scroll
       // The unread indicator will handle showing new messages
     }
-  }, [messages, isInitialLoad, isUserAtBottom, previousMessageCount]);
+  }, [messages, isInitialLoad, isUserAtBottom, previousMessageCount, isStreaming]);
+
+  // STREAMING AUTO-SCROLL: Handle auto-scroll during streaming content updates
+  useEffect(() => {
+    if (!isStreaming || messages.length === 0) return;
+
+    // Find the streaming message (temporary AI message being updated)
+    const streamingMessage = messages.find(msg =>
+      msg.id.startsWith('streaming_ai_') || msg.id.startsWith('temp_ai_')
+    );
+
+    if (streamingMessage) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🌊 [STREAMING AUTO-SCROLL] Streaming message found:', {
+          messageId: streamingMessage.id,
+          contentLength: streamingMessage.content.length,
+          isUserAtBottom,
+          willScroll: isUserAtBottom
+        });
+      }
+
+      if (isUserAtBottom) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🌊 [STREAMING AUTO-SCROLL] Content updated during streaming, scrolling to bottom');
+        }
+        
+        // Use requestAnimationFrame for smooth scrolling during rapid updates
+        const scrollToBottom = () => {
+          messagesEndRef.current?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'end'
+          });
+        };
+
+        // Debounce scroll updates to prevent jitter during rapid streaming
+        const timeoutId = setTimeout(() => {
+          requestAnimationFrame(scrollToBottom);
+        }, 50); // Shorter delay for responsive streaming
+
+        return () => clearTimeout(timeoutId);
+      } else if (process.env.NODE_ENV === 'development') {
+        console.log('🌊 [STREAMING AUTO-SCROLL] User scrolled up during streaming - respecting user control');
+      }
+    }
+  }, [messages, isStreaming, isUserAtBottom]);
+
+  // STREAMING START AUTO-SCROLL: Ensure we scroll to bottom when streaming starts
+  useEffect(() => {
+    if (isStreaming && isUserAtBottom && messages.length > 0) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🌊 [STREAMING START] Streaming started - ensuring scroll to bottom');
+      }
+      
+      const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'end'
+        });
+      };
+
+      // Immediate scroll when streaming starts
+      requestAnimationFrame(scrollToBottom);
+    }
+  }, [isStreaming]); // Only depend on isStreaming to trigger when streaming starts
 
   // Ensure scroll to bottom when loading completes (initial load only)
   useEffect(() => {
@@ -294,9 +416,13 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
   }, []);
 
   const handleSendMessage = async () => {
-    if (!chatMessage.trim() || isSending) return;
+    if (!chatMessage.trim() || isSending || isStreaming) return;
     
     setIsSending(true);
+    
+    // Show immediate feedback
+    showToast('Message sent! AI is processing your request...', 'success');
+    
     try {
       if (isStrategicMode && currentStrategicSession) {
         // Use strategic interaction for strategist agent
@@ -306,12 +432,17 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
         await startStrategicSession('strategist');
         await sendStrategicMessage(chatMessage, false);
       } else {
-        // Use regular chat
-        await sendMessage(chatMessage);
+        // Use streaming chat for better responsiveness
+        console.log('🚀 [SPARRING SESSION] Using streaming message for better performance');
+        await sendStreamingMessage(chatMessage);
       }
       setChatMessage('');
+      
+      // Show completion feedback
+      showToast('Response received!', 'success');
     } catch (error) {
       console.error('Failed to send message:', error);
+      showToast('Failed to send message. Please try again.', 'error');
     } finally {
       setIsSending(false);
     }
@@ -678,15 +809,39 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
         </div>
       )}
 
-      {/* Error Display */}
+      {/* Enhanced Error Display with Streaming Error Handling */}
       {chatError && (
-        <div className="mb-2 p-2 bg-red-500/10 border border-red-500/20 rounded-md">
-          <p className="text-xs text-red-400">
-            {chatError === 'No workspace selected'
-              ? 'Please select or create a workspace to start chatting'
-              : chatError
-            }
-          </p>
+        <div className="mb-2 p-2 bg-red-500/10 border border-red-500/20 rounded-md transition-all duration-300 animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <X className="w-3 h-3 text-red-400 flex-shrink-0" />
+              <p className="text-xs text-red-400">
+                {chatError === 'No workspace selected'
+                  ? 'Please select or create a workspace to start chatting'
+                  : chatError.includes('Streaming error')
+                  ? 'Streaming failed. You can retry your message.'
+                  : chatError.includes('Stream cancelled')
+                  ? 'Response was cancelled. You can send your message again.'
+                  : chatError
+                }
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                // Clear local error if it exists, otherwise try to clear chat by refreshing
+                if (localError) {
+                  setLocalError(null);
+                } else {
+                  // Trigger a refresh to clear the error state
+                  refreshMessages();
+                }
+              }}
+              className="text-xs text-red-300 hover:text-red-200 transition-colors ml-2"
+              title="Dismiss error"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
         </div>
       )}
 
@@ -768,10 +923,22 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
                     </div>
                   </div>
 
-                  {/* Message Content */}
-                  <p className="text-xs text-[#E5E7EB] mb-1.5 leading-relaxed whitespace-pre-wrap">
-                    {message.content}
-                  </p>
+                  {/* Message Content with Enhanced Loading States */}
+                  <div className="text-xs text-[#E5E7EB] mb-1.5 leading-relaxed whitespace-pre-wrap">
+                    {message.id.startsWith('temp_ai_') ? (
+                      // Show typing indicator for temporary AI messages
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1">
+                          <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                          <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                          <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                        </div>
+                        <span className="text-blue-300 italic">{message.content}</span>
+                      </div>
+                    ) : (
+                      <span>{message.content}</span>
+                    )}
+                  </div>
                   
                   {/* Enhanced Add to Map Button Implementation - Now supports both AI and Human messages */}
                   {(message.type === 'ai' || message.type === 'human') && (
@@ -831,29 +998,69 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
         </div>
       )}
 
-      {/* Input Area */}
+      {/* Input Area with Enhanced States */}
       <div className="flex-shrink-0">
+        {/* Enhanced AI Processing Indicator with Streaming Status and Smooth Transitions */}
+        {(isSending || isStreaming) && (
+          <div className="mb-2 p-2 bg-blue-500/10 border border-blue-500/20 rounded-md transition-all duration-300 ease-in-out animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2 text-xs">
+                <div className="flex gap-1">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                </div>
+                <span className="text-blue-300 font-medium transition-all duration-200">
+                  {streamingStatus || 'AI is typing...'}
+                </span>
+              </div>
+              {isStreaming && (
+                <button
+                  onClick={cancelStream}
+                  className="text-xs px-2 py-1 bg-red-500/20 text-red-300 rounded hover:bg-red-500/30 transition-colors border border-red-500/30"
+                  title="Cancel streaming response"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+            <div className="mt-1 text-xs text-blue-200/70 transition-all duration-200">
+              {isStreaming
+                ? 'Streaming response in real-time...'
+                : 'This may take 10-30 seconds for complex requests'
+              }
+            </div>
+          </div>
+        )}
+
+        
         <div className="relative">
           <textarea
             value={chatMessage}
             onChange={(e) => setChatMessage(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={
-              activeAgents.length === 0 
-                ? "Activate an agent to start chatting..." 
+              isSending || isStreaming
+                ? "Please wait for the current response..."
+                : activeAgents.length === 0
+                ? "Activate an agent to start chatting..."
                 : "Ask your strategic agents anything..."
             }
-            disabled={isSending || activeAgents.length === 0}
-            className="w-full glass-pane rounded-lg p-2.5 pr-14 text-xs text-[#E5E7EB] placeholder-gray-400 resize-none focus:outline-none focus:ring-1 focus:ring-[#6B6B3A] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={isSending || isStreaming || activeAgents.length === 0}
+            className={`w-full glass-pane rounded-lg p-2.5 pr-14 text-xs text-[#E5E7EB] placeholder-gray-400 resize-none focus:outline-none focus:ring-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+              isSending || isStreaming
+                ? 'focus:ring-blue-400 border-blue-400/30'
+                : 'focus:ring-[#6B6B3A]'
+            }`}
             rows={2}
             aria-label="Chat message input"
           />
           
           {/* Input Controls */}
           <div className="absolute bottom-2 right-2 flex space-x-1.5">
-            <button 
+            <button
               className="text-gray-400 hover:text-[#6B6B3A] transition-colors disabled:opacity-50"
-              disabled={isSending}
+              disabled={isSending || isStreaming}
               aria-label="Voice input"
             >
               <Mic className="w-4 h-4" />
@@ -861,21 +1068,44 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
             <FileUpload
               onFileUploaded={handleFileUploaded}
               onError={handleUploadError}
-              disabled={isSending}
+              disabled={isSending || isStreaming}
             />
-            {isSending && (
+            {(isSending || isStreaming) && (
               <Loader2 className="w-4 h-4 animate-spin text-[#6B6B3A]" />
             )}
           </div>
         </div>
 
-        {/* Send Button */}
+        {/* Enhanced Send Button with Streaming Progress and Error States */}
         <button
           onClick={handleSendMessage}
-          disabled={!chatMessage.trim() || isSending || activeAgents.length === 0}
-          className="w-full mt-2 px-3 py-2 bg-[#6B6B3A] hover:bg-[#6B6B3A]/80 disabled:bg-gray-600 disabled:cursor-not-allowed text-black font-medium text-xs rounded-lg transition-colors"
+          disabled={!chatMessage.trim() || isSending || isStreaming || activeAgents.length === 0}
+          className={`w-full mt-2 px-3 py-2 font-medium text-xs rounded-lg transition-all duration-200 flex items-center justify-center gap-2 ${
+            isSending || isStreaming
+              ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30 cursor-wait'
+              : chatError && chatError.includes('Streaming error')
+              ? 'bg-red-500/20 text-red-300 border border-red-500/30 hover:bg-red-500/30'
+              : !chatMessage.trim() || activeAgents.length === 0
+              ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+              : 'bg-[#6B6B3A] hover:bg-[#6B6B3A]/80 text-black hover:scale-[1.02] active:scale-[0.98]'
+          }`}
         >
-          {isSending ? 'Sending...' : 'Send Message'}
+          {isSending || isStreaming ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>{isStreaming ? 'Streaming...' : 'AI Processing...'}</span>
+            </>
+          ) : chatError && chatError.includes('Streaming error') ? (
+            <>
+              <RefreshCw className="w-4 h-4" />
+              <span>Retry Message</span>
+            </>
+          ) : (
+            <>
+              <MessageSquare className="w-4 h-4" />
+              <span>Send Message</span>
+            </>
+          )}
         </button>
       </div>
     </div>

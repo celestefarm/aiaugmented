@@ -26,6 +26,7 @@ import logging
 
 # Import AI functions from interactions router
 from routers.interactions import call_openai_api, create_system_prompt
+from utils.performance_monitor import perf_monitor
 
 router = APIRouter(tags=["Messages"])
 
@@ -228,6 +229,9 @@ async def get_workspace_documents_content(database, workspace_id: str) -> str:
     Returns:
         Formatted string containing all document content
     """
+    # PERFORMANCE MONITORING: Time document context processing
+    doc_timer = perf_monitor.start_timer("document_context_processing")
+    
     try:
         logger.info(f"📄 [DOCUMENT CONTEXT] Searching for documents in workspace: {workspace_id}")
         logger.info(f"📄 [DOCUMENT CONTEXT] Workspace ID type: {type(workspace_id)}")
@@ -291,10 +295,24 @@ async def get_workspace_documents_content(database, workspace_id: str) -> str:
         document_context += "=== END DOCUMENTS CONTEXT ===\n\n"
         document_context += "You can reference these documents in your response. When referencing content, mention the document name and provide specific insights based on the actual content.\n\n"
         
+        # PERFORMANCE MONITORING: Log document processing metrics
+        processing_time = perf_monitor.end_timer(doc_timer, {
+            'document_count': len(document_docs),
+            'context_length': len(document_context),
+            'workspace_id': workspace_id
+        })
+        
+        perf_monitor.log_document_processing(
+            document_count=len(document_docs),
+            total_chars=len(document_context),
+            processing_time=processing_time
+        )
+        
         logger.info(f"📄 Prepared document context for AI: {len(document_docs)} documents, {len(document_context)} characters")
         return document_context
         
     except Exception as e:
+        perf_monitor.end_timer(doc_timer, {'error': str(e), 'success': False})
         logger.error(f"Error getting workspace documents: {e}")
         return ""
 
@@ -319,6 +337,8 @@ async def send_message(
     Raises:
         HTTPException: If workspace not found or access denied
     """
+    # PERFORMANCE MONITORING: Time the entire message processing pipeline
+    message_timer = perf_monitor.start_timer("send_message_pipeline")
     # Validate ObjectId format
     if not ObjectId.is_valid(workspace_id):
         raise HTTPException(
@@ -440,8 +460,13 @@ async def send_message(
                     logger.info(f"=== GENERATING AI RESPONSE ===")
                     logger.info(f"Using model: {model_name}")
                     
-                    # Get document context for AI agents
+                    # PERFORMANCE MONITORING: Time document context retrieval
+                    doc_context_timer = perf_monitor.start_timer("document_context_retrieval")
                     document_context = await get_workspace_documents_content(database, workspace_id)
+                    perf_monitor.end_timer(doc_context_timer, {
+                        'context_length': len(document_context),
+                        'has_context': bool(document_context)
+                    })
                     
                     # Generate intelligent AI response using the proper framework
                     system_prompt = create_system_prompt(agent if agent else type('Agent', (), {
@@ -521,6 +546,14 @@ async def send_message(
             ai_message_response = MessageInDB(**ai_message_doc).to_response()
             
             all_messages.append(ai_message_response)
+    
+    # PERFORMANCE MONITORING: End message processing timer
+    perf_monitor.end_timer(message_timer, {
+        'workspace_id': workspace_id,
+        'active_agents_count': len(active_agents),
+        'total_messages_returned': len(all_messages),
+        'user_message_length': len(message_data.content)
+    })
     
     return all_messages
 

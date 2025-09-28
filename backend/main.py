@@ -81,6 +81,10 @@ app.include_router(documents.router, prefix="/api/v1")
 app.include_router(cognitive_analysis.router, prefix="/api/v1")
 app.include_router(ai_summarization.router, prefix="/api/v1")
 
+# Import and include streaming router
+from routers import streaming
+app.include_router(streaming.router, prefix="/api/v1")
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8000))

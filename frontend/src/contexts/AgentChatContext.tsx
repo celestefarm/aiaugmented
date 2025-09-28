@@ -13,6 +13,7 @@ import {
   StrategicSessionStatus,
   isAuthenticated
 } from '../lib/api';
+import { streamingClient, StreamingOptions } from '../lib/streamingClient';
 import { useWorkspace } from './WorkspaceContext';
 import { useMap } from './MapContext';
 import { useMessageMapStatus } from './MessageMapStatusContext';
@@ -89,11 +90,17 @@ interface AgentChatContextType {
   // Chat actions
   loadMessages: () => Promise<void>;
   sendMessage: (content: string) => Promise<ChatMessage[]>;
+  sendStreamingMessage: (content: string) => Promise<ChatMessage[]>;
   addDocumentMessage: (documents: DocumentUploadResponse[]) => Promise<void>;
   addMessageToMap: (messageId: string, nodeTitle?: string, nodeType?: string) => Promise<boolean>;
   removeMessageFromMap: (nodeId: string) => Promise<ChatMessage | null>;
   clearMessages: () => void;
   refreshMessages: () => Promise<void>;
+  
+  // Streaming state
+  isStreaming: boolean;
+  streamingStatus: string | null;
+  cancelStream: () => void;
   
   // Strategic interaction actions
   startStrategicSession: (agentId: string) => Promise<void>;
@@ -132,6 +139,11 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
   
   // STATE MANAGEMENT FIX: Loading state for add-to-map operations
   const [addToMapLoading, setAddToMapLoading] = useState<Record<string, boolean>>({});
+  
+  // Streaming state
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingStatus, setStreamingStatus] = useState<string | null>(null);
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   
   // Strategic interaction state
   const [currentStrategicSession, setCurrentStrategicSession] = useState<string | null>(null);
@@ -272,6 +284,37 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
     try {
       setChatError(null);
       
+      // IMMEDIATE FEEDBACK: Add user message to UI immediately
+      const tempUserMessage: ChatMessage = {
+        id: `temp_${Date.now()}`,
+        workspace_id: currentWorkspace.id,
+        author: 'You',
+        type: 'human',
+        content,
+        created_at: new Date().toISOString(),
+        added_to_map: false
+      };
+      
+      // Add user message immediately for responsive feel
+      setMessages(prev => [...prev, tempUserMessage]);
+      
+      // Get the actual agent name for consistent display
+      const currentActiveAgent = agents.find(agent => activeAgents.includes(agent.agent_id));
+      const currentAgentDisplayName = currentActiveAgent?.name || 'Strategic Co-Pilot';
+      
+      // IMMEDIATE FEEDBACK: Add "AI is thinking..." placeholder
+      const tempAiMessage: ChatMessage = {
+        id: `temp_ai_${Date.now()}`,
+        workspace_id: currentWorkspace.id,
+        author: currentAgentDisplayName,
+        type: 'ai',
+        content: '🤔 Analyzing your message and preparing a response...',
+        created_at: new Date().toISOString(),
+        added_to_map: false
+      };
+      
+      setMessages(prev => [...prev, tempAiMessage]);
+      
       // Send message to backend and get responses
       const responseMessages = await apiClient.sendMessage(currentWorkspace.id, { content });
       
@@ -281,17 +324,234 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
         console.log(`Message ${index}:`, { id: msg.id, type: typeof msg.id, content: msg.content.substring(0, 50) });
       });
       
-      // Update local state with all messages (human + AI responses)
-      setMessages(prev => [...prev, ...responseMessages]);
+      // Replace temporary messages with real ones from backend
+      setMessages(prev => {
+        // Remove temporary messages
+        const withoutTemp = prev.filter(msg => !msg.id.startsWith('temp_'));
+        // Add real messages from backend
+        return [...withoutTemp, ...responseMessages];
+      });
       
       return responseMessages;
     } catch (err) {
+      // Remove temporary messages on error
+      setMessages(prev => prev.filter(msg => !msg.id.startsWith('temp_')));
+      
       const errorMessage = err instanceof Error ? err.message : 'Failed to send message';
       setChatError(errorMessage);
       console.error('Failed to send message:', err);
       throw err;
     }
   }, [currentWorkspace]);
+
+  // Send a streaming message with real-time response
+  const sendStreamingMessage = useCallback(async (content: string): Promise<ChatMessage[]> => {
+    if (!currentWorkspace?.id) {
+      setChatError('No workspace selected');
+      return [];
+    }
+
+    if (isStreaming) {
+      setChatError('Another message is currently being processed');
+      return [];
+    }
+
+    try {
+      setChatError(null);
+      setIsStreaming(true);
+      setStreamingStatus('AI is typing...');
+      
+      // IMMEDIATE FEEDBACK: Add user message to UI immediately
+      const tempUserMessage: ChatMessage = {
+        id: `temp_user_${Date.now()}`,
+        workspace_id: currentWorkspace.id,
+        author: 'You',
+        type: 'human',
+        content,
+        created_at: new Date().toISOString(),
+        added_to_map: false
+      };
+      
+      // Add user message immediately for responsive feel
+      setMessages(prev => [...prev, tempUserMessage]);
+      
+      // Get the actual agent name for consistent display
+      const streamingActiveAgent = agents.find(agent => activeAgents.includes(agent.agent_id));
+      const streamingAgentDisplayName = streamingActiveAgent?.name || 'Strategic Co-Pilot';
+      
+      // STREAMING: Add placeholder AI message that will be updated in real-time
+      const streamingAiMessageId = `streaming_ai_${Date.now()}`;
+      const streamingAiMessage: ChatMessage = {
+        id: streamingAiMessageId,
+        workspace_id: currentWorkspace.id,
+        author: streamingAgentDisplayName,
+        type: 'ai',
+        content: '',
+        created_at: new Date().toISOString(),
+        added_to_map: false
+      };
+      
+      setMessages(prev => [...prev, streamingAiMessage]);
+      setStreamingMessageId(streamingAiMessageId);
+      
+      let fullAiResponse = '';
+      
+      // Stream the AI response
+      const streamingOptions: StreamingOptions = {
+        onStatus: (status: string) => {
+          console.log('📡 [STREAMING] Status:', status);
+          // Keep showing "AI is typing..." during streaming, ignore backend status updates
+          setStreamingStatus('AI is typing...');
+        },
+        
+        onContent: (chunk: string) => {
+          console.log('📝 [STREAMING] Content chunk:', chunk.length, 'chars');
+          fullAiResponse += chunk;
+          
+          // DIAGNOSTIC: Log streaming content updates for auto-scroll debugging (development only)
+          if (process.env.NODE_ENV === 'development') {
+            console.log('🔄 [STREAMING] Updating message content:', {
+              messageId: streamingAiMessageId,
+              contentLength: fullAiResponse.length,
+              chunk: chunk.substring(0, 20) + '...',
+              totalContent: fullAiResponse.substring(0, 50) + '...'
+            });
+          }
+          
+          // Ensure status shows "AI is typing..." while content is being received
+          setStreamingStatus('AI is typing...');
+          
+          // Update the streaming message in real-time
+          setMessages(prev => prev.map(msg =>
+            msg.id === streamingAiMessageId
+              ? { ...msg, content: fullAiResponse }
+              : msg
+          ));
+        },
+        
+        onComplete: (totalLength: number, duration: number) => {
+          const completionTime = new Date().toISOString();
+          console.log('✅ [STREAMING] Complete received at:', completionTime, { totalLength, duration });
+          
+          // IMMEDIATE FIX: Clear streaming indicators immediately when AI completes
+          console.log('🔄 [STREAMING] Clearing status immediately at:', new Date().toISOString());
+          setStreamingStatus(null);
+          setIsStreaming(false);
+          
+          // DIAGNOSTIC: Verify status is actually cleared
+          setTimeout(() => {
+            console.log('🔍 [STREAMING] Status check 100ms after completion:', {
+              isStreaming,
+              streamingStatus,
+              timestamp: new Date().toISOString()
+            });
+          }, 100);
+        },
+        
+        onError: (error: string) => {
+          console.error('❌ [STREAMING] Error:', error);
+          setChatError(`Streaming error: ${error}`);
+          setStreamingStatus(null);
+          setIsStreaming(false); // CRITICAL FIX: Clear streaming state on error
+          
+          // Remove the failed streaming message
+          setMessages(prev => prev.filter(msg => msg.id !== streamingAiMessageId));
+        }
+      };
+      
+      // Start streaming with timeout safety
+      const streamingPromise = streamingClient.streamMessage(
+        currentWorkspace.id,
+        content,
+        'strategist', // Default to strategist agent
+        streamingOptions
+      );
+
+      // SAFETY: Add timeout to ensure streaming state is cleared even if something goes wrong
+      const timeoutPromise = new Promise<string>((_, reject) => {
+        setTimeout(() => {
+          console.warn('⚠️ [STREAMING] Timeout reached, forcing cleanup');
+          setIsStreaming(false);
+          setStreamingStatus(null);
+          reject(new Error('Streaming timeout'));
+        }, 60000); // 60 second timeout
+      });
+
+      await Promise.race([streamingPromise, timeoutPromise]);
+      
+      // CRITICAL FIX: Skip persistence for streaming messages to prevent status interference
+      // Streaming messages are already handled in real-time and don't need additional persistence
+      console.log('✅ [STREAMING] Skipping persistence to prevent status interference');
+      console.log('🔄 [STREAMING] Streaming messages are already handled in real-time');
+      
+      // Return the streaming messages as-is since they're already properly formatted
+      const finalUserMessage: ChatMessage = {
+        ...tempUserMessage,
+        id: `user_${Date.now()}`, // Give it a proper ID
+      };
+      
+      // Get the actual agent name for consistent display
+      const finalActiveAgent = agents.find(agent => activeAgents.includes(agent.agent_id));
+      const finalAgentDisplayName = finalActiveAgent?.name || 'Strategic Co-Pilot';
+      
+      const finalAiMessage: ChatMessage = {
+        ...streamingAiMessage,
+        id: `ai_${Date.now()}`, // Give it a proper ID
+        author: finalAgentDisplayName, // Ensure consistent agent name
+        content: fullAiResponse // Use the complete streamed response
+      };
+      
+      // Update messages with final versions
+      setMessages(prev => {
+        const withoutTemp = prev.filter(msg =>
+          !msg.id.startsWith('temp_') && msg.id !== streamingAiMessageId
+        );
+        return [...withoutTemp, finalUserMessage, finalAiMessage];
+      });
+      
+      return [finalUserMessage, finalAiMessage];
+      
+    } catch (err) {
+      // Remove temporary messages on error
+      setMessages(prev => prev.filter(msg =>
+        !msg.id.startsWith('temp_') && msg.id !== streamingMessageId
+      ));
+      
+      const errorMessage = err instanceof Error ? err.message : 'Failed to send streaming message';
+      setChatError(errorMessage);
+      console.error('Failed to send streaming message:', err);
+      throw err;
+    } finally {
+      // ENHANCED: Ensure streaming state is always cleared with additional safety
+      console.log('🔄 [STREAMING] Cleaning up streaming state in finally block');
+      setIsStreaming(false);
+      setStreamingStatus(null);
+      setStreamingMessageId(null);
+      
+      // ADDITIONAL SAFETY: Force clear after a short delay to handle any race conditions
+      setTimeout(() => {
+        console.log('🔄 [STREAMING] Final safety cleanup');
+        setIsStreaming(false);
+        setStreamingStatus(null);
+      }, 100);
+    }
+  }, [currentWorkspace, isStreaming, streamingMessageId]);
+
+  // Cancel streaming
+  const cancelStream = useCallback(() => {
+    if (isStreaming) {
+      console.log('🛑 [STREAMING] Cancelling stream...');
+      streamingClient.cancelStream();
+      setIsStreaming(false);
+      setStreamingStatus(null);
+      
+      // Remove streaming message
+      if (streamingMessageId) {
+        setMessages(prev => prev.filter(msg => msg.id !== streamingMessageId));
+        setStreamingMessageId(null);
+      }
+    }
+  }, [isStreaming, streamingMessageId]);
 
   // STATE MANAGEMENT FIX: Simplified message-to-map with proper error handling
   const addMessageToMap = useCallback(async (
@@ -760,11 +1020,17 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
     // Chat actions
     loadMessages,
     sendMessage,
+    sendStreamingMessage,
     addDocumentMessage,
     addMessageToMap,
     removeMessageFromMap,
     clearMessages,
     refreshMessages,
+    
+    // Streaming state
+    isStreaming,
+    streamingStatus,
+    cancelStream,
     
     // Strategic interaction actions
     startStrategicSession,

@@ -9,6 +9,7 @@ from utils.cognitive_analysis import CognitiveAnalyzer, MentorshipEngine
 from utils.strategist_blueprint import StrategistBlueprint, StrategicPhase, LightningBrief
 from utils.red_team_protocol import RedTeamProtocol, ChallengeType, ChallengeDifficulty
 from utils.text_chunking import TokenEstimator, ModelConfig
+from utils.performance_monitor import perf_monitor
 from models.strategic_analysis import (
     StrategicSession, StrategicEvidence, StrategicOption, 
     create_strategic_session, add_evidence_to_session,
@@ -99,8 +100,12 @@ class RedTeamResponseRequest(BaseModel):
 
 async def call_openai_api(model: str, prompt: str, system_prompt: str) -> str:
     """Call OpenAI API with the given model and prompts, with token validation"""
+    # PERFORMANCE MONITORING: Start timing the entire API call
+    api_timer = perf_monitor.start_timer(f"openai_api_call_{model}")
+    
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
+        perf_monitor.end_timer(api_timer, {'error': 'No API key configured'})
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="OpenAI API key not configured"
@@ -108,6 +113,9 @@ async def call_openai_api(model: str, prompt: str, system_prompt: str) -> str:
     
     # Extract model name (remove provider prefix if present)
     model_name = model.split("/")[-1] if "/" in model else model
+    
+    # PERFORMANCE MONITORING: Time token processing
+    token_timer = perf_monitor.start_timer("token_estimation_and_validation")
     
     # Get model configuration for token limits
     model_config = ModelConfig.get_config(model_name)
@@ -119,6 +127,12 @@ async def call_openai_api(model: str, prompt: str, system_prompt: str) -> str:
     
     total_input_tokens = system_tokens + user_tokens
     total_required_tokens = total_input_tokens + max_response_tokens
+    
+    perf_monitor.end_timer(token_timer, {
+        'system_tokens': system_tokens,
+        'user_tokens': user_tokens,
+        'total_tokens': total_required_tokens
+    })
     
     logger.info(f"Token estimation for {model_name}: "
                f"system={system_tokens}, user={user_tokens}, "
@@ -169,8 +183,13 @@ async def call_openai_api(model: str, prompt: str, system_prompt: str) -> str:
         "temperature": 0.7
     }
     
+    # PERFORMANCE MONITORING: Time the actual HTTP request
+    http_timer = perf_monitor.start_timer("openai_http_request")
+    
     async with httpx.AsyncClient() as client:
         try:
+            logger.info(f"🚀 [OPENAI-API] Starting request to OpenAI for model {model_name}")
+            
             response = await client.post(
                 "https://api.openai.com/v1/chat/completions",
                 headers=headers,
@@ -180,7 +199,35 @@ async def call_openai_api(model: str, prompt: str, system_prompt: str) -> str:
             response.raise_for_status()
             
             result = response.json()
-            return result["choices"][0]["message"]["content"]
+            response_content = result["choices"][0]["message"]["content"]
+            
+            # PERFORMANCE MONITORING: Log successful API call metrics
+            http_duration = perf_monitor.end_timer(http_timer, {
+                'model': model_name,
+                'response_length': len(response_content),
+                'success': True
+            })
+            
+            # Log API-specific metrics
+            response_tokens = len(response_content.split()) * 1.3  # Rough estimate
+            perf_monitor.log_api_metrics(
+                model=model_name,
+                input_tokens=total_input_tokens,
+                response_tokens=int(response_tokens),
+                duration=http_duration,
+                success=True
+            )
+            
+            # End overall API timer
+            perf_monitor.end_timer(api_timer, {
+                'model': model_name,
+                'total_tokens': total_required_tokens,
+                'response_length': len(response_content),
+                'success': True
+            })
+            
+            logger.info(f"✅ [OPENAI-API] Completed request for {model_name} in {http_duration:.2f}s")
+            return response_content
             
         except httpx.HTTPStatusError as e:
             error_detail = e.response.text if hasattr(e.response, 'text') else str(e)
