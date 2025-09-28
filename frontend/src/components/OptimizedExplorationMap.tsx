@@ -1582,7 +1582,7 @@ const OptimizedExplorationMap: React.FC = () => {
       <TooltipProvider>
         <div className="flex h-full w-full bg-gray-900 overflow-hidden">
           {/* Left Sidebar */}
-          <div className={`transition-all duration-300 glass-pane border-r border-gray-600/30 flex flex-col ${
+          <div className={`transition-all duration-300 glass-pane-sidebar border-r border-gray-600/30 flex flex-col ${
             leftSidebarCollapsed ? 'w-16' : 'w-80'
           }`}>
             <div className="flex-shrink-0 p-4 border-b border-gray-600/30 glass-pane">
@@ -1916,7 +1916,7 @@ const OptimizedExplorationMap: React.FC = () => {
 
           {/* Right Sidebar - Chat */}
           <div
-            className={`glass-pane border-l border-gray-600/30 overflow-hidden flex flex-col relative ${
+            className={`glass-pane-sidebar border-l border-gray-600/30 overflow-hidden flex flex-col relative ${
               isResizingRightSidebar ? '' : 'transition-all duration-300 ease-in-out'
             }`}
             style={{
