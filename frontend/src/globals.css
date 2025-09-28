@@ -134,12 +134,25 @@
   min-height: 100vh;
 }
 
-/* Glass pane effect */
+/* Glass pane effect with enhanced dark grey edge glow */
 .glass-pane {
   background: rgba(10, 10, 10, 0.4);
   backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 0.75rem;
+  box-shadow:
+    0 0 20px rgba(75, 85, 99, 0.5),
+    0 0 40px rgba(75, 85, 99, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Glass pane without glow for agent boxes */
+.glass-pane-no-glow {
+  background: rgba(10, 10, 10, 0.4);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.75rem;
+  /* No box-shadow to remove glow effect */
 }
 
 /* Removed glow effects */
@@ -148,13 +161,13 @@
 .node-human-created {
   background: rgba(107, 107, 58, 0.08) !important;
   border-color: rgba(107, 107, 58, 0.25) !important;
-  box-shadow: 0 0 20px -8px rgba(107, 107, 58, 0.3) !important;
+  box-shadow: 0 0 20px -8px rgba(107, 107, 58, 0.1) !important;
 }
 
 .node-ai-created {
   background: rgba(59, 130, 246, 0.08) !important;
   border-color: rgba(59, 130, 246, 0.25) !important;
-  box-shadow: 0 0 20px -8px rgba(59, 130, 246, 0.3) !important;
+  box-shadow: 0 0 20px -8px rgba(59, 130, 246, 0.1) !important;
 }
 
 /* Custom scrollbar for elements with overflow-y-auto */

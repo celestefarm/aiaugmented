@@ -154,7 +154,7 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, title, onTit
         </div>
 
         {/* Center Section - View Toggle */}
-        <div className="glass-pane rounded-full p-1 relative z-50">
+        <div className="glass-pane-no-glow rounded-full p-1 relative z-50">
           <div className="flex">
             <button
               onClick={() => {

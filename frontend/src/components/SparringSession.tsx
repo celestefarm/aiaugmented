@@ -894,7 +894,7 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
             >
               {message.type === 'document' ? (
                 // Document Message Display
-                <div className="max-w-[90%] glass-pane rounded-lg p-2.5 border-[#6B6B3A]/30 bg-[#6B6B3A]/5">
+                <div className="max-w-[90%] glass-pane-no-glow rounded-lg p-2.5 border-[#6B6B3A]/30 bg-[#6B6B3A]/5">
                   <div className="flex items-center gap-2 mb-2">
                     <Upload className="w-4 h-4 text-[#6B6B3A]" />
                     <span className="text-xs font-medium text-[#6B6B3A]">Document Upload</span>
@@ -912,7 +912,7 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
               ) : (
                 // Regular Text Message Display
                 <div
-                  className={`max-w-[90%] glass-pane rounded-lg p-2.5 ${
+                  className={`max-w-[90%] glass-pane-no-glow rounded-lg p-2.5 ${
                     message.type === 'human'
                       ? 'border-[#6B6B3A]/30 bg-[#6B6B3A]/5'
                       : 'border-blue-400/30 bg-blue-500/5'
@@ -1085,7 +1085,7 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
                 : "Ask your strategic agents anything..."
             }
             disabled={isSending || isStreaming || activeAgents.length === 0}
-            className={`w-full glass-pane rounded-lg p-2.5 pr-14 text-xs text-[#E5E7EB] placeholder-gray-400 resize-none focus:outline-none focus:ring-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+            className={`w-full glass-pane-no-glow rounded-lg p-2.5 pr-14 text-xs text-[#E5E7EB] placeholder-gray-400 resize-none focus:outline-none focus:ring-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
               isSending || isStreaming
                 ? 'focus:ring-blue-400 border-blue-400/30'
                 : 'focus:ring-[#6B6B3A]'
