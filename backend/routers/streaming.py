@@ -3,7 +3,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, AsyncGenerator
 from models.user import UserInDB
-from utils.dependencies import get_current_user
+from utils.dependencies import get_current_active_user
 from utils.seed_agents import get_agent_by_id
 from utils.performance_monitor import perf_monitor
 from utils.text_chunking import TokenEstimator, ModelConfig
@@ -177,7 +177,7 @@ async def stream_openai_response(
 async def stream_message_response(
     workspace_id: str,
     request: StreamingMessageRequest,
-    current_user: UserInDB = Depends(get_current_user)
+    current_user = Depends(get_current_active_user)
 ):
     """
     Stream AI response in real-time for better user experience.
@@ -228,6 +228,24 @@ async def stream_message_response(
         try:
             logger.info(f"🌊 [STREAMING] Starting stream for workspace {workspace_id}")
             
+            # CRITICAL FIX: Save user message to database first
+            from models.message import MessageCreate
+            from datetime import datetime
+            
+            now = datetime.utcnow()
+            user_message = MessageCreate(
+                workspace_id=workspace_id,
+                author=current_user.name,
+                type="human",
+                content=request.content,
+                created_at=now,
+                added_to_map=False
+            )
+            
+            # Insert user message
+            user_result = await database.messages.insert_one(user_message.model_dump())
+            logger.info(f"💾 [STREAMING] Saved user message to database: {user_result.inserted_id}")
+            
             # Get document context for AI agents
             document_context = await get_workspace_documents_content(database, workspace_id)
             
@@ -240,18 +258,48 @@ async def stream_message_response(
                 user_prompt = f"{document_context}\nUser Question: {request.content}"
                 logger.info(f"📄 [STREAMING] Enhanced prompt with document context ({len(document_context)} chars)")
             
-            # Stream the response
+            # Stream the response and collect it for database storage
+            full_ai_response = ""
+            
             if agent.model_name.startswith("openai/") or agent.model_name.startswith("gpt-"):
                 async for chunk in stream_openai_response(agent.model_name, user_prompt, system_prompt):
                     yield chunk
+                    
+                    # CRITICAL FIX: Collect AI response content for database storage
+                    if chunk.startswith("data: "):
+                        try:
+                            chunk_data = json.loads(chunk[6:])
+                            if chunk_data.get('type') == 'content' and 'content' in chunk_data:
+                                full_ai_response += chunk_data['content']
+                        except json.JSONDecodeError:
+                            pass
             else:
-                yield f"data: {json.dumps({'type': 'error', 'message': f'Unsupported model: {agent.model_name}'})}\n\n"
+                error_msg = f"Unsupported model: {agent.model_name}"
+                yield f"data: {json.dumps({'type': 'error', 'message': error_msg})}\n\n"
+                full_ai_response = f"Error: {error_msg}"
+            
+            # CRITICAL FIX: Save AI response to database after streaming completes
+            if full_ai_response:
+                ai_message = MessageCreate(
+                    workspace_id=workspace_id,
+                    author=agent.name,
+                    type="ai",
+                    content=full_ai_response,
+                    created_at=datetime.utcnow(),
+                    added_to_map=False
+                )
+                
+                # Insert AI message
+                ai_result = await database.messages.insert_one(ai_message.model_dump())
+                logger.info(f"💾 [STREAMING] Saved AI response to database: {ai_result.inserted_id}")
+                logger.info(f"💾 [STREAMING] AI response length: {len(full_ai_response)} characters")
             
             # End pipeline timer
             perf_monitor.end_timer(pipeline_timer, {
                 'workspace_id': workspace_id,
                 'agent_id': request.agent_id,
                 'message_length': len(request.content),
+                'ai_response_length': len(full_ai_response),
                 'success': True
             })
             

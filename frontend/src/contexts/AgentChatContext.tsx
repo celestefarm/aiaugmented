@@ -228,7 +228,7 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
     }
   }, [currentWorkspace]);
 
-  // OPTIMIZED: Load chat messages for current workspace - prevent loading flicker
+  // CRITICAL FIX: Simplified message loading logic to fix retrieval issues
   const loadMessages = useCallback(async (): Promise<void> => {
     if (!currentWorkspace?.id) {
       setMessages([]);
@@ -236,48 +236,44 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
       return;
     }
 
-    // FLICKER FIX: Only show loading if we don't have messages yet or it's initial load
-    const shouldShowLoading = messages.length === 0 || isInitialLoad;
-    
     try {
-      if (shouldShowLoading) {
-        setIsLoadingMessages(true);
-      }
+      // SIMPLIFIED: Always show loading state when fetching messages
+      setIsLoadingMessages(true);
       setChatError(null);
       
+      console.log('🔄 [LOAD MESSAGES] Fetching messages for workspace:', currentWorkspace.id);
+      
       const response = await apiClient.getMessages(currentWorkspace.id);
+      
+      console.log('✅ [LOAD MESSAGES] Messages retrieved:', response.messages.length);
       setMessages(response.messages);
       
-      // CONSERVATIVE SYNC: Only sync after a longer delay to ensure nodes are established
-      console.log('🔄 [AGENT CHAT CONTEXT] Messages loaded, scheduling conservative sync...');
-      if (nodes && nodes.length >= 0 && response.messages.length > 0) {
-        // Longer delay to ensure document nodes are properly established
+      // Sync with canvas state if needed (only when not in streaming mode)
+      if (nodes && nodes.length >= 0 && response.messages.length > 0 && !isStreaming) {
         setTimeout(() => {
-          console.log('🔄 [AGENT CHAT CONTEXT] Executing conservative sync after node establishment');
+          console.log('🔄 [LOAD MESSAGES] Syncing with canvas state');
           syncWithCanvasState(nodes, response.messages);
-        }, 2000); // Increased delay to prevent premature sync
+        }, 1000);
       }
       
-      // AUTO-SCROLL FIX: Mark initial load as complete after messages are set and auto-scroll has time to execute
+      // Mark initial load as complete
       if (isInitialLoad) {
-        console.log('🔄 [AUTO-SCROLL FIX] Messages loaded, scheduling isInitialLoad reset after auto-scroll');
-        // Increased delay to ensure auto-scroll completes before resetting flag
         setTimeout(() => {
-          console.log('🔄 [AUTO-SCROLL FIX] Resetting isInitialLoad to false after auto-scroll completion');
+          console.log('🔄 [LOAD MESSAGES] Marking initial load as complete');
           setIsInitialLoad(false);
-        }, 500); // Increased from 200ms to 500ms to ensure auto-scroll completes
+        }, 300);
       }
+      
     } catch (error) {
-      console.error('Failed to load messages:', error);
+      console.error('❌ [LOAD MESSAGES] Failed to load messages:', error);
       setChatError(error instanceof Error ? error.message : 'Failed to load messages');
       setMessages([]);
       setIsInitialLoad(false);
     } finally {
-      if (shouldShowLoading) {
-        setIsLoadingMessages(false);
-      }
+      // CRITICAL: Always clear loading state
+      setIsLoadingMessages(false);
     }
-  }, [currentWorkspace, messages.length, isInitialLoad, nodes, syncWithCanvasState]);
+  }, [currentWorkspace?.id, isInitialLoad]);
 
   // Send a message and get AI responses
   const sendMessage = useCallback(async (content: string): Promise<ChatMessage[]> => {
@@ -366,9 +362,10 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
       setIsStreaming(true);
       setStreamingStatus('AI is typing...');
       
-      // IMMEDIATE FEEDBACK: Add user message to UI immediately
-      const tempUserMessage: ChatMessage = {
-        id: `temp_user_${Date.now()}`,
+      // IMMEDIATE FEEDBACK: Add user message to UI immediately with persistent ID
+      const userMessageId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const userMessage: ChatMessage = {
+        id: userMessageId,
         workspace_id: currentWorkspace.id,
         author: 'You',
         type: 'human',
@@ -378,14 +375,15 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
       };
       
       // Add user message immediately for responsive feel
-      setMessages(prev => [...prev, tempUserMessage]);
+      setMessages(prev => [...prev, userMessage]);
       
       // Get the actual agent name for consistent display
       const streamingActiveAgent = agents.find(agent => activeAgents.includes(agent.agent_id));
       const streamingAgentDisplayName = streamingActiveAgent?.name || 'Strategic Co-Pilot';
       
       // STREAMING: Add placeholder AI message that will be updated in real-time
-      const streamingAiMessageId = `streaming_ai_${Date.now()}`;
+      // Use a more persistent ID format that won't conflict with backend IDs
+      const streamingAiMessageId = `ai_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const streamingAiMessage: ChatMessage = {
         id: streamingAiMessageId,
         workspace_id: currentWorkspace.id,
@@ -438,6 +436,13 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
           const completionTime = new Date().toISOString();
           console.log('✅ [STREAMING] Complete received at:', completionTime, { totalLength, duration });
           
+          // PERSISTENCE FIX: Update the streaming message with final timestamp and ensure it's marked as complete
+          setMessages(prev => prev.map(msg =>
+            msg.id === streamingAiMessageId
+              ? { ...msg, created_at: completionTime }
+              : msg
+          ));
+          
           // IMMEDIATE FIX: Clear streaming indicators immediately when AI completes
           console.log('🔄 [STREAMING] Clearing status immediately at:', new Date().toISOString());
           setStreamingStatus(null);
@@ -484,43 +489,26 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
 
       await Promise.race([streamingPromise, timeoutPromise]);
       
-      // CRITICAL FIX: Skip persistence for streaming messages to prevent status interference
-      // Streaming messages are already handled in real-time and don't need additional persistence
-      console.log('✅ [STREAMING] Skipping persistence to prevent status interference');
-      console.log('🔄 [STREAMING] Streaming messages are already handled in real-time');
+      // PERSISTENCE FIX: After streaming completes, reload messages from backend to ensure persistence
+      console.log('✅ [STREAMING] Streaming complete, reloading messages from backend for persistence...');
       
-      // Return the streaming messages as-is since they're already properly formatted
-      const finalUserMessage: ChatMessage = {
-        ...tempUserMessage,
-        id: `user_${Date.now()}`, // Give it a proper ID
-      };
+      // Small delay to ensure backend has processed and saved the messages
+      setTimeout(async () => {
+        try {
+          console.log('🔄 [STREAMING] Reloading messages from backend after streaming...');
+          await loadMessages();
+          console.log('✅ [STREAMING] Messages reloaded successfully after streaming');
+        } catch (error) {
+          console.error('❌ [STREAMING] Failed to reload messages after streaming:', error);
+        }
+      }, 2000); // Longer delay to ensure backend persistence
       
-      // Get the actual agent name for consistent display
-      const finalActiveAgent = agents.find(agent => activeAgents.includes(agent.agent_id));
-      const finalAgentDisplayName = finalActiveAgent?.name || 'Strategic Co-Pilot';
-      
-      const finalAiMessage: ChatMessage = {
-        ...streamingAiMessage,
-        id: `ai_${Date.now()}`, // Give it a proper ID
-        author: finalAgentDisplayName, // Ensure consistent agent name
-        content: fullAiResponse // Use the complete streamed response
-      };
-      
-      // Update messages with final versions
-      setMessages(prev => {
-        const withoutTemp = prev.filter(msg =>
-          !msg.id.startsWith('temp_') && msg.id !== streamingAiMessageId
-        );
-        return [...withoutTemp, finalUserMessage, finalAiMessage];
-      });
-      
-      return [finalUserMessage, finalAiMessage];
+      // Return the current messages to maintain immediate UI state
+      return messages;
       
     } catch (err) {
-      // Remove temporary messages on error
-      setMessages(prev => prev.filter(msg =>
-        !msg.id.startsWith('temp_') && msg.id !== streamingMessageId
-      ));
+      // Remove streaming message on error, but keep user message
+      setMessages(prev => prev.filter(msg => msg.id !== streamingMessageId));
       
       const errorMessage = err instanceof Error ? err.message : 'Failed to send streaming message';
       setChatError(errorMessage);
@@ -940,41 +928,9 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
       setChatError(null);
       setIsInitialLoad(false);
     }
-  }, [currentWorkspace?.id, loadAgents]); // FLICKER FIX: Only depend on workspace ID, not the full loadMessages function
+  }, [currentWorkspace?.id]); // CRITICAL FIX: Remove loadAgents dependency to prevent loops
 
-  // FLICKER FIX: Separate effect for authentication state changes
-  useEffect(() => {
-    const authStatus = isAuthenticated();
-    console.log('🔐 [AGENT CHAT CONTEXT] Authentication state changed:', {
-      isAuthenticated: authStatus,
-      timestamp: new Date().toISOString()
-    });
-    
-    // If user just logged in and we have a workspace, ensure data is loaded
-    if (authStatus && currentWorkspace && messages.length === 0 && !isLoadingMessages) {
-      console.log('🔄 [AGENT CHAT CONTEXT] User logged in with workspace but no messages, forcing reload');
-      const loadTimer = setTimeout(() => {
-        loadMessages();
-      }, 200);
-      
-      return () => clearTimeout(loadTimer);
-    }
-  }, [isAuthenticated(), currentWorkspace?.id, messages.length, isLoadingMessages]);
 
-  // Additional effect to handle authentication state changes more explicitly
-  useEffect(() => {
-    const authStatus = isAuthenticated();
-    console.log('🔐 [AGENT CHAT CONTEXT] Authentication state changed:', {
-      isAuthenticated: authStatus,
-      timestamp: new Date().toISOString()
-    });
-    
-    // If user just logged in and we have a workspace, ensure data is loaded
-    if (authStatus && currentWorkspace && messages.length === 0 && !isLoadingMessages) {
-      console.log('🔄 [AGENT CHAT CONTEXT] User logged in with workspace but no messages, forcing reload');
-      loadMessages();
-    }
-  }, [isAuthenticated(), currentWorkspace, messages.length, isLoadingMessages, loadMessages]);
 
   // CONSERVATIVE SYNC: Only sync when absolutely necessary and after sufficient delay
   useEffect(() => {
@@ -990,7 +946,7 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
 
       return () => clearTimeout(syncTimer);
     }
-  }, [currentWorkspace?.id, messages.length, nodes?.length, isLoadingMessages, isInitialLoad]);
+  }, [currentWorkspace?.id, messages.length, nodes?.length, isLoadingMessages, isInitialLoad, syncWithCanvasState]);
 
   // Context value
   const value: AgentChatContextType = {
