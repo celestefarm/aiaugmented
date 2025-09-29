@@ -258,9 +258,14 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
         }, 2000); // Increased delay to prevent premature sync
       }
       
-      // Mark initial load as complete after messages are set
+      // AUTO-SCROLL FIX: Mark initial load as complete after messages are set and auto-scroll has time to execute
       if (isInitialLoad) {
-        setTimeout(() => setIsInitialLoad(false), 200);
+        console.log('🔄 [AUTO-SCROLL FIX] Messages loaded, scheduling isInitialLoad reset after auto-scroll');
+        // Increased delay to ensure auto-scroll completes before resetting flag
+        setTimeout(() => {
+          console.log('🔄 [AUTO-SCROLL FIX] Resetting isInitialLoad to false after auto-scroll completion');
+          setIsInitialLoad(false);
+        }, 500); // Increased from 200ms to 500ms to ensure auto-scroll completes
       }
     } catch (error) {
       console.error('Failed to load messages:', error);
@@ -907,10 +912,10 @@ export const AgentChatProvider: React.FC<AgentChatProviderProps> = ({ children }
           timestamp: new Date().toISOString()
         });
         
-        // FLICKER FIX: Only set initial load if we don't have messages for this workspace
-        if (messages.length === 0) {
-          setIsInitialLoad(true);
-        }
+        // AUTO-SCROLL FIX: Always set initial load to true when workspace changes or page loads
+        // This ensures auto-scroll works on refresh, revisit, and login
+        console.log('🔄 [AUTO-SCROLL FIX] Setting isInitialLoad to true for workspace load');
+        setIsInitialLoad(true);
         
         // FLICKER FIX: Debounce message loading to prevent rapid calls
         const loadTimer = setTimeout(() => {

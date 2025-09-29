@@ -1596,7 +1596,7 @@ const handleModalClose = useCallback(() => {
             <div className="space-y-3">
               <p className="text-yellow-400 text-sm">Please log in to access your workspace</p>
               <button
-                onClick={() => window.location.href = '/auth'}
+                onClick={() => window.location.href = '/'}
                 className="px-4 py-2 bg-[#6B6B3A] hover:bg-[#6B6B3A]/80 text-black font-medium rounded-lg transition-colors"
               >
                 Go to Login

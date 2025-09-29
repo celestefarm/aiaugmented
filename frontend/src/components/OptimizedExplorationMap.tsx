@@ -189,7 +189,7 @@ const OptimizedNode: React.FC<{
               node.type === 'decision' ? 'bg-yellow-500/20 text-yellow-300' :
               'bg-gray-400/20 text-gray-300'
             }`}>
-              {node.type}
+              {node.type.toUpperCase()}
             </span>
           </div>
           

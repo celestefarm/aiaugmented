@@ -711,7 +711,7 @@ class ApiClient {
             // Force redirect to login immediately
             if (typeof window !== 'undefined') {
               console.log('🔐 [ApiClient] Forcing immediate redirect to login');
-              window.location.href = '/auth';
+              window.location.href = '/';
             }
           } else if (response.status === 403) {
             console.log('🚫 [ApiClient] Access forbidden');

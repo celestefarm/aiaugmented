@@ -123,7 +123,7 @@ export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
       // Force redirect to login for expired authentication
       console.log('🔐 [MapContext] Forcing redirect to login due to authentication failure');
       if (typeof window !== 'undefined') {
-        window.location.href = '/auth';
+        window.location.href = '/';
       }
       return;
     }

@@ -1255,6 +1255,13 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
             </>
           )}
         </button>
+        
+        {/* AI Disclaimer for Responsible Usage */}
+        <div className="mt-2 text-center">
+          <p className="text-xs text-gray-400 italic leading-relaxed">
+            AI Agents can make mistakes. Please double-check responses.
+          </p>
+        </div>
       </div>
     </div>
   );

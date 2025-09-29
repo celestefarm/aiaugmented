@@ -255,7 +255,7 @@ const Dashboard: React.FC = () => {
       // If authentication error, redirect to login
       if (errorMessage.includes('Authentication required')) {
         console.log('🔐 [DASHBOARD] Authentication error, redirecting to login');
-        navigate('/auth');
+        navigate('/');
       }
     }
   };
