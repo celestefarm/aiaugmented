@@ -1603,7 +1603,7 @@ const OptimizedExplorationMap: React.FC = () => {
               <>
                 <div className="flex-1 p-4 space-y-3 overflow-y-auto">
                   {agents.map(agent => (
-                    <div key={agent.agent_id} className="glass-pane-no-glow p-3 rounded-lg">
+                    <div key={agent.agent_id} className="border border-gray-600/30 p-3 rounded-lg bg-transparent">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <div className={`w-2 h-2 rounded-full ${
