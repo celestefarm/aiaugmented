@@ -120,8 +120,8 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, title, onTit
             />
           </svg>
           
-          {/* Editable Title with PREMIUM badge below */}
-          <div className="flex flex-col">
+          {/* Editable Title with PREMIUM badge horizontally aligned */}
+          <div className="flex items-center space-x-3">
             <div className="flex items-center space-x-2">
               {isEditingTitle ? (
                 <input
@@ -147,7 +147,7 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, title, onTit
                 </div>
               )}
             </div>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-600/20 text-gray-500 border border-gray-600/30 mt-1 self-start">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-600/20 text-gray-500 border border-gray-600/30">
               PREMIUM
             </span>
           </div>

@@ -533,7 +533,7 @@ const DocumentMessage: React.FC<DocumentMessageProps> = ({
                 {document.processing_status === 'completed' && (
                   // Check both global status and local node ID for comprehensive state tracking
                   (messageMapStatus[document.id] || document.added_to_map_node_id) ? (
-                    <div className="text-xs px-2 py-1 bg-green-500/20 text-green-300 border border-green-500/30 rounded flex items-center gap-1">
+                    <div className="text-xs px-2 py-1 bg-gradient-to-r from-emerald-900/30 to-emerald-800/20 text-emerald-200 border border-emerald-700/40 rounded-md flex items-center gap-1 shadow-sm backdrop-blur-sm">
                       <Check className="w-3 h-3" />
                       Added to Map
                     </div>

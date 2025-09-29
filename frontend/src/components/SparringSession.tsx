@@ -1012,10 +1012,10 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
                     <div>
                       {(message.type === 'ai' || message.type === 'human') && (
                         messageMapStatus[message.id] ? (
-                          <div className={`inline-flex items-center space-x-1 text-[10px] px-2 py-1 rounded border ${
+                          <div className={`inline-flex items-center space-x-1 text-[10px] px-2 py-1 rounded-md border shadow-sm backdrop-blur-sm ${
                             message.type === 'human'
-                              ? 'bg-green-500/20 text-green-300 border-green-500/30'
-                              : 'bg-green-500/20 text-green-300 border-green-500/30'
+                              ? 'bg-gradient-to-r from-emerald-900/30 to-emerald-800/20 text-emerald-200 border-emerald-700/40'
+                              : 'bg-gradient-to-r from-emerald-900/30 to-emerald-800/20 text-emerald-200 border-emerald-700/40'
                           }`}>
                             <Check className="w-3 h-3" />
                             <span>Added to Map</span>
