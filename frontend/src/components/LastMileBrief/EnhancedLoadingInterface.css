@@ -30,7 +30,7 @@
   align-items: center;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 1rem 0;
+  padding: 1rem 0 2rem 0;
   box-sizing: border-box;
 }
 
@@ -100,7 +100,7 @@
 
 /* Progress Steps */
 .progress-steps {
-  margin: 1.5rem 0;
+  margin: 1.5rem 0 2.5rem 0;
   text-align: left;
   flex: 1;
   min-height: 0;
@@ -347,7 +347,8 @@
   display: flex;
   justify-content: center;
   gap: 1.5rem;
-  margin-top: 1rem;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
   flex-wrap: wrap;
   flex-shrink: 0;
 }
@@ -421,7 +422,7 @@
   }
   
   .progress-steps {
-    margin: 1.5rem 0;
+    margin: 1.5rem 0 2rem 0;
   }
   
   .progress-step {
@@ -444,7 +445,8 @@
   
   .ai-indicators {
     gap: 1rem;
-    margin-top: 1.5rem;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
   }
   
   .ai-indicator {
@@ -473,6 +475,8 @@
   .ai-indicators {
     flex-direction: column;
     gap: 0.75rem;
+    margin-top: 2rem;
+    margin-bottom: 1.5rem;
   }
 }
 

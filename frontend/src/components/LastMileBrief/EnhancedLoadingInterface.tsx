@@ -27,6 +27,7 @@ const EnhancedLoadingInterface: React.FC<EnhancedLoadingInterfaceProps> = ({
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   const [startTime] = useState(Date.now());
+  const [finalStepStartTime, setFinalStepStartTime] = useState<number | null>(null);
   const [animationCompleted, setAnimationCompleted] = useState(false);
 
   // Define the AI workflow steps with dynamic content based on data size
@@ -102,6 +103,11 @@ const EnhancedLoadingInterface: React.FC<EnhancedLoadingInterfaceProps> = ({
       const currentStep = steps[currentStepIndex];
       const stepStartTime = Date.now();
 
+      // Check if this is the final step (compiling brief) and set timer start
+      if (currentStep.id === 'compiling_brief' && finalStepStartTime === null) {
+        setFinalStepStartTime(stepStartTime);
+      }
+
       // Update step to active
       setSteps(prevSteps =>
         prevSteps.map((step, index) => ({
@@ -165,14 +171,25 @@ const EnhancedLoadingInterface: React.FC<EnhancedLoadingInterfaceProps> = ({
   }, [animationCompleted, isDataReady, onComplete]);
 
   const getElapsedTime = () => {
-    const elapsed = Date.now() - startTime;
+    // Only show elapsed time if we're in the final step
+    if (finalStepStartTime === null) {
+      return '--';
+    }
+    const elapsed = Date.now() - finalStepStartTime;
     return `${Math.floor(elapsed / 1000)}s`;
   };
 
   const getEstimatedTimeRemaining = () => {
-    const elapsed = Date.now() - startTime;
-    const estimatedTotal = totalDuration;
-    const remaining = Math.max(0, estimatedTotal - elapsed);
+    // Only show remaining time if we're in the final step
+    if (finalStepStartTime === null) {
+      return 'Analyzing...';
+    }
+    
+    const finalStep = steps.find(step => step.id === 'compiling_brief');
+    if (!finalStep) return '--';
+    
+    const elapsed = Date.now() - finalStepStartTime;
+    const remaining = Math.max(0, finalStep.duration - elapsed);
     return `~${Math.ceil(remaining / 1000)}s`;
   };
 
