@@ -2032,7 +2032,7 @@ const OptimizedExplorationMap: React.FC = () => {
           {/* Enhanced Agent Details Modal */}
           {showAgentDetailsModal && (
             <Dialog open={!!showAgentDetailsModal} onOpenChange={() => setShowAgentDetailsModal(null)}>
-              <DialogContent className="glass-pane border-gray-600/50 max-w-2xl max-h-[80vh] overflow-y-auto">
+              <DialogContent className="bg-gray-900 border-gray-600/50 max-w-2xl max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle className="text-white flex items-center gap-2">
                     <Users className="w-5 h-5 text-[#6B6B3A]" />
@@ -2214,7 +2214,7 @@ const OptimizedExplorationMap: React.FC = () => {
                           <h4 className="text-sm font-medium text-[#6B6B3A] mb-3">Collaboration Interaction Modes</h4>
                           <div className="space-y-3">
                             {collaborationInfo.interactionModes.map((mode, index) => (
-                              <div key={index} className="glass-pane p-3 rounded-lg border border-gray-600/30">
+                              <div key={index} className="bg-gray-800/50 p-3 rounded-lg border border-gray-600/30">
                                 <div className="flex items-center gap-2 mb-2">
                                   <Link className="w-3 h-3 text-[#6B6B3A]" />
                                   <h5 className="text-sm font-medium text-white">{mode.mode}</h5>
