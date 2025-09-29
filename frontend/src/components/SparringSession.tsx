@@ -134,146 +134,76 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
     return () => container.removeEventListener('scroll', handleScroll);
   }, [checkIfUserAtBottom, isUserAtBottom, isStreaming]);
 
-  // Conditional auto-scroll: only scroll if user is at bottom or it's initial load
+  // CONSOLIDATED AUTO-SCROLL: Single effect to handle all scroll scenarios
   useEffect(() => {
     const hasNewMessages = messages.length > previousMessageCount;
     setPreviousMessageCount(messages.length);
 
-    // DIAGNOSTIC: Log auto-scroll decisions for debugging (remove in production)
+    if (messages.length === 0) return;
+
+    // DIAGNOSTIC: Log auto-scroll decisions for debugging (development only)
     if (process.env.NODE_ENV === 'development') {
-      console.log('🔄 [AUTO-SCROLL] Auto-scroll effect triggered:', {
+      console.log('🔄 [CONSOLIDATED-SCROLL] Auto-scroll effect triggered:', {
         messagesLength: messages.length,
         previousMessageCount,
         hasNewMessages,
         isInitialLoad,
         isUserAtBottom,
         isStreaming,
-        lastMessageContent: messages[messages.length - 1]?.content?.substring(0, 50) + '...'
+        isLoadingMessages
       });
     }
 
-    if (messages.length > 0) {
-      const scrollToBottom = () => {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('📜 [AUTO-SCROLL] Executing scroll to bottom');
-        }
-        messagesEndRef.current?.scrollIntoView({
-          behavior: isInitialLoad ? 'auto' : 'smooth',
-          block: 'end'
-        });
-      };
-      
-      // Always scroll on initial load
-      if (isInitialLoad) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('📜 [AUTO-SCROLL] Initial load - scrolling to bottom');
-        }
-        requestAnimationFrame(() => {
-          requestAnimationFrame(scrollToBottom);
-        });
-      }
-      // Only auto-scroll for new messages if user is at bottom
-      else if (hasNewMessages && isUserAtBottom) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('📜 [AUTO-SCROLL] New messages detected and user at bottom - scrolling');
-        }
-        const timeoutId = setTimeout(scrollToBottom, 100);
-        return () => clearTimeout(timeoutId);
-      }
-      // DIAGNOSTIC: Log when auto-scroll is skipped (development only)
-      else if (process.env.NODE_ENV === 'development') {
-        if (hasNewMessages && !isUserAtBottom) {
-          console.log('📜 [AUTO-SCROLL] New messages detected but user not at bottom - skipping scroll');
-        }
-        else if (!hasNewMessages && isUserAtBottom) {
-          console.log('📜 [AUTO-SCROLL] No new messages but user at bottom - streaming handled separately');
-        }
-      }
-      // If user is not at bottom and there are new messages, don't scroll
-      // The unread indicator will handle showing new messages
-    }
-  }, [messages, isInitialLoad, isUserAtBottom, previousMessageCount, isStreaming]);
-
-  // STREAMING AUTO-SCROLL: Handle auto-scroll during streaming content updates
-  useEffect(() => {
-    if (!isStreaming || messages.length === 0) return;
-
-    // Find the streaming message (temporary AI message being updated)
-    const streamingMessage = messages.find(msg =>
-      msg.id.startsWith('streaming_ai_') || msg.id.startsWith('temp_ai_')
-    );
-
-    if (streamingMessage) {
+    const scrollToBottom = (behavior: 'auto' | 'smooth' = 'smooth') => {
       if (process.env.NODE_ENV === 'development') {
-        console.log('🌊 [STREAMING AUTO-SCROLL] Streaming message found:', {
-          messageId: streamingMessage.id,
-          contentLength: streamingMessage.content.length,
-          isUserAtBottom,
-          willScroll: isUserAtBottom
-        });
+        console.log('📜 [CONSOLIDATED-SCROLL] Executing scroll to bottom with behavior:', behavior);
       }
-
-      if (isUserAtBottom) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('🌊 [STREAMING AUTO-SCROLL] Content updated during streaming, scrolling to bottom');
-        }
-        
-        // Use requestAnimationFrame for smooth scrolling during rapid updates
-        const scrollToBottom = () => {
-          messagesEndRef.current?.scrollIntoView({
-            behavior: 'smooth',
-            block: 'end'
-          });
-        };
-
-        // Debounce scroll updates to prevent jitter during rapid streaming
-        const timeoutId = setTimeout(() => {
-          requestAnimationFrame(scrollToBottom);
-        }, 50); // Shorter delay for responsive streaming
-
-        return () => clearTimeout(timeoutId);
-      } else if (process.env.NODE_ENV === 'development') {
-        console.log('🌊 [STREAMING AUTO-SCROLL] User scrolled up during streaming - respecting user control');
-      }
-    }
-  }, [messages, isStreaming, isUserAtBottom]);
-
-  // STREAMING START AUTO-SCROLL: Ensure we scroll to bottom when streaming starts
-  useEffect(() => {
-    if (isStreaming && isUserAtBottom && messages.length > 0) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('🌊 [STREAMING START] Streaming started - ensuring scroll to bottom');
-      }
-      
-      const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({
-          behavior: 'smooth',
-          block: 'end'
-        });
-      };
-
-      // Immediate scroll when streaming starts
-      requestAnimationFrame(scrollToBottom);
-    }
-  }, [isStreaming]); // Only depend on isStreaming to trigger when streaming starts
-
-  // Ensure scroll to bottom when loading completes (initial load only)
-  useEffect(() => {
-    if (!isLoadingMessages && messages.length > 0 && isInitialLoad) {
-      const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({
-          behavior: 'auto',
-          block: 'end'
-        });
-      };
-      
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setTimeout(scrollToBottom, 50);
-        });
+      messagesEndRef.current?.scrollIntoView({
+        behavior,
+        block: 'end'
       });
+    };
+
+    // PRIORITY 1: Initial load - always scroll immediately with no animation
+    if (isInitialLoad && !isLoadingMessages) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('📜 [CONSOLIDATED-SCROLL] Initial load complete - scrolling immediately');
+      }
+      // Use setTimeout to ensure DOM is fully rendered
+      setTimeout(() => scrollToBottom('auto'), 100);
+      return;
     }
-  }, [isLoadingMessages, messages.length, isInitialLoad]);
+
+    // PRIORITY 2: Streaming content - smooth scroll if user is at bottom
+    if (isStreaming && isUserAtBottom) {
+      const streamingMessage = messages.find(msg =>
+        msg.id.startsWith('streaming_ai_') || msg.id.startsWith('temp_ai_')
+      );
+      
+      if (streamingMessage) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🌊 [CONSOLIDATED-SCROLL] Streaming content update - smooth scroll');
+        }
+        // Debounced scroll for streaming
+        const timeoutId = setTimeout(() => scrollToBottom('smooth'), 50);
+        return () => clearTimeout(timeoutId);
+      }
+    }
+
+    // PRIORITY 3: New messages - only scroll if user is at bottom
+    if (hasNewMessages && isUserAtBottom && !isInitialLoad && !isLoadingMessages) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('📜 [CONSOLIDATED-SCROLL] New messages and user at bottom - smooth scroll');
+      }
+      const timeoutId = setTimeout(() => scrollToBottom('smooth'), 100);
+      return () => clearTimeout(timeoutId);
+    }
+
+    // DIAGNOSTIC: Log when auto-scroll is skipped (development only)
+    if (process.env.NODE_ENV === 'development' && hasNewMessages && !isUserAtBottom) {
+      console.log('📜 [CONSOLIDATED-SCROLL] New messages but user not at bottom - skipping scroll');
+    }
+  }, [messages, isInitialLoad, isUserAtBottom, previousMessageCount, isStreaming, isLoadingMessages]);
 
   // Load last read message ID from localStorage
   useEffect(() => {
@@ -927,8 +857,7 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
       {/* Messages Container */}
       <div
         ref={messagesContainerRef}
-        className="flex-1 space-y-3 overflow-y-auto mb-3 pr-1 scrollbar-thin scrollbar-track-gray-800 scrollbar-thumb-gray-600 scroll-smooth"
-        style={{ scrollBehavior: 'smooth' }}
+        className="flex-1 space-y-3 overflow-y-auto mb-3 pr-1 scrollbar-thin scrollbar-track-gray-800 scrollbar-thumb-gray-600"
       >
         {isLoadingMessages ? (
           <div className="flex items-center justify-center py-6">

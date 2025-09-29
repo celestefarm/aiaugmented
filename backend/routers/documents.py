@@ -8,6 +8,7 @@ from models.workspace import WorkspaceInDB
 from models.document import UploadedDocument, DocumentUploadResponse, DocumentProcessingResult, DocumentListResponse
 from utils.dependencies import get_current_active_user
 from utils.document_processor import DocumentProcessor
+from utils.performance_monitor import perf_monitor, monitor_performance
 from database_memory import get_database
 from bson import ObjectId
 from typing import Dict, Any, List
@@ -15,6 +16,9 @@ import json
 import motor.motor_asyncio
 from datetime import datetime
 import logging
+import time
+import asyncio
+from collections import defaultdict
 
 router = APIRouter(tags=["Documents"])
 logger = logging.getLogger(__name__)
@@ -37,6 +41,7 @@ class WorkspaceExportResponse(BaseModel):
 
 
 @router.post("/workspaces/{workspace_id}/generate-brief", response_model=GenerateBriefResponse)
+@monitor_performance("generate_brief_endpoint")
 async def generate_brief(
     workspace_id: str,
     current_user: UserResponse = Depends(get_current_active_user)
@@ -58,6 +63,9 @@ async def generate_brief(
     Raises:
         HTTPException: If workspace not found or access denied
     """
+    # Start overall performance monitoring
+    overall_timer = perf_monitor.start_timer("generate_brief_total")
+    
     # Add debug logging
     print(f"=== GENERATE BRIEF ENDPOINT CALLED ===")
     print(f"Workspace ID: {workspace_id}")
@@ -65,6 +73,7 @@ async def generate_brief(
     print(f"Current User ID: {current_user.id if current_user else 'None'}")
     
     # Validate ObjectId format
+    validation_timer = perf_monitor.start_timer("workspace_validation")
     if not ObjectId.is_valid(workspace_id):
         print(f"Invalid workspace ID format: {workspace_id}")
         raise HTTPException(
@@ -100,37 +109,78 @@ async def generate_brief(
             )
     
     workspace = WorkspaceInDB(**workspace_doc)
+    perf_monitor.end_timer(validation_timer, {"workspace_found": True, "workspace_title": workspace.title})
     print(f"Found workspace: {workspace.title}")
     
-    # Fetch all nodes for the workspace
-    nodes_cursor = database.nodes.find({"workspace_id": ObjectId(workspace_id)})
-    node_docs = await nodes_cursor.to_list(length=None)
+    # OPTIMIZATION: Fetch nodes and edges in parallel
+    parallel_fetch_timer = perf_monitor.start_timer("parallel_data_fetch")
     
-    # Convert ObjectId fields to strings for Pydantic validation
-    nodes = []
-    for doc in node_docs:
-        doc['_id'] = str(doc['_id'])
-        if isinstance(doc.get('workspace_id'), ObjectId):
-            doc['workspace_id'] = str(doc['workspace_id'])
-        nodes.append(NodeInDB(**doc))
+    # Create parallel tasks for data fetching
+    async def fetch_nodes():
+        nodes_cursor = database.nodes.find({"workspace_id": ObjectId(workspace_id)})
+        node_docs = await nodes_cursor.to_list(length=None)
+        
+        # Convert ObjectId fields to strings for Pydantic validation
+        nodes = []
+        for doc in node_docs:
+            doc['_id'] = str(doc['_id'])
+            if isinstance(doc.get('workspace_id'), ObjectId):
+                doc['workspace_id'] = str(doc['workspace_id'])
+            nodes.append(NodeInDB(**doc))
+        return nodes
     
-    print(f"Found {len(nodes)} nodes")
+    async def fetch_edges():
+        edges_cursor = database.edges.find({"workspace_id": ObjectId(workspace_id)})
+        edge_docs = await edges_cursor.to_list(length=None)
+        edges = []
+        for doc in edge_docs:
+            # Convert ObjectId fields to strings for Pydantic validation
+            if isinstance(doc.get('_id'), ObjectId):
+                doc['_id'] = str(doc['_id'])
+            if isinstance(doc.get('workspace_id'), ObjectId):
+                doc['workspace_id'] = str(doc['workspace_id'])
+            if isinstance(doc.get('from_node_id'), ObjectId):
+                doc['from_node_id'] = str(doc['from_node_id'])
+            if isinstance(doc.get('to_node_id'), ObjectId):
+                doc['to_node_id'] = str(doc['to_node_id'])
+            edges.append(EdgeInDB(**doc))
+        return edges
     
-    # Fetch all edges for the workspace
-    edges_cursor = database.edges.find({"workspace_id": ObjectId(workspace_id)})
-    edge_docs = await edges_cursor.to_list(length=None)
-    edges = [EdgeInDB(**doc) for doc in edge_docs]
-    print(f"Found {len(edges)} edges")
+    # Execute both queries in parallel
+    nodes, edges = await asyncio.gather(fetch_nodes(), fetch_edges())
     
-    # Generate structured brief content
-    brief_content = _generate_brief_content(workspace, nodes, edges)
+    perf_monitor.end_timer(parallel_fetch_timer, {
+        "node_count": len(nodes),
+        "edge_count": len(edges)
+    })
+    print(f"Found {len(nodes)} nodes and {len(edges)} edges (parallel fetch)")
     
+    # OPTIMIZATION: Generate structured brief content with optimized algorithm
+    content_timer = perf_monitor.start_timer("generate_brief_content_optimized")
+    brief_content = _generate_brief_content_optimized(workspace, nodes, edges)
+    perf_monitor.end_timer(content_timer, {
+        "content_length": len(brief_content),
+        "node_count": len(nodes),
+        "edge_count": len(edges)
+    })
+    
+    # Create response
+    response_timer = perf_monitor.start_timer("create_response")
     response = GenerateBriefResponse(
         content=brief_content,
         generated_at=datetime.utcnow(),
         node_count=len(nodes),
         edge_count=len(edges)
     )
+    perf_monitor.end_timer(response_timer)
+    
+    # End overall monitoring
+    perf_monitor.end_timer(overall_timer, {
+        "total_nodes": len(nodes),
+        "total_edges": len(edges),
+        "content_length": len(brief_content),
+        "success": True
+    })
     
     print(f"Brief generated successfully, content length: {len(brief_content)}")
     return response
@@ -267,14 +317,19 @@ def _generate_brief_content(workspace: WorkspaceInDB, nodes: List[NodeInDB], edg
     Returns:
         Generated brief content as markdown string
     """
+    content_start_time = time.time()
+    
     # Group nodes by type
+    grouping_timer = perf_monitor.start_timer("group_nodes_by_type")
     nodes_by_type = {}
     for node in nodes:
         if node.type not in nodes_by_type:
             nodes_by_type[node.type] = []
         nodes_by_type[node.type].append(node)
+    perf_monitor.end_timer(grouping_timer, {"unique_types": len(nodes_by_type)})
     
     # Start building the brief
+    header_timer = perf_monitor.start_timer("build_brief_header")
     brief_lines = []
     brief_lines.append(f"# Strategic Brief: {workspace.title}")
     brief_lines.append("")
@@ -293,8 +348,10 @@ def _generate_brief_content(workspace: WorkspaceInDB, nodes: List[NodeInDB], edg
     else:
         brief_lines.append("This workspace is currently empty. Add nodes to generate a comprehensive brief.")
     brief_lines.append("")
+    perf_monitor.end_timer(header_timer)
     
     # Process each node type
+    nodes_processing_timer = perf_monitor.start_timer("process_node_types")
     type_order = ["human", "ai", "decision", "risk", "dependency"]
     type_titles = {
         "human": "Human Insights & Perspectives",
@@ -304,6 +361,7 @@ def _generate_brief_content(workspace: WorkspaceInDB, nodes: List[NodeInDB], edg
         "dependency": "Dependencies & Prerequisites"
     }
     
+    nodes_processed = 0
     for node_type in type_order:
         if node_type in nodes_by_type:
             brief_lines.append(f"## {type_titles.get(node_type, node_type.title() + ' Elements')}")
@@ -327,6 +385,7 @@ def _generate_brief_content(workspace: WorkspaceInDB, nodes: List[NodeInDB], edg
                     brief_lines.append(f"*{' | '.join(metadata_parts)}*")
                 
                 brief_lines.append("")
+                nodes_processed += 1
     
     # Handle any other node types not in the standard list
     for node_type, type_nodes in nodes_by_type.items():
@@ -339,8 +398,13 @@ def _generate_brief_content(workspace: WorkspaceInDB, nodes: List[NodeInDB], edg
                 if node.description:
                     brief_lines.append(f"{node.description}")
                 brief_lines.append("")
+                nodes_processed += 1
+    
+    perf_monitor.end_timer(nodes_processing_timer, {"nodes_processed": nodes_processed})
     
     # Add connections summary
+    edges_processing_timer = perf_monitor.start_timer("process_edges")
+    edges_processed = 0
     if edges:
         brief_lines.append("## Strategic Connections")
         brief_lines.append("")
@@ -359,7 +423,7 @@ def _generate_brief_content(workspace: WorkspaceInDB, nodes: List[NodeInDB], edg
             brief_lines.append("")
             
             for edge in type_edges:
-                # Find source and target node titles
+                # Find source and target node titles - THIS IS POTENTIALLY SLOW O(n*m)
                 source_node = next((n for n in nodes if str(n.id) == str(edge.from_node_id)), None)
                 target_node = next((n for n in nodes if str(n.id) == str(edge.to_node_id)), None)
                 
@@ -368,8 +432,15 @@ def _generate_brief_content(workspace: WorkspaceInDB, nodes: List[NodeInDB], edg
                     if edge.description:
                         brief_lines.append(f"  {edge.description}")
                 brief_lines.append("")
+                edges_processed += 1
+    
+    perf_monitor.end_timer(edges_processing_timer, {
+        "edges_processed": edges_processed,
+        "edge_types": len(edges_by_type) if edges else 0
+    })
     
     # Add conclusion
+    conclusion_timer = perf_monitor.start_timer("build_conclusion")
     brief_lines.append("## Conclusion")
     brief_lines.append("")
     if nodes:
@@ -379,8 +450,25 @@ def _generate_brief_content(workspace: WorkspaceInDB, nodes: List[NodeInDB], edg
     else:
         brief_lines.append("This workspace is ready for strategic content. Begin by adding nodes representing key strategic elements, ")
         brief_lines.append("decisions, risks, and dependencies to generate a comprehensive strategic brief.")
+    perf_monitor.end_timer(conclusion_timer)
     
-    return "\n".join(brief_lines)
+    # Final string join - potentially expensive for large content
+    join_timer = perf_monitor.start_timer("join_brief_content")
+    final_content = "\n".join(brief_lines)
+    perf_monitor.end_timer(join_timer, {
+        "total_lines": len(brief_lines),
+        "final_content_length": len(final_content)
+    })
+    
+    # Log overall content generation performance
+    total_time = time.time() - content_start_time
+    perf_monitor.log_document_processing(
+        document_count=1,
+        total_chars=len(final_content),
+        processing_time=total_time
+    )
+    
+    return final_content
 
 
 @router.post("/workspaces/{workspace_id}/upload", response_model=List[DocumentUploadResponse])
@@ -751,3 +839,197 @@ async def delete_document(
     await database.documents.delete_one({"_id": ObjectId(document_id)})
     
     return {"message": "Document deleted successfully"}
+
+
+def _generate_brief_content_optimized(workspace: WorkspaceInDB, nodes: List[NodeInDB], edges: List[EdgeInDB]) -> str:
+    """
+    OPTIMIZED version of brief content generation with performance improvements:
+    1. Pre-built node lookup dictionary (O(1) instead of O(n))
+    2. Efficient string building using list comprehension
+    3. Reduced redundant operations
+    4. Parallel processing where possible
+    
+    Args:
+        workspace: Workspace data
+        nodes: List of nodes in workspace
+        edges: List of edges in workspace
+        
+    Returns:
+        Generated brief content as markdown string
+    """
+    content_start_time = time.time()
+    
+    # OPTIMIZATION 1: Pre-build node lookup dictionary for O(1) access
+    node_lookup_timer = perf_monitor.start_timer("build_node_lookup")
+    node_lookup = {str(node.id): node for node in nodes}
+    perf_monitor.end_timer(node_lookup_timer, {"nodes_indexed": len(node_lookup)})
+    
+    # OPTIMIZATION 2: Group nodes by type using defaultdict for efficiency
+    grouping_timer = perf_monitor.start_timer("group_nodes_optimized")
+    nodes_by_type = defaultdict(list)
+    for node in nodes:
+        nodes_by_type[node.type].append(node)
+    perf_monitor.end_timer(grouping_timer, {"unique_types": len(nodes_by_type)})
+    
+    # OPTIMIZATION 3: Use list for efficient string building
+    header_timer = perf_monitor.start_timer("build_header_optimized")
+    brief_parts = [
+        f"# Strategic Brief: {workspace.title}",
+        "",
+        f"**Generated:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC",
+        f"**Workspace:** {workspace.title}",
+        f"**Total Nodes:** {len(nodes)}",
+        f"**Total Connections:** {len(edges)}",
+        "",
+        "## Executive Summary",
+        ""
+    ]
+    
+    if nodes:
+        brief_parts.extend([
+            f"This strategic analysis encompasses {len(nodes)} key elements across {len(nodes_by_type)} categories, ",
+            f"with {len(edges)} interconnections mapping the strategic landscape."
+        ])
+    else:
+        brief_parts.append("This workspace is currently empty. Add nodes to generate a comprehensive brief.")
+    
+    brief_parts.append("")
+    perf_monitor.end_timer(header_timer)
+    
+    # OPTIMIZATION 4: Process node types with efficient iteration
+    nodes_processing_timer = perf_monitor.start_timer("process_nodes_optimized")
+    type_order = ["human", "ai", "decision", "risk", "dependency"]
+    type_titles = {
+        "human": "Human Insights & Perspectives",
+        "ai": "AI-Generated Analysis",
+        "decision": "Key Decisions & Options",
+        "risk": "Risk Assessment & Mitigation",
+        "dependency": "Dependencies & Prerequisites"
+    }
+    
+    nodes_processed = 0
+    
+    # Process ordered types first
+    for node_type in type_order:
+        if node_type in nodes_by_type:
+            brief_parts.append(f"## {type_titles.get(node_type, node_type.title() + ' Elements')}")
+            brief_parts.append("")
+            
+            for node in nodes_by_type[node_type]:
+                brief_parts.append(f"### {node.title}")
+                if node.description:
+                    brief_parts.append(node.description)
+                
+                # OPTIMIZATION 5: Build metadata efficiently
+                metadata_parts = []
+                if node.confidence is not None:
+                    metadata_parts.append(f"Confidence: {node.confidence}%")
+                if node.feasibility:
+                    metadata_parts.append(f"Feasibility: {node.feasibility}")
+                if node.source_agent:
+                    metadata_parts.append(f"Source: {node.source_agent}")
+                
+                if metadata_parts:
+                    brief_parts.append(f"*{' | '.join(metadata_parts)}*")
+                
+                brief_parts.append("")
+                nodes_processed += 1
+    
+    # Process remaining node types
+    for node_type, type_nodes in nodes_by_type.items():
+        if node_type not in type_order:
+            brief_parts.extend([
+                f"## {node_type.title()} Elements",
+                ""
+            ])
+            
+            for node in type_nodes:
+                brief_parts.extend([
+                    f"### {node.title}",
+                    node.description if node.description else "",
+                    ""
+                ])
+                nodes_processed += 1
+    
+    perf_monitor.end_timer(nodes_processing_timer, {"nodes_processed": nodes_processed})
+    
+    # OPTIMIZATION 6: Process edges with O(1) node lookup instead of O(n)
+    edges_processing_timer = perf_monitor.start_timer("process_edges_optimized")
+    edges_processed = 0
+    
+    if edges:
+        brief_parts.extend([
+            "## Strategic Connections",
+            "",
+            "The following connections map the relationships between strategic elements:",
+            ""
+        ])
+        
+        # Group edges by type efficiently
+        edges_by_type = defaultdict(list)
+        for edge in edges:
+            edges_by_type[edge.type].append(edge)
+        
+        for edge_type, type_edges in edges_by_type.items():
+            brief_parts.extend([
+                f"### {edge_type.title()} Relationships ({len(type_edges)})",
+                ""
+            ])
+            
+            for edge in type_edges:
+                # CRITICAL OPTIMIZATION: O(1) node lookup instead of O(n) search
+                source_node = node_lookup.get(str(edge.from_node_id))
+                target_node = node_lookup.get(str(edge.to_node_id))
+                
+                if source_node and target_node:
+                    brief_parts.append(f"- **{source_node.title}** → **{target_node.title}**")
+                    if edge.description:
+                        brief_parts.append(f"  {edge.description}")
+                brief_parts.append("")
+                edges_processed += 1
+    
+    perf_monitor.end_timer(edges_processing_timer, {
+        "edges_processed": edges_processed,
+        "edge_types": len(edges_by_type) if edges else 0
+    })
+    
+    # Add conclusion
+    conclusion_timer = perf_monitor.start_timer("build_conclusion_optimized")
+    brief_parts.extend([
+        "## Conclusion",
+        ""
+    ])
+    
+    if nodes:
+        brief_parts.extend([
+            "This strategic brief synthesizes the key elements and relationships within the workspace. ",
+            "The interconnected nature of these elements provides a comprehensive view of the strategic landscape, ",
+            "enabling informed decision-making and strategic planning."
+        ])
+    else:
+        brief_parts.extend([
+            "This workspace is ready for strategic content. Begin by adding nodes representing key strategic elements, ",
+            "decisions, risks, and dependencies to generate a comprehensive strategic brief."
+        ])
+    
+    perf_monitor.end_timer(conclusion_timer)
+    
+    # OPTIMIZATION 7: Single join operation instead of repeated concatenation
+    join_timer = perf_monitor.start_timer("join_content_optimized")
+    final_content = "\n".join(brief_parts)
+    perf_monitor.end_timer(join_timer, {
+        "total_parts": len(brief_parts),
+        "final_content_length": len(final_content)
+    })
+    
+    # Log overall performance improvement
+    total_time = time.time() - content_start_time
+    perf_monitor.log_document_processing(
+        document_count=1,
+        total_chars=len(final_content),
+        processing_time=total_time
+    )
+    
+    print(f"🚀 [OPTIMIZED] Brief content generated in {total_time*1000:.2f}ms")
+    
+    return final_content

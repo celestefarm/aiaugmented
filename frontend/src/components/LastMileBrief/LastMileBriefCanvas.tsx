@@ -6,6 +6,7 @@ import { Node, Edge } from '../../lib/api';
 import BriefHeader from './BriefHeader';
 import ExecutiveReport from './ExecutiveReport';
 import VisualizationGrid from './VisualizationGrid';
+import EnhancedLoadingInterface from './EnhancedLoadingInterface';
 import './LastMileBriefCanvas.css';
 
 // Types based on technical specification
@@ -962,16 +963,24 @@ ${displayData.executiveSummary?.recommendations?.slice(0, 3).map((rec, index) =>
 </html>`;
   };
 
-  // Show loading state
+  // Show enhanced loading state
   if (documentState.isGenerating || briefState.isLoading) {
+    // Check if data is ready (backend processing completed)
+    const isDataReady = !!(documentState.enhancedBriefData && !documentState.isGenerating && !documentState.isLoadingEnhanced);
+    
     return (
-      <div className="last-mile-brief-canvas loading">
-        <div className="loading-container">
-          <div className="loading-spinner"></div>
-          <h3>Generating Strategic Brief</h3>
-          <p>Processing {documentState.nodeCount} nodes and {documentState.edgeCount} connections</p>
-        </div>
-      </div>
+      <EnhancedLoadingInterface
+        nodeCount={documentState.nodeCount || 0}
+        edgeCount={documentState.edgeCount || 0}
+        isDataReady={isDataReady}
+        onComplete={() => {
+          // This will be called when both animation and data are ready
+          console.log('🎯 Enhanced loading interface completed - both animation and data ready');
+          
+          // The component will automatically re-render and show the brief
+          // since the loading conditions will no longer be met
+        }}
+      />
     );
   }
 

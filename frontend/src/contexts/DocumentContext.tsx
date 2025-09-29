@@ -1,8 +1,22 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useRef } from 'react';
 import { GenerateBriefResponse, apiClient } from '../lib/api';
 import { BriefData, AnalyticsData, VisualizationData, ProcessedInsight, KeyMetric, ExecutiveInsight, Recommendation } from '../components/LastMileBrief/index';
-import { Node, Edge } from '../lib/api';
+import type { Node, Edge } from '../lib/api';
 import { strategicAnalysisService, EnhancedStrategicAnalysis } from '../services/strategicAnalysisService';
+
+// PERFORMANCE OPTIMIZATION: Cache interface for reducing redundant API calls
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+  workspaceId: string;
+}
+
+interface PerformanceCache {
+  nodes: Map<string, CacheEntry<Node[]>>;
+  edges: Map<string, CacheEntry<Edge[]>>;
+  briefs: Map<string, CacheEntry<GenerateBriefResponse>>;
+  analytics: Map<string, CacheEntry<AnalyticsData>>;
+}
 
 interface DocumentState {
   briefContent: string | null;
@@ -71,7 +85,122 @@ export const DocumentProvider: React.FC<DocumentProviderProps> = ({ children }) 
     uploadError: null,
   });
 
+  // PERFORMANCE OPTIMIZATION: Initialize performance cache
+  const performanceCache = useRef<PerformanceCache>({
+    nodes: new Map(),
+    edges: new Map(),
+    briefs: new Map(),
+    analytics: new Map(),
+  });
+
+  // Cache configuration
+  const CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
+  const MAX_CACHE_SIZE = 50; // Maximum entries per cache type
+
+  // PERFORMANCE OPTIMIZATION: Cache utility functions
+  const isCacheValid = function<T>(entry: CacheEntry<T>): boolean {
+    return Date.now() - entry.timestamp < CACHE_TTL;
+  };
+
+  const getCachedData = function<T>(cache: Map<string, CacheEntry<T>>, key: string): T | null {
+    const entry = cache.get(key);
+    if (entry && isCacheValid(entry)) {
+      console.log(`🚀 [CACHE HIT] Retrieved cached data for key: ${key}`);
+      return entry.data;
+    }
+    if (entry) {
+      console.log(`⏰ [CACHE EXPIRED] Removing expired entry for key: ${key}`);
+      cache.delete(key);
+    }
+    return null;
+  };
+
+  const setCachedData = function<T>(cache: Map<string, CacheEntry<T>>, key: string, data: T, workspaceId: string): void {
+    // Implement LRU-style cache eviction if needed
+    if (cache.size >= MAX_CACHE_SIZE) {
+      const oldestKey = cache.keys().next().value;
+      if (oldestKey) {
+        console.log(`🗑️ [CACHE EVICTION] Removing oldest entry: ${oldestKey}`);
+        cache.delete(oldestKey);
+      }
+    }
+
+    cache.set(key, {
+      data,
+      timestamp: Date.now(),
+      workspaceId
+    });
+    console.log(`💾 [CACHE SET] Cached data for key: ${key}, size: ${cache.size}`);
+  };
+
+  const clearCacheForWorkspace = (workspaceId: string): void => {
+    console.log(`🧹 [CACHE CLEAR] Clearing cache for workspace: ${workspaceId}`);
+    
+    // Clear all cache types for the specific workspace
+    [performanceCache.current.nodes, performanceCache.current.edges, 
+     performanceCache.current.briefs, performanceCache.current.analytics].forEach(cache => {
+      const keysToDelete: string[] = [];
+      cache.forEach((entry, key) => {
+        if (entry.workspaceId === workspaceId) {
+          keysToDelete.push(key);
+        }
+      });
+      keysToDelete.forEach(key => cache.delete(key));
+    });
+  };
+
+  // PERFORMANCE OPTIMIZATION: Cached API call functions
+  const getCachedNodes = async (workspaceId: string): Promise<Node[]> => {
+    const cacheKey = `nodes_${workspaceId}`;
+    const cached = getCachedData(performanceCache.current.nodes, cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+
+    console.log(`🌐 [API CALL] Fetching nodes for workspace: ${workspaceId}`);
+    const response = await apiClient.getNodes(workspaceId);
+    const nodes = response?.nodes || [];
+    
+    setCachedData(performanceCache.current.nodes, cacheKey, nodes, workspaceId);
+    return nodes;
+  };
+
+  const getCachedEdges = async (workspaceId: string): Promise<Edge[]> => {
+    const cacheKey = `edges_${workspaceId}`;
+    const cached = getCachedData(performanceCache.current.edges, cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+
+    console.log(`🌐 [API CALL] Fetching edges for workspace: ${workspaceId}`);
+    const response = await apiClient.getEdges(workspaceId);
+    const edges = response?.edges || [];
+    
+    setCachedData(performanceCache.current.edges, cacheKey, edges, workspaceId);
+    return edges;
+  };
+
+  const getCachedBrief = async (workspaceId: string): Promise<GenerateBriefResponse> => {
+    const cacheKey = `brief_${workspaceId}`;
+    const cached = getCachedData(performanceCache.current.briefs, cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+
+    console.log(`🌐 [API CALL] Generating brief for workspace: ${workspaceId}`);
+    const brief = await apiClient.generateBrief(workspaceId);
+    
+    setCachedData(performanceCache.current.briefs, cacheKey, brief, workspaceId);
+    return brief;
+  };
+
   const generateBriefForWorkspace = async (workspaceId: string): Promise<void> => {
+    const startTime = performance.now();
+    console.log('🚀 [PERF] Starting optimized brief generation at:', new Date().toISOString());
+    
     setDocumentState(prev => ({
       ...prev,
       isGenerating: true,
@@ -79,7 +208,12 @@ export const DocumentProvider: React.FC<DocumentProviderProps> = ({ children }) 
     }));
 
     try {
-      const response: GenerateBriefResponse = await apiClient.generateBrief(workspaceId);
+      // OPTIMIZATION: Use cached brief generation
+      const response = await getCachedBrief(workspaceId);
+      
+      const endTime = performance.now();
+      const duration = endTime - startTime;
+      console.log(`⚡ [PERF] Brief generation completed in ${duration.toFixed(2)}ms`);
       
       setDocumentState(prev => ({
         ...prev,
@@ -91,6 +225,9 @@ export const DocumentProvider: React.FC<DocumentProviderProps> = ({ children }) 
         error: null,
       }));
     } catch (error) {
+      const errorTime = performance.now() - startTime;
+      console.error(`❌ [PERF] Brief generation failed after ${errorTime.toFixed(2)}ms`);
+      
       setDocumentState(prev => ({
         ...prev,
         isGenerating: false,
@@ -100,9 +237,11 @@ export const DocumentProvider: React.FC<DocumentProviderProps> = ({ children }) 
   };
 
   const generateEnhancedBrief = async (workspaceId: string, options: EnhancedBriefOptions = {}): Promise<void> => {
-    console.log('=== ENHANCED BRIEF GENERATION WITH STRATEGIC ANALYSIS ===');
+    const startTime = performance.now();
+    console.log('=== ENHANCED BRIEF GENERATION WITH PERFORMANCE OPTIMIZATIONS ===');
     console.log('Workspace ID:', workspaceId);
     console.log('Options:', options);
+    console.log('🚀 [PERF] Starting enhanced brief generation at:', new Date().toISOString());
     
     // Validate workspace ID is provided
     if (!workspaceId || workspaceId.trim() === '') {
@@ -122,44 +261,55 @@ export const DocumentProvider: React.FC<DocumentProviderProps> = ({ children }) 
     }));
 
     try {
-      console.log('Step 1: Fetching nodes and edges...');
-      // Fetch nodes and edges for enhanced processing
-      const [nodesResponse, edgesResponse] = await Promise.all([
-        apiClient.getNodes(workspaceId),
-        apiClient.getEdges(workspaceId)
+      console.log('Step 1: Fetching nodes and edges with caching...');
+      const apiCallsStart = performance.now();
+      
+      // OPTIMIZATION: Use cached API calls with parallel execution
+      const [nodes, edges] = await Promise.all([
+        getCachedNodes(workspaceId),
+        getCachedEdges(workspaceId)
       ]);
       
-      console.log('Nodes response:', nodesResponse);
-      console.log('Edges response:', edgesResponse);
+      const apiCallsEnd = performance.now();
+      const apiCallsDuration = apiCallsEnd - apiCallsStart;
+      console.log(`⚡ [PERF] Cached API calls completed in ${apiCallsDuration.toFixed(2)}ms`);
+      console.log(`📊 [PERF] Fetched ${nodes?.length || 0} nodes and ${edges?.length || 0} edges`);
       
       // CRITICAL: Check if responses are valid
-      if (!nodesResponse || !nodesResponse.nodes) {
+      if (!nodes || !Array.isArray(nodes)) {
         console.error('CRITICAL: Invalid nodes response');
         throw new Error('Failed to fetch nodes - API returned invalid data');
       }
       
-      if (!edgesResponse || !edgesResponse.edges) {
+      if (!edges || !Array.isArray(edges)) {
         console.error('CRITICAL: Invalid edges response');
         throw new Error('Failed to fetch edges - API returned invalid data');
       }
 
       console.log('Step 2: Generating strategic analysis with backend integration...');
+      const strategicAnalysisStart = performance.now();
+      
       // Use the strategic analysis service to get enhanced analysis
       let strategicAnalysis: EnhancedStrategicAnalysis;
       
       try {
         strategicAnalysis = await strategicAnalysisService.generateEnhancedAnalysis(
-          nodesResponse.nodes,
-          edgesResponse.edges,
+          nodes,
+          edges,
           workspaceId
         );
         console.log('Strategic analysis generated:', strategicAnalysis);
       } catch (strategicError) {
         console.warn('Strategic analysis service failed, using fallback:', strategicError);
+        const fallbackStart = performance.now();
+        
         // Fallback to basic analysis if strategic service fails
-        const analytics = generateAnalyticsFromData(nodesResponse.nodes, edgesResponse.edges);
-        const visualizations = generateVisualizationsFromData(nodesResponse.nodes, edgesResponse.edges);
-        const insights = generateInsightsFromData(nodesResponse.nodes, edgesResponse.edges, analytics);
+        const analytics = generateAnalyticsFromData(nodes, edges);
+        const visualizations = generateVisualizationsFromData(nodes, edges);
+        const insights = generateInsightsFromData(nodes, edges, analytics);
+        
+        const fallbackEnd = performance.now();
+        console.log(`🔄 [PERF] Fallback analysis completed in ${(fallbackEnd - fallbackStart).toFixed(2)}ms`);
         
         strategicAnalysis = {
           strategicOutlook: {
@@ -182,23 +332,36 @@ export const DocumentProvider: React.FC<DocumentProviderProps> = ({ children }) 
           currentPhase: 'reconnaissance'
         };
       }
+      
+      const strategicAnalysisEnd = performance.now();
+      const strategicAnalysisDuration = strategicAnalysisEnd - strategicAnalysisStart;
+      console.log(`🧠 [PERF] Strategic analysis completed in ${strategicAnalysisDuration.toFixed(2)}ms`);
 
-      console.log('Step 3: Generating basic brief for content...');
-      // Generate basic brief for content (fallback gracefully if it fails)
+      console.log('Step 3: Generating basic brief for content with caching...');
+      const briefGenerationStart = performance.now();
+      
+      // OPTIMIZATION: Use cached brief generation
       let basicBrief: GenerateBriefResponse;
       try {
-        basicBrief = await apiClient.generateBrief(workspaceId);
+        basicBrief = await getCachedBrief(workspaceId);
       } catch (briefError) {
         console.warn('Basic brief generation failed, using strategic analysis content:', briefError);
         basicBrief = {
           content: strategicAnalysis.strategicOutlook.summary,
           generated_at: new Date().toISOString(),
-          node_count: nodesResponse.nodes.length,
-          edge_count: edgesResponse.edges.length
+          node_count: nodes.length,
+          edge_count: edges.length
         };
       }
+      
+      const briefGenerationEnd = performance.now();
+      const briefGenerationDuration = briefGenerationEnd - briefGenerationStart;
+      console.log(`📄 [PERF] Brief generation completed in ${briefGenerationDuration.toFixed(2)}ms`);
+      console.log(`📏 [PERF] Generated brief content length: ${basicBrief.content?.length || 0} characters`);
 
       console.log('Step 4: Creating enhanced brief data...');
+      const dataProcessingStart = performance.now();
+      
       // Create enhanced brief data using strategic analysis
       const enhancedBriefData: BriefData = {
         id: `brief-${workspaceId}-${Date.now()}`,
@@ -243,14 +406,19 @@ export const DocumentProvider: React.FC<DocumentProviderProps> = ({ children }) 
             }))
           : [],
         rawData: {
-          nodes: nodesResponse.nodes,
-          edges: edgesResponse.edges
+          nodes: nodes,
+          edges: edges
         }
       };
       
+      const dataProcessingEnd = performance.now();
+      const dataProcessingDuration = dataProcessingEnd - dataProcessingStart;
+      console.log(`🔧 [PERF] Data processing completed in ${dataProcessingDuration.toFixed(2)}ms`);
       console.log('Enhanced brief data created:', enhancedBriefData);
 
       console.log('Step 5: Updating document state...');
+      const stateUpdateStart = performance.now();
+      
       setDocumentState(prev => ({
         ...prev,
         briefContent: basicBrief.content,
@@ -268,9 +436,27 @@ export const DocumentProvider: React.FC<DocumentProviderProps> = ({ children }) 
         error: null,
       }));
       
-      console.log('Enhanced brief generation with strategic analysis completed successfully');
+      const stateUpdateEnd = performance.now();
+      const stateUpdateDuration = stateUpdateEnd - stateUpdateStart;
+      console.log(`🔄 [PERF] State update completed in ${stateUpdateDuration.toFixed(2)}ms`);
+      
+      // Calculate and log total performance metrics
+      const totalTime = performance.now() - startTime;
+      console.log('=== OPTIMIZED ENHANCED BRIEF GENERATION PERFORMANCE SUMMARY ===');
+      console.log(`🏁 [PERF] Total generation time: ${totalTime.toFixed(2)}ms`);
+      console.log(`📊 [PERF] Performance breakdown:`);
+      console.log(`  - API calls (cached): ${apiCallsDuration.toFixed(2)}ms (${((apiCallsDuration / totalTime) * 100).toFixed(1)}%)`);
+      console.log(`  - Strategic analysis: ${strategicAnalysisDuration.toFixed(2)}ms (${((strategicAnalysisDuration / totalTime) * 100).toFixed(1)}%)`);
+      console.log(`  - Brief generation (cached): ${briefGenerationDuration.toFixed(2)}ms (${((briefGenerationDuration / totalTime) * 100).toFixed(1)}%)`);
+      console.log(`  - Data processing: ${dataProcessingDuration.toFixed(2)}ms (${((dataProcessingDuration / totalTime) * 100).toFixed(1)}%)`);
+      console.log(`  - State update: ${stateUpdateDuration.toFixed(2)}ms (${((stateUpdateDuration / totalTime) * 100).toFixed(1)}%)`);
+      console.log(`📈 [PERF] Data volume: ${basicBrief.node_count} nodes, ${basicBrief.edge_count} edges, ${basicBrief.content?.length || 0} chars`);
+      
+      console.log('Enhanced brief generation with performance optimizations completed successfully');
     } catch (error) {
+      const errorTime = performance.now() - startTime;
       console.error('=== ENHANCED BRIEF GENERATION ERROR ===');
+      console.error(`❌ [PERF] Error occurred after ${errorTime.toFixed(2)}ms`);
       console.error('Error occurred during enhanced brief generation');
       console.error('Error details:', error);
       console.error('Error type:', typeof error);
@@ -291,12 +477,13 @@ export const DocumentProvider: React.FC<DocumentProviderProps> = ({ children }) 
 
   const refreshAnalytics = async (workspaceId: string): Promise<void> => {
     try {
-      const [nodesResponse, edgesResponse] = await Promise.all([
-        apiClient.getNodes(workspaceId),
-        apiClient.getEdges(workspaceId)
+      // OPTIMIZATION: Use cached API calls
+      const [nodes, edges] = await Promise.all([
+        getCachedNodes(workspaceId),
+        getCachedEdges(workspaceId)
       ]);
 
-      const analytics = generateAnalyticsFromData(nodesResponse.nodes, edgesResponse.edges);
+      const analytics = generateAnalyticsFromData(nodes, edges);
       
       setDocumentState(prev => ({
         ...prev,
