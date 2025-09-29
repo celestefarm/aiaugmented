@@ -1646,11 +1646,11 @@ const OptimizedExplorationMap: React.FC = () => {
                 </div>
                 
                 {/* Navigation Footer */}
-                <div className="flex-shrink-0 p-4 border-t border-gray-600/30 glass-pane-no-glow">
+                <div className="flex-shrink-0 p-4 border-t border-gray-600/30 border border-gray-600/30 bg-transparent rounded-lg">
                   <div className="space-y-2">
                     <button
                       onClick={() => window.location.href = '/dashboard'}
-                      className="w-full flex items-center gap-3 px-4 py-3 glass-pane-no-glow hover:bg-white/10 transition-colors rounded-lg group"
+                      className="w-full flex items-center gap-3 px-4 py-3 border border-gray-600/30 bg-transparent hover:bg-white/10 transition-colors rounded-lg group"
                       title="Go to Dashboard"
                     >
                       <Briefcase className="w-5 h-5 text-[#6B6B3A] group-hover:text-[#8B8B4A] transition-colors" />
@@ -1658,7 +1658,7 @@ const OptimizedExplorationMap: React.FC = () => {
                     </button>
                     <button
                       onClick={() => window.location.href = '/'}
-                      className="w-full flex items-center gap-3 px-4 py-3 glass-pane-no-glow hover:bg-white/10 transition-colors rounded-lg group"
+                      className="w-full flex items-center gap-3 px-4 py-3 border border-gray-600/30 bg-transparent hover:bg-white/10 transition-colors rounded-lg group"
                       title="Go to Home"
                     >
                       <Home className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
