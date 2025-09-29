@@ -408,7 +408,7 @@ const DocumentMessage: React.FC<DocumentMessageProps> = ({
       {documentsWithContent.map((document) => (
         <div
           key={document.id}
-          className="glass-pane border border-gray-600/30 rounded-lg p-3"
+          className="bg-gray-800/50 border border-gray-600/30 rounded-lg p-3 backdrop-blur-sm"
         >
           <div className="flex items-start gap-3">
             {/* File Icon */}

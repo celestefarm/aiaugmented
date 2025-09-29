@@ -1,13 +1,15 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Upload, X, FileText, Image, File, AlertCircle, Check, Loader2 } from 'lucide-react';
 import { uploadDocuments, getDocumentContent, DocumentUploadResponse, DocumentProcessingResult } from '@/lib/api';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 
 interface FileUploadProps {
   onFileUploaded?: (documents: DocumentUploadResponse[]) => void;
+  onFilesStaged?: (files: File[]) => void; // New prop for staging files
   onError?: (error: string) => void;
   className?: string;
   disabled?: boolean;
+  mode?: 'immediate' | 'staged'; // New prop to control upload behavior
 }
 
 interface UploadingFile {
@@ -21,14 +23,18 @@ interface UploadingFile {
 
 const FileUpload: React.FC<FileUploadProps> = ({
   onFileUploaded,
+  onFilesStaged,
   onError,
   className = '',
-  disabled = false
+  disabled = false,
+  mode = 'staged' // Default to staged mode for streamlined workflow
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [isHiding, setIsHiding] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const autoDismissTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { currentWorkspace } = useWorkspace();
 
   // Supported file types
@@ -71,19 +77,8 @@ const FileUpload: React.FC<FileUploadProps> = ({
     console.log('=== HANDLE FILES CALLED ===');
     console.log('Files received:', files.length);
     console.log('File names:', Array.from(files).map(f => f.name));
-    console.log('Current uploading state:', isUploading);
+    console.log('Upload mode:', mode);
     
-    if (!currentWorkspace) {
-      onError?.('No workspace selected');
-      return;
-    }
-
-    // Prevent multiple simultaneous uploads
-    if (isUploading) {
-      console.log('Upload already in progress, ignoring this call');
-      return;
-    }
-
     const validFiles: File[] = [];
     const errors: string[] = [];
 
@@ -107,7 +102,26 @@ const FileUpload: React.FC<FileUploadProps> = ({
       return;
     }
 
-    console.log('=== STARTING UPLOAD PROCESS ===');
+    if (mode === 'staged') {
+      // NEW STREAMLINED MODE: Just stage files for later upload
+      console.log('📎 [STAGED MODE] Staging files for combined submission');
+      onFilesStaged?.(validFiles);
+      return;
+    }
+
+    // LEGACY IMMEDIATE MODE: Upload files immediately
+    if (!currentWorkspace) {
+      onError?.('No workspace selected');
+      return;
+    }
+
+    // Prevent multiple simultaneous uploads
+    if (isUploading) {
+      console.log('Upload already in progress, ignoring this call');
+      return;
+    }
+
+    console.log('=== STARTING IMMEDIATE UPLOAD PROCESS ===');
     console.log('Valid files to upload:', validFiles.length);
     setIsUploading(true);
 
@@ -185,7 +199,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
 
       // Update final status
       setUploadingFiles(prev => prev.map(uf => {
-        const processed = processedDocuments.find(pd => 
+        const processed = processedDocuments.find(pd =>
           pd.doc.filename.includes(uf.file.name)
         );
         
@@ -218,6 +232,23 @@ const FileUpload: React.FC<FileUploadProps> = ({
 
       console.log('✅ File upload completed successfully');
 
+      // Auto-dismiss after successful completion with smooth fade-out
+      if (autoDismissTimeoutRef.current) {
+        clearTimeout(autoDismissTimeoutRef.current);
+      }
+      
+      autoDismissTimeoutRef.current = setTimeout(() => {
+        console.log('🎭 Starting auto-dismiss fade-out animation');
+        setIsHiding(true);
+        
+        // Remove the panel after fade-out animation completes
+        setTimeout(() => {
+          console.log('✨ Auto-dismiss completed - clearing upload files');
+          setUploadingFiles([]);
+          setIsHiding(false);
+        }, 400); // Match the fade-out duration
+      }, 2000); // Wait 2 seconds before starting fade-out
+
     } catch (error) {
       console.error('❌ File upload failed:', error);
       
@@ -233,7 +264,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
     } finally {
       setIsUploading(false);
     }
-  }, [currentWorkspace, onFileUploaded, onError]);
+  }, [currentWorkspace, onFileUploaded, onFilesStaged, onError, mode]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -286,7 +317,54 @@ const FileUpload: React.FC<FileUploadProps> = ({
   }, []);
 
   const clearAllFiles = useCallback(() => {
+    // Clear auto-dismiss timeout when manually clearing
+    if (autoDismissTimeoutRef.current) {
+      clearTimeout(autoDismissTimeoutRef.current);
+      autoDismissTimeoutRef.current = null;
+    }
+    setIsHiding(false);
     setUploadingFiles([]);
+  }, []);
+
+  // Auto-dismiss effect for completed uploads
+  useEffect(() => {
+    const allCompleted = uploadingFiles.length > 0 &&
+      uploadingFiles.every(file => file.status === 'completed' || file.status === 'error');
+    
+    if (allCompleted && !isUploading && !isHiding) {
+      console.log('🎯 All files completed, starting auto-dismiss timer');
+      
+      if (autoDismissTimeoutRef.current) {
+        clearTimeout(autoDismissTimeoutRef.current);
+      }
+      
+      autoDismissTimeoutRef.current = setTimeout(() => {
+        console.log('🎭 Starting auto-dismiss fade-out animation');
+        setIsHiding(true);
+        
+        // Remove the panel after fade-out animation completes
+        setTimeout(() => {
+          console.log('✨ Auto-dismiss completed - clearing upload files');
+          setUploadingFiles([]);
+          setIsHiding(false);
+        }, 400); // Match the fade-out duration
+      }, 2000); // Wait 2 seconds before starting fade-out
+    }
+    
+    return () => {
+      if (autoDismissTimeoutRef.current) {
+        clearTimeout(autoDismissTimeoutRef.current);
+      }
+    };
+  }, [uploadingFiles, isUploading, isHiding]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (autoDismissTimeoutRef.current) {
+        clearTimeout(autoDismissTimeoutRef.current);
+      }
+    };
   }, []);
 
   return (
@@ -335,9 +413,11 @@ const FileUpload: React.FC<FileUploadProps> = ({
         </div>
       )}
 
-      {/* Upload progress panel */}
+      {/* Upload progress panel with fade-out animation */}
       {uploadingFiles.length > 0 && (
-        <div className="absolute bottom-full right-0 mb-2 w-80 glass-pane border border-gray-600/50 rounded-lg shadow-xl z-40">
+        <div className={`absolute bottom-full right-0 mb-2 w-80 glass-pane border border-gray-600/50 rounded-lg shadow-xl z-40 transition-all duration-400 ease-in-out ${
+          isHiding ? 'opacity-0 transform translate-y-2 scale-95' : 'opacity-100 transform translate-y-0 scale-100'
+        }`}>
           <div className="p-3">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-medium text-white">

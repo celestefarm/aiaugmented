@@ -3,7 +3,7 @@ import { Mic, Upload, Check, MessageSquare, Bot, User, Loader2, Zap, Shield, Tar
 import { useAgentChat, ChatMessage } from '@/contexts/AgentChatContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useMessageMapStatus } from '@/contexts/MessageMapStatusContext';
-import { DocumentUploadResponse } from '@/lib/api';
+import { DocumentUploadResponse, uploadDocuments } from '@/lib/api';
 import LightningBriefDisplay from './LightningBriefDisplay';
 import RedTeamInterface from './RedTeamInterface';
 import EvidenceQualityDashboard from './EvidenceQualityDashboard';
@@ -22,6 +22,9 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
   const [addingToMap, setAddingToMap] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<'chat' | 'lightning' | 'redteam' | 'evidence'>('chat');
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // New state for staged file attachments
+  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false);
   const [lastReadMessageId, setLastReadMessageId] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isUserAtBottom, setIsUserAtBottom] = useState(true);
@@ -416,35 +419,71 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
   }, []);
 
   const handleSendMessage = async () => {
-    if (!chatMessage.trim() || isSending || isStreaming) return;
+    // Check if we have either text message or staged files
+    if ((!chatMessage.trim() && stagedFiles.length === 0) || isSending || isStreaming) return;
     
     setIsSending(true);
-    
-    // Show immediate feedback
-    showToast('Message sent! AI is processing your request...', 'success');
+    setIsUploadingFiles(stagedFiles.length > 0);
     
     try {
-      if (isStrategicMode && currentStrategicSession) {
-        // Use strategic interaction for strategist agent
-        await sendStrategicMessage(chatMessage, false);
-      } else if (isStrategicMode && !currentStrategicSession) {
-        // Start strategic session
-        await startStrategicSession('strategist');
-        await sendStrategicMessage(chatMessage, false);
+      // If we have staged files, upload them first and create document message
+      if (stagedFiles.length > 0) {
+        console.log('🚀 [STREAMLINED WORKFLOW] Uploading files with message:', chatMessage);
+        showToast(`Uploading ${stagedFiles.length} file(s) and sending message...`, 'success');
+        
+        if (!currentWorkspace) {
+          throw new Error('No workspace selected');
+        }
+
+        // Upload files
+        const uploadedDocuments = await uploadDocuments(currentWorkspace.id, stagedFiles);
+        console.log('📁 Files uploaded successfully:', uploadedDocuments.length);
+
+        // Create document message with the uploaded files
+        await addDocumentMessage(uploadedDocuments);
+        
+        // Clear staged files
+        setStagedFiles([]);
+        
+        // If there's also a text message, send it as a follow-up
+        if (chatMessage.trim()) {
+          console.log('💬 Sending follow-up text message:', chatMessage);
+          
+          if (isStrategicMode && currentStrategicSession) {
+            await sendStrategicMessage(chatMessage, false);
+          } else if (isStrategicMode && !currentStrategicSession) {
+            await startStrategicSession('strategist');
+            await sendStrategicMessage(chatMessage, false);
+          } else {
+            await sendStreamingMessage(chatMessage);
+          }
+        }
+        
+        setChatMessage('');
+        showToast('Files uploaded and message sent successfully!', 'success');
       } else {
-        // Use streaming chat for better responsiveness
-        console.log('🚀 [SPARRING SESSION] Using streaming message for better performance');
-        await sendStreamingMessage(chatMessage);
+        // No files, just send text message
+        console.log('💬 [STREAMLINED WORKFLOW] Sending text-only message');
+        showToast('Message sent! AI is processing your request...', 'success');
+        
+        if (isStrategicMode && currentStrategicSession) {
+          await sendStrategicMessage(chatMessage, false);
+        } else if (isStrategicMode && !currentStrategicSession) {
+          await startStrategicSession('strategist');
+          await sendStrategicMessage(chatMessage, false);
+        } else {
+          await sendStreamingMessage(chatMessage);
+        }
+        
+        setChatMessage('');
+        showToast('Response received!', 'success');
       }
-      setChatMessage('');
-      
-      // Show completion feedback
-      showToast('Response received!', 'success');
     } catch (error) {
       console.error('Failed to send message:', error);
       showToast('Failed to send message. Please try again.', 'error');
     } finally {
       setIsSending(false);
+      setIsUploadingFiles(false);
     }
   };
 
@@ -619,19 +658,25 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
     }, 3000);
   };
 
-  // File upload handlers
+  // New streamlined file staging handlers
+  const handleFilesStaged = useCallback((files: File[]) => {
+    console.log('=== FILES STAGED FOR COMBINED SUBMISSION ===');
+    console.log('Number of files staged:', files.length);
+    console.log('File names:', files.map(f => f.name));
+    
+    setStagedFiles(prev => [...prev, ...files]);
+    setUploadError(null);
+    showToast(`${files.length} file(s) ready to send with your message`, 'success');
+  }, []);
+
+  // Legacy handler for backward compatibility (if needed)
   const handleFileUploaded = useCallback(async (documents: DocumentUploadResponse[]) => {
-    console.log('=== FILES UPLOADED CALLBACK CALLED ===');
+    console.log('=== LEGACY FILES UPLOADED CALLBACK ===');
     console.log('Number of documents received:', documents.length);
-    console.log('Document names:', documents.map(d => d.filename));
-    console.log('Full documents array:', documents);
     
     try {
-      // Add documents to the message timeline and persist to database
       await addDocumentMessage(documents);
       setUploadError(null);
-      
-      // Show success message
       showToast(`Successfully uploaded ${documents.length} document(s)!`, 'success');
     } catch (error) {
       console.error('Failed to create document message:', error);
@@ -646,6 +691,16 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
     
     setUploadError(error);
     showToast(`Upload failed: ${error}`, 'error');
+  }, []);
+
+  // Remove staged file
+  const removeStagedFile = useCallback((index: number) => {
+    setStagedFiles(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  // Clear all staged files
+  const clearStagedFiles = useCallback(() => {
+    setStagedFiles([]);
   }, []);
 
   const handleDocumentAddToMap = useCallback((documentId: string, nodeId: string) => {
@@ -1072,6 +1127,46 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
         )}
 
         
+        {/* Staged Files Display */}
+        {stagedFiles.length > 0 && (
+          <div className="mb-2 p-2 bg-[#6B6B3A]/10 border border-[#6B6B3A]/20 rounded-md">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Upload className="w-3 h-3 text-[#6B6B3A]" />
+                <span className="text-xs font-medium text-[#6B6B3A]">
+                  {stagedFiles.length} file(s) ready to send
+                </span>
+              </div>
+              <button
+                onClick={clearStagedFiles}
+                className="text-xs text-gray-400 hover:text-white transition-colors"
+                title="Clear all files"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {stagedFiles.map((file, index) => (
+                <div
+                  key={index}
+                  className="flex items-center gap-1 bg-gray-700/50 px-2 py-1 rounded text-xs"
+                >
+                  <span className="text-gray-300 truncate max-w-24" title={file.name}>
+                    {file.name}
+                  </span>
+                  <button
+                    onClick={() => removeStagedFile(index)}
+                    className="text-gray-400 hover:text-red-400 transition-colors"
+                    title="Remove file"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
         <div className="relative">
           <textarea
             value={chatMessage}
@@ -1082,6 +1177,8 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
                 ? "Please wait for the current response..."
                 : activeAgents.length === 0
                 ? "Activate an agent to start chatting..."
+                : stagedFiles.length > 0
+                ? "Type your message about the attached files..."
                 : "Ask your strategic agents anything..."
             }
             disabled={isSending || isStreaming || activeAgents.length === 0}
@@ -1104,9 +1201,10 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
               <Mic className="w-4 h-4" />
             </button>
             <FileUpload
-              onFileUploaded={handleFileUploaded}
+              onFilesStaged={handleFilesStaged}
               onError={handleUploadError}
               disabled={isSending || isStreaming}
+              mode="staged"
             />
             {(isSending || isStreaming) && (
               <Loader2 className="w-4 h-4 animate-spin text-[#6B6B3A]" />
@@ -1114,16 +1212,16 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
           </div>
         </div>
 
-        {/* Enhanced Send Button with Streaming Progress and Error States */}
+        {/* Enhanced Send Button with File Upload Support */}
         <button
           onClick={handleSendMessage}
-          disabled={!chatMessage.trim() || isSending || isStreaming || activeAgents.length === 0}
+          disabled={(!chatMessage.trim() && stagedFiles.length === 0) || isSending || isStreaming || activeAgents.length === 0}
           className={`w-full mt-2 px-3 py-2 font-medium text-xs rounded-lg transition-all duration-200 flex items-center justify-center gap-2 ${
             isSending || isStreaming
               ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30 cursor-wait'
               : chatError && chatError.includes('Streaming error')
               ? 'bg-red-500/20 text-red-300 border border-red-500/30 hover:bg-red-500/30'
-              : !chatMessage.trim() || activeAgents.length === 0
+              : (!chatMessage.trim() && stagedFiles.length === 0) || activeAgents.length === 0
               ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
               : 'bg-[#6B6B3A] hover:bg-[#6B6B3A]/80 text-black hover:scale-[1.02] active:scale-[0.98]'
           }`}
@@ -1131,7 +1229,10 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
           {isSending || isStreaming ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span>{isStreaming ? 'Streaming...' : 'AI Processing...'}</span>
+              <span>
+                {isUploadingFiles ? 'Uploading files...' :
+                 isStreaming ? 'Streaming...' : 'AI Processing...'}
+              </span>
             </>
           ) : chatError && chatError.includes('Streaming error') ? (
             <>
@@ -1140,8 +1241,17 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
             </>
           ) : (
             <>
-              <MessageSquare className="w-4 h-4" />
-              <span>Send Message</span>
+              {stagedFiles.length > 0 ? (
+                <>
+                  <Upload className="w-4 h-4" />
+                  <span>Send Files & Message</span>
+                </>
+              ) : (
+                <>
+                  <MessageSquare className="w-4 h-4" />
+                  <span>Send Message</span>
+                </>
+              )}
             </>
           )}
         </button>
