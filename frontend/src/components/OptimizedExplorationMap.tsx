@@ -1608,47 +1608,71 @@ const OptimizedExplorationMap: React.FC = () => {
             {!leftSidebarCollapsed && (
               <>
                 <div className="flex-1 p-3 space-y-2 overflow-y-auto">
-                  {agents.map(agent => (
-                     <div key={agent.agent_id} className="border border-gray-600/30 p-2 rounded-lg bg-transparent">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-2 h-2 rounded-full ${
-                            activeAgents.includes(agent.agent_id) ? 'bg-[#6B6B3A]' : 'bg-gray-500'
-                          }`} />
-                          <span className={`font-medium ${
-                            activeAgents.includes(agent.agent_id) ? 'text-white' : 'text-gray-400'
-                          }`} style={{ fontSize: '11px', lineHeight: '1.3' }}>{agent.name}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => setShowAgentDetailsModal(agent.agent_id)}
-                            className="text-gray-400 hover:text-white transition-colors"
-                            style={{ fontSize: '11px' }}
-                          >
-                            Details
-                          </button>
-                          <button
-                            onClick={() => activeAgents.includes(agent.agent_id) ? deactivateAgent(agent.agent_id) : activateAgent(agent.agent_id)}
-                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 ${
-                              activeAgents.includes(agent.agent_id)
-                                ? 'bg-[#6B6B3A] hover:bg-[#7A7A42] focus:ring-[#6B6B3A]/50'
-                                : 'bg-gray-600 hover:bg-gray-500 focus:ring-gray-500/50'
-                            }`}
-                            role="switch"
-                            aria-checked={activeAgents.includes(agent.agent_id)}
-                            aria-label={`${activeAgents.includes(agent.agent_id) ? 'Deactivate' : 'Activate'} ${agent.name}`}
-                            title={`${activeAgents.includes(agent.agent_id) ? 'Deactivate' : 'Activate'} ${agent.name}`}
-                          >
-                            <span
-                              className={`inline-block h-3 w-3 transform rounded-full bg-white shadow-lg transition-transform duration-200 ease-in-out ${
-                                activeAgents.includes(agent.agent_id) ? 'translate-x-5' : 'translate-x-1'
+                  {agents.map(agent => {
+                    // List of agents that need "Coming Soon" labels
+                    const comingSoonAgents = [
+                      'Risk Agent',
+                      'Execution Agent',
+                      'Market & Competition Agent',
+                      'Mentor Agent',
+                      'Stakeholder Agent',
+                      'Brief Agent',
+                      'Foresight Agent'
+                    ];
+                    
+                    const isComingSoon = comingSoonAgents.includes(agent.name);
+                    
+                    return (
+                      <div key={agent.agent_id} className="border border-gray-600/30 p-2 rounded-lg bg-transparent">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                              activeAgents.includes(agent.agent_id) ? 'bg-[#6B6B3A]' : 'bg-gray-500'
+                            }`} />
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <span className={`font-medium truncate ${
+                                activeAgents.includes(agent.agent_id) ? 'text-white' : 'text-gray-400'
+                              }`} style={{ fontSize: '11px', lineHeight: '1.3' }}>
+                                {agent.name}
+                              </span>
+                              {isComingSoon && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-gray-600/30 text-gray-400 font-normal italic flex-shrink-0 whitespace-nowrap" style={{ fontSize: '9px', lineHeight: '1.2' }}>
+                                  Coming Soon
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setShowAgentDetailsModal(agent.agent_id)}
+                              className="text-gray-400 hover:text-white transition-colors"
+                              style={{ fontSize: '11px' }}
+                            >
+                              Details
+                            </button>
+                            <button
+                              onClick={() => activeAgents.includes(agent.agent_id) ? deactivateAgent(agent.agent_id) : activateAgent(agent.agent_id)}
+                              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 ${
+                                activeAgents.includes(agent.agent_id)
+                                  ? 'bg-[#6B6B3A] hover:bg-[#7A7A42] focus:ring-[#6B6B3A]/50'
+                                  : 'bg-gray-600 hover:bg-gray-500 focus:ring-gray-500/50'
                               }`}
-                            />
-                          </button>
+                              role="switch"
+                              aria-checked={activeAgents.includes(agent.agent_id)}
+                              aria-label={`${activeAgents.includes(agent.agent_id) ? 'Deactivate' : 'Activate'} ${agent.name}`}
+                              title={`${activeAgents.includes(agent.agent_id) ? 'Deactivate' : 'Activate'} ${agent.name}`}
+                            >
+                              <span
+                                className={`inline-block h-3 w-3 transform rounded-full bg-white shadow-lg transition-transform duration-200 ease-in-out ${
+                                  activeAgents.includes(agent.agent_id) ? 'translate-x-5' : 'translate-x-1'
+                                }`}
+                              />
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 
                 {/* Navigation Footer */}
