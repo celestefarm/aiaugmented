@@ -4,6 +4,9 @@
 /* Import canvas animations */
 @import './styles/canvas-animations.css';
 
+/* Import glassmorphism styles */
+@import './styles/glassmorphism.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

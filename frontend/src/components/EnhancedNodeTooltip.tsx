@@ -231,8 +231,37 @@ export const EnhancedNodeTooltip: React.FC<EnhancedNodeTooltipProps> = ({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      {/* Glass-Effect Container */}
-      <div className="enhanced-glass-tooltip">
+      {/* Glass-Effect Container with Fallback Inline Styles */}
+      <div
+        className="enhanced-glass-tooltip"
+        style={{
+          // Fallback inline styles to ensure glassmorphism always appears
+          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(51, 65, 85, 0.75) 25%, rgba(30, 41, 59, 0.85) 50%, rgba(51, 65, 85, 0.75) 75%, rgba(30, 41, 59, 0.85) 100%)',
+          backdropFilter: 'blur(24px) saturate(180%) brightness(110%)',
+          WebkitBackdropFilter: 'blur(24px) saturate(180%) brightness(110%)',
+          border: '1px solid rgba(203, 213, 225, 0.25)',
+          borderRadius: '16px',
+          boxShadow: '0 0 40px rgba(75, 85, 99, 0.15), 0 20px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(75, 85, 99, 0.1)',
+          padding: '20px',
+          position: 'relative',
+          overflow: 'hidden'
+        }}
+      >
+        {/* Background overlay for additional glassmorphism effect */}
+        <div
+          style={{
+            content: '',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'linear-gradient(135deg, rgba(75, 85, 99, 0.08) 0%, rgba(107, 114, 128, 0.06) 25%, rgba(156, 163, 175, 0.04) 50%, rgba(107, 114, 128, 0.06) 75%, rgba(75, 85, 99, 0.08) 100%)',
+            borderRadius: '16px',
+            pointerEvents: 'none',
+            zIndex: -1
+          }}
+        />
         {/* Header with Glass Effect */}
         <div className="glass-header">
           <div className="flex items-center gap-3 mb-4">
@@ -253,9 +282,29 @@ export const EnhancedNodeTooltip: React.FC<EnhancedNodeTooltipProps> = ({
         </div>
 
         {/* AI-Powered Executive Summary Section */}
-        <div id={`enhanced-tooltip-content-${node.id}`} className="glass-content">
-          <div className="executive-summary-section">
-            <div className="section-header-ai">
+        <div id={`enhanced-tooltip-content-${node.id}`} className="glass-content" style={{ position: 'relative', zIndex: 2, marginBottom: '16px' }}>
+          <div
+            className="executive-summary-section"
+            style={{
+              background: 'rgba(75, 85, 99, 0.08)',
+              border: '1px solid rgba(75, 85, 99, 0.2)',
+              borderRadius: '12px',
+              padding: '16px',
+              marginBottom: '16px'
+            }}
+          >
+            <div
+              className="section-header-ai"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '12px',
+                fontSize: '14px',
+                fontWeight: '600',
+                color: 'rgba(156, 163, 175, 0.9)'
+              }}
+            >
               <span className="text-white font-medium">Executive Summary</span>
               {isLoadingAI && <Loader2 className="w-3 h-3 animate-spin text-blue-400" />}
             </div>
@@ -279,11 +328,29 @@ export const EnhancedNodeTooltip: React.FC<EnhancedNodeTooltipProps> = ({
                   </button>
                 </div>
               ) : aiSummary ? (
-                <div className="bullet-points">
+                <div className="bullet-points" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {aiSummary.executive_summary.map((point, index) => (
-                    <div key={index} className="bullet-point">
-                      <div className="bullet-dot"></div>
-                      <span className="bullet-text">{point}</span>
+                    <div key={index} className="bullet-point" style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '4px 0' }}>
+                      <div
+                        className="bullet-dot"
+                        style={{
+                          width: '6px',
+                          height: '6px',
+                          borderRadius: '50%',
+                          background: 'rgba(75, 85, 99, 0.8)',
+                          marginTop: '6px',
+                          flexShrink: 0
+                        }}
+                      ></div>
+                      <span
+                        className="bullet-text"
+                        style={{
+                          color: 'rgba(229, 231, 235, 0.9)',
+                          fontSize: '13px',
+                          lineHeight: '1.5',
+                          fontWeight: '400'
+                        }}
+                      >{point}</span>
                     </div>
                   ))}
                 </div>
@@ -298,14 +365,44 @@ export const EnhancedNodeTooltip: React.FC<EnhancedNodeTooltipProps> = ({
 
             {/* AI Confidence Indicator */}
             {aiSummary && (
-              <div className="ai-confidence">
-                <div className="confidence-bar">
-                  <div 
+              <div
+                className="ai-confidence"
+                style={{
+                  marginTop: '12px',
+                  paddingTop: '12px',
+                  borderTop: '1px solid rgba(75, 85, 99, 0.15)'
+                }}
+              >
+                <div
+                  className="confidence-bar"
+                  style={{
+                    width: '100%',
+                    height: '4px',
+                    background: 'rgba(75, 85, 99, 0.3)',
+                    borderRadius: '2px',
+                    overflow: 'hidden',
+                    marginBottom: '6px'
+                  }}
+                >
+                  <div
                     className="confidence-fill"
-                    style={{ width: `${aiSummary.confidence}%` }}
+                    style={{
+                      width: `${aiSummary.confidence}%`,
+                      height: '100%',
+                      background: 'linear-gradient(90deg, rgba(75, 85, 99, 0.6) 0%, rgba(107, 114, 128, 0.8) 50%, rgba(156, 163, 175, 0.8) 100%)',
+                      borderRadius: '2px',
+                      transition: 'width 1s ease-out'
+                    }}
                   ></div>
                 </div>
-                <span className="confidence-text">
+                <span
+                  className="confidence-text"
+                  style={{
+                    fontSize: '11px',
+                    color: 'rgba(156, 163, 175, 0.8)',
+                    fontWeight: '500'
+                  }}
+                >
                   {aiSummary.confidence}% confidence • {aiSummary.sources_analyzed} sources
                 </span>
               </div>
@@ -314,14 +411,52 @@ export const EnhancedNodeTooltip: React.FC<EnhancedNodeTooltipProps> = ({
         </div>
 
         {/* Footer with Glass Effect */}
-        <div className="glass-footer">
-          <div className="footer-stats">
-            <span className="stat-item">
+        <div
+          className="glass-footer"
+          style={{
+            position: 'relative',
+            zIndex: 2,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingTop: '12px',
+            borderTop: '1px solid rgba(203, 213, 225, 0.15)'
+          }}
+        >
+          <div
+            className="footer-stats"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px'
+            }}
+          >
+            <span
+              className="stat-item"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '11px',
+                color: 'rgba(156, 163, 175, 0.8)',
+                fontWeight: '500'
+              }}
+            >
               <Link className="w-3 h-3" />
               {connectionCount} connections
             </span>
             {node.confidence && (
-              <span className="stat-item confidence">
+              <span
+                className="stat-item confidence"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontSize: '11px',
+                  color: 'rgba(107, 114, 128, 0.8)',
+                  fontWeight: '500'
+                }}
+              >
                 {node.confidence}% confidence
               </span>
             )}
@@ -332,7 +467,33 @@ export const EnhancedNodeTooltip: React.FC<EnhancedNodeTooltipProps> = ({
             <button
               onClick={handleOpenModal}
               className="view-full-button"
-              style={{ pointerEvents: 'auto' }}
+              style={{
+                pointerEvents: 'auto',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 12px',
+                background: 'rgba(75, 85, 99, 0.15)',
+                border: '1px solid rgba(75, 85, 99, 0.3)',
+                borderRadius: '8px',
+                color: 'rgba(156, 163, 175, 0.9)',
+                fontSize: '12px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                transition: 'all 200ms ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(75, 85, 99, 0.25)';
+                e.currentTarget.style.borderColor = 'rgba(75, 85, 99, 0.5)';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(75, 85, 99, 0.2)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(75, 85, 99, 0.15)';
+                e.currentTarget.style.borderColor = 'rgba(75, 85, 99, 0.3)';
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
             >
               <ExternalLink className="w-3 h-3" />
               View Full Context

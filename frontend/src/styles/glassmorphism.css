@@ -26,3 +26,323 @@
   background-size: 200% 200%;
   animation: shimmer 3s ease-in-out infinite;
 }
+
+/* Enhanced Node Tooltip Glassmorphism Styles */
+.enhanced-glass-tooltip {
+  /* Premium glassmorphism container with grey tones */
+  background: linear-gradient(135deg,
+    rgba(30, 41, 59, 0.85) 0%,
+    rgba(51, 65, 85, 0.75) 25%,
+    rgba(30, 41, 59, 0.85) 50%,
+    rgba(51, 65, 85, 0.75) 75%,
+    rgba(30, 41, 59, 0.85) 100%);
+  backdrop-filter: blur(24px) saturate(180%) brightness(110%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%) brightness(110%);
+  border: 1px solid rgba(203, 213, 225, 0.25);
+  border-radius: 16px;
+  box-shadow:
+    0 0 40px rgba(75, 85, 99, 0.15),
+    0 20px 40px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 -1px 0 rgba(75, 85, 99, 0.1);
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.enhanced-glass-tooltip::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg,
+    rgba(75, 85, 99, 0.08) 0%,
+    rgba(107, 114, 128, 0.06) 25%,
+    rgba(156, 163, 175, 0.04) 50%,
+    rgba(107, 114, 128, 0.06) 75%,
+    rgba(75, 85, 99, 0.08) 100%);
+  border-radius: 16px;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.glass-header {
+  position: relative;
+  z-index: 2;
+  margin-bottom: 16px;
+}
+
+.glass-content {
+  position: relative;
+  z-index: 2;
+  margin-bottom: 16px;
+}
+
+.glass-footer {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 12px;
+  border-top: 1px solid rgba(203, 213, 225, 0.15);
+}
+
+/* AI Badge Styling */
+.ai-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: rgba(75, 85, 99, 0.2);
+  border: 1px solid rgba(75, 85, 99, 0.3);
+  border-radius: 8px;
+  color: rgba(156, 163, 175, 0.9);
+  font-weight: 500;
+}
+
+/* Text Shadow for Better Readability */
+.text-shadow {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Executive Summary Section */
+.executive-summary-section {
+  background: rgba(75, 85, 99, 0.08);
+  border: 1px solid rgba(75, 85, 99, 0.2);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.section-header-ai {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(156, 163, 175, 0.9);
+}
+
+.ai-summary-content {
+  position: relative;
+}
+
+/* Loading State */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shimmer-line {
+  height: 12px;
+  background: linear-gradient(90deg,
+    rgba(75, 85, 99, 0.2) 0%,
+    rgba(75, 85, 99, 0.4) 50%,
+    rgba(75, 85, 99, 0.2) 100%);
+  background-size: 200% 100%;
+  border-radius: 6px;
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+.shimmer-line.short {
+  width: 70%;
+}
+
+/* Error State */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  text-align: center;
+}
+
+.retry-button {
+  padding: 6px 12px;
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  color: rgba(252, 165, 165, 0.9);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.retry-button:hover {
+  background: rgba(239, 68, 68, 0.3);
+  border-color: rgba(239, 68, 68, 0.5);
+  transform: translateY(-1px);
+}
+
+/* Bullet Points */
+.bullet-points {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bullet-point {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.bullet-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(75, 85, 99, 0.8);
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+
+.bullet-text {
+  color: rgba(229, 231, 235, 0.9);
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+/* Fallback Summary */
+.fallback-summary {
+  padding: 8px 0;
+}
+
+/* AI Confidence Indicator */
+.ai-confidence {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(75, 85, 99, 0.15);
+}
+
+.confidence-bar {
+  width: 100%;
+  height: 4px;
+  background: rgba(75, 85, 99, 0.3);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.confidence-fill {
+  height: 100%;
+  background: linear-gradient(90deg,
+    rgba(75, 85, 99, 0.6) 0%,
+    rgba(107, 114, 128, 0.8) 50%,
+    rgba(156, 163, 175, 0.8) 100%);
+  border-radius: 2px;
+  transition: width 1s ease-out;
+}
+
+.confidence-text {
+  font-size: 11px;
+  color: rgba(156, 163, 175, 0.8);
+  font-weight: 500;
+}
+
+/* Footer Stats */
+.footer-stats {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: rgba(156, 163, 175, 0.8);
+  font-weight: 500;
+}
+
+.stat-item.confidence {
+  color: rgba(107, 114, 128, 0.8);
+}
+
+/* View Full Button */
+.view-full-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(75, 85, 99, 0.15);
+  border: 1px solid rgba(75, 85, 99, 0.3);
+  border-radius: 8px;
+  color: rgba(156, 163, 175, 0.9);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.view-full-button:hover {
+  background: rgba(75, 85, 99, 0.25);
+  border-color: rgba(75, 85, 99, 0.5);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(75, 85, 99, 0.2);
+}
+
+.view-full-button:active {
+  transform: translateY(0);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .enhanced-glass-tooltip {
+    padding: 16px;
+    border-radius: 12px;
+  }
+  
+  .executive-summary-section {
+    padding: 12px;
+  }
+  
+  .bullet-text {
+    font-size: 12px;
+  }
+  
+  .view-full-button {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .enhanced-glass-tooltip {
+    background: rgba(0, 0, 0, 0.95);
+    border-color: rgba(255, 255, 255, 0.5);
+  }
+  
+  .bullet-text {
+    color: rgba(255, 255, 255, 1);
+  }
+  
+  .confidence-text,
+  .stat-item {
+    color: rgba(255, 255, 255, 0.9);
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .enhanced-glass-tooltip,
+  .retry-button,
+  .view-full-button,
+  .confidence-fill {
+    transition: none;
+  }
+  
+  .shimmer-line {
+    animation: none;
+  }
+}

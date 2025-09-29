@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glassmorphism AI Insights Pop-up Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Import the glassmorphism styles */
+        @import url('./frontend/src/styles/glassmorphism.css');
+        
+        /* Fallback glassmorphism styles in case import doesn't work */
+        @keyframes shimmer {
+          0% {
+            background-position: -200% 0;
+          }
+          100% {
+            background-position: 200% 0;
+          }
+        }
+
+        /* Enhanced Node Tooltip Glassmorphism Styles */
+        .enhanced-glass-tooltip {
+          /* Premium glassmorphism container with grey tones */
+          background: linear-gradient(135deg,
+            rgba(30, 41, 59, 0.85) 0%,
+            rgba(51, 65, 85, 0.75) 25%,
+            rgba(30, 41, 59, 0.85) 50%,
+            rgba(51, 65, 85, 0.75) 75%,
+            rgba(30, 41, 59, 0.85) 100%);
+          backdrop-filter: blur(24px) saturate(180%) brightness(110%);
+          -webkit-backdrop-filter: blur(24px) saturate(180%) brightness(110%);
+          border: 1px solid rgba(203, 213, 225, 0.25);
+          border-radius: 16px;
+          box-shadow:
+            0 0 40px rgba(75, 85, 99, 0.15),
+            0 20px 40px rgba(0, 0, 0, 0.4),
+            inset 0 1px 0 rgba(255, 255, 255, 0.15),
+            inset 0 -1px 0 rgba(75, 85, 99, 0.1);
+          padding: 20px;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .enhanced-glass-tooltip::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: linear-gradient(135deg,
+            rgba(75, 85, 99, 0.08) 0%,
+            rgba(107, 114, 128, 0.06) 25%,
+            rgba(156, 163, 175, 0.04) 50%,
+            rgba(107, 114, 128, 0.06) 75%,
+            rgba(75, 85, 99, 0.08) 100%);
+          border-radius: 16px;
+          pointer-events: none;
+          z-index: -1;
+        }
+
+        .glass-header {
+          position: relative;
+          z-index: 2;
+          margin-bottom: 16px;
+        }
+
+        .glass-content {
+          position: relative;
+          z-index: 2;
+          margin-bottom: 16px;
+        }
+
+        .glass-footer {
+          position: relative;
+          z-index: 2;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding-top: 12px;
+          border-top: 1px solid rgba(203, 213, 225, 0.15);
+        }
+
+        .ai-badge {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          padding: 4px 8px;
+          background: rgba(75, 85, 99, 0.2);
+          border: 1px solid rgba(75, 85, 99, 0.3);
+          border-radius: 8px;
+          color: rgba(156, 163, 175, 0.9);
+          font-weight: 500;
+        }
+
+        .text-shadow {
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        }
+
+        .executive-summary-section {
+          background: rgba(75, 85, 99, 0.08);
+          border: 1px solid rgba(75, 85, 99, 0.2);
+          border-radius: 12px;
+          padding: 16px;
+          margin-bottom: 16px;
+        }
+
+        .section-header-ai {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 12px;
+          font-size: 14px;
+          font-weight: 600;
+          color: rgba(156, 163, 175, 0.9);
+        }
+
+        .bullet-points {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .bullet-point {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          padding: 4px 0;
+        }
+
+        .bullet-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: rgba(75, 85, 99, 0.8);
+          margin-top: 6px;
+          flex-shrink: 0;
+        }
+
+        .bullet-text {
+          color: rgba(229, 231, 235, 0.9);
+          font-size: 13px;
+          line-height: 1.5;
+          font-weight: 400;
+        }
+
+        .ai-confidence {
+          margin-top: 12px;
+          padding-top: 12px;
+          border-top: 1px solid rgba(75, 85, 99, 0.15);
+        }
+
+        .confidence-bar {
+          width: 100%;
+          height: 4px;
+          background: rgba(75, 85, 99, 0.3);
+          border-radius: 2px;
+          overflow: hidden;
+          margin-bottom: 6px;
+        }
+
+        .confidence-fill {
+          height: 100%;
+          background: linear-gradient(90deg,
+            rgba(75, 85, 99, 0.6) 0%,
+            rgba(107, 114, 128, 0.8) 50%,
+            rgba(156, 163, 175, 0.8) 100%);
+          border-radius: 2px;
+          transition: width 1s ease-out;
+        }
+
+        .confidence-text {
+          font-size: 11px;
+          color: rgba(156, 163, 175, 0.8);
+          font-weight: 500;
+        }
+
+        .footer-stats {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .stat-item {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 11px;
+          color: rgba(156, 163, 175, 0.8);
+          font-weight: 500;
+        }
+
+        .stat-item.confidence {
+          color: rgba(107, 114, 128, 0.8);
+        }
+
+        .view-full-button {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 8px 12px;
+          background: rgba(75, 85, 99, 0.15);
+          border: 1px solid rgba(75, 85, 99, 0.3);
+          border-radius: 8px;
+          color: rgba(156, 163, 175, 0.9);
+          font-size: 12px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 200ms ease;
+        }
+
+        .view-full-button:hover {
+          background: rgba(75, 85, 99, 0.25);
+          border-color: rgba(75, 85, 99, 0.5);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(75, 85, 99, 0.2);
+        }
+
+        /* Canvas background similar to OptimizedExplorationMap */
+        .canvas-background {
+          background: #1a1a1a;
+          background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0);
+          background-size: 20px 20px;
+          box-shadow: inset 0 0 40px -10px rgba(64, 64, 64, 0.3);
+          min-height: 100vh;
+          position: relative;
+        }
+
+        /* Node styling */
+        .glass-pane {
+          background: rgba(10, 10, 10, 0.4);
+          backdrop-filter: blur(16px);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 0.75rem;
+          box-shadow:
+            0 0 20px rgba(75, 85, 99, 0.5),
+            0 0 40px rgba(75, 85, 99, 0.25),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        }
+
+        .node-ai {
+          border-color: rgba(59, 130, 246, 0.3);
+          background: rgba(59, 130, 246, 0.05);
+        }
+    </style>
+</head>
+<body class="canvas-background">
+    <div class="flex items-center justify-center min-h-screen p-8">
+        <!-- Simulated Canvas with Node -->
+        <div class="relative">
+            <!-- AI Node -->
+            <div class="glass-pane node-ai p-4 w-60 rounded-lg relative">
+                <div class="absolute top-0 left-0 text-xs text-blue-400 font-medium bg-blue-500/20 px-2 py-1 rounded border border-blue-500/30 shadow-sm z-10">
+                    Strategist AI
+                </div>
+                
+                <div class="pt-8">
+                    <div class="flex items-center gap-2 mb-2">
+                        <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <h3 class="font-bold text-sm text-blue-300">Strategic Analysis Complete</h3>
+                    </div>
+                    
+                    <div class="text-xs text-gray-200 mb-2 leading-relaxed font-medium">
+                        Market analysis reveals significant opportunities in emerging sectors with 85% confidence.
+                    </div>
+                </div>
+                
+                <div class="flex justify-between items-center text-xs">
+                    <div class="flex items-center gap-2">
+                        <span class="text-[#75859F] bg-[#75859F]/10 px-1.5 py-0.5 rounded">85%</span>
+                        <span class="px-1.5 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-300">AI</span>
+                    </div>
+                    
+                    <button onclick="toggleTooltip()" class="w-6 h-6 rounded-full bg-gray-700/50 hover:bg-gray-600/70 flex items-center justify-center transition-colors opacity-70 hover:opacity-100 group-hover:opacity-100" title="Click for AI insights">
+                        <svg class="w-3 h-3 text-gray-300 hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- AI Insights Tooltip Pop-up -->
+            <div id="tooltip" style="display: none; position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 380px; min-height: 320px; max-height: 420px; z-index: 10000; pointer-events: auto;">
+                <!-- Glass-Effect Container -->
+                <div class="enhanced-glass-tooltip">
+                    <!-- Header with Glass Effect -->
+                    <div class="glass-header">
+                        <div class="flex items-center gap-3 mb-4">
+                            <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <h3 class="font-semibold text-white flex-1 truncate text-shadow">
+                                Strategic Analysis Complete
+                            </h3>
+                            <div class="ai-badge">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                                </svg>
+                                <span class="text-xs">AI</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AI-Powered Executive Summary Section -->
+                    <div class="glass-content">
+                        <div class="executive-summary-section">
+                            <div class="section-header-ai">
+                                <span class="text-white font-medium">Executive Summary</span>
+                            </div>
+                            
+                            <div class="ai-summary-content">
+                                <div class="bullet-points">
+                                    <div class="bullet-point">
+                                        <div class="bullet-dot"></div>
+                                        <span class="bullet-text">Market analysis reveals 3 high-growth opportunities in emerging tech sectors</span>
+                                    </div>
+                                    <div class="bullet-point">
+                                        <div class="bullet-dot"></div>
+                                        <span class="bullet-text">Competitive positioning shows strong differentiation potential</span>
+                                    </div>
+                                    <div class="bullet-point">
+                                        <div class="bullet-dot"></div>
+                                        <span class="bullet-text">Resource allocation optimization could improve efficiency by 25%</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- AI Confidence Indicator -->
+                            <div class="ai-confidence">
+                                <div class="confidence-bar">
+                                    <div class="confidence-fill" style="width: 85%;"></div>
+                                </div>
+                                <span class="confidence-text">
+                                    85% confidence • 12 sources analyzed
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Footer with Glass Effect -->
+                    <div class="glass-footer">
+                        <div class="footer-stats">
+                            <span class="stat-item">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
+                                </svg>
+                                3 connections
+                            </span>
+                            <span class="stat-item confidence">
+                                85% confidence
+                            </span>
+                        </div>
+                        
+                        <!-- View Full Context Button -->
+                        <button class="view-full-button" onclick="alert('View Full Context clicked!')">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                            </svg>
+                            View Full Context
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Instructions -->
+    <div class="fixed top-4 left-4 glass-pane p-4 max-w-md">
+        <h2 class="text-white font-semibold mb-2">Glassmorphism AI Insights Test</h2>
+        <p class="text-gray-300 text-sm mb-2">Click the help icon (?) on the AI node to toggle the glassmorphism pop-up.</p>
+        <p class="text-gray-400 text-xs">The pop-up should display with:</p>
+        <ul class="text-gray-400 text-xs mt-1 space-y-1">
+            <li>• Semi-transparent background</li>
+            <li>• Blurred backdrop effect</li>
+            <li>• Smooth rounded edges</li>
+            <li>• Subtle shadows and glow</li>
+            <li>• Premium glass appearance</li>
+        </ul>
+    </div>
+
+    <script>
+        function toggleTooltip() {
+            const tooltip = document.getElementById('tooltip');
+            if (tooltip.style.display === 'none') {
+                tooltip.style.display = 'block';
+                // Animate the confidence bar
+                setTimeout(() => {
+                    const fill = document.querySelector('.confidence-fill');
+                    if (fill) {
+                        fill.style.width = '85%';
+                    }
+                }, 100);
+            } else {
+                tooltip.style.display = 'none';
+            }
+        }
+
+        // Close tooltip when clicking outside
+        document.addEventListener('click', function(event) {
+            const tooltip = document.getElementById('tooltip');
+            const node = event.target.closest('.glass-pane');
+            const tooltipElement = event.target.closest('#tooltip');
+            
+            if (!node && !tooltipElement && tooltip.style.display === 'block') {
+                tooltip.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
