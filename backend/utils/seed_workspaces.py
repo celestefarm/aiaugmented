@@ -224,3 +224,38 @@ if __name__ == "__main__":
         await close_mongo_connection()
     
     asyncio.run(main())
+
+async def ensure_all_workspaces_have_agents(db):
+    """Ensure all existing workspaces have active agents configured"""
+    try:
+        workspaces_collection = db.workspaces
+        
+        # Find all workspaces without active agents
+        workspaces_cursor = workspaces_collection.find({})
+        workspaces = await workspaces_cursor.to_list(length=None)
+        
+        fixed_count = 0
+        for workspace in workspaces:
+            settings = workspace.get('settings', {})
+            active_agents = settings.get('active_agents', [])
+            
+            if not active_agents:
+                # Add active agents to this workspace
+                await workspaces_collection.update_one(
+                    {"_id": workspace["_id"]},
+                    {
+                        "$set": {
+                            "settings.active_agents": ["strategist"]
+                        }
+                    }
+                )
+                fixed_count += 1
+                print(f"✅ Added active agents to workspace {workspace['_id']}")
+        
+        if fixed_count > 0:
+            print(f"🎉 Fixed {fixed_count} workspaces to have active agents!")
+        else:
+            print("✅ All workspaces already have active agents configured")
+            
+    except Exception as e:
+        print(f"❌ Error ensuring workspaces have agents: {e}")

@@ -349,8 +349,41 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
   }, []);
 
   const handleSendMessage = async () => {
+    // 🔍 DIAGNOSTIC LOGGING - Add comprehensive logging to trace message flow
+    console.log('🚀 [DIAGNOSTIC] handleSendMessage called with:', {
+      chatMessage: chatMessage.trim(),
+      chatMessageLength: chatMessage.trim().length,
+      stagedFilesLength: stagedFiles.length,
+      isSending,
+      isStreaming,
+      activeAgentsLength: activeAgents.length,
+      activeAgents: activeAgents,
+      currentWorkspace: currentWorkspace?.id
+    });
+    
     // Check if we have either text message or staged files
-    if ((!chatMessage.trim() && stagedFiles.length === 0) || isSending || isStreaming) return;
+    if ((!chatMessage.trim() && stagedFiles.length === 0) || isSending || isStreaming) {
+      console.log('🚫 [DIAGNOSTIC] Message sending blocked:', {
+        noContent: !chatMessage.trim() && stagedFiles.length === 0,
+        isSending,
+        isStreaming,
+        reason: !chatMessage.trim() && stagedFiles.length === 0 ? 'No content' :
+                isSending ? 'Already sending' :
+                isStreaming ? 'Currently streaming' : 'Unknown'
+      });
+      return;
+    }
+    
+    // 🔍 DIAGNOSTIC - Agent dependency removed to ensure universal chat access
+    // This allows all users (testing emails and regular accounts) to use AI chat
+    if (activeAgents.length === 0) {
+      console.log('⚠️ [DIAGNOSTIC] No active agents detected, but proceeding anyway (universal access enabled)');
+      console.log('🤖 [DIAGNOSTIC] Backend will auto-assign default agent (strategist)');
+    } else {
+      console.log('✅ [DIAGNOSTIC] Active agents available:', activeAgents.length);
+    }
+    
+    console.log('✅ [DIAGNOSTIC] All checks passed - proceeding with message sending');
     
     setIsSending(true);
     setIsUploadingFiles(stagedFiles.length > 0);
@@ -1110,7 +1143,7 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
                 ? "Type your message about the attached files..."
                 : "Ask your strategic agents anything..."
             }
-            disabled={isSending || isStreaming || activeAgents.length === 0}
+            disabled={isSending || isStreaming}
             className={`w-full glass-pane-no-glow rounded-lg p-2.5 pr-14 text-xs text-[#E5E7EB] placeholder-gray-400 resize-none focus:outline-none focus:ring-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
               isSending || isStreaming
                 ? 'focus:ring-blue-400 border-blue-400/30'
@@ -1144,13 +1177,13 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
         {/* Enhanced Send Button with File Upload Support */}
         <button
           onClick={handleSendMessage}
-          disabled={(!chatMessage.trim() && stagedFiles.length === 0) || isSending || isStreaming || activeAgents.length === 0}
+          disabled={(!chatMessage.trim() && stagedFiles.length === 0) || isSending || isStreaming}
           className={`w-full mt-2 px-3 py-2 font-medium text-xs rounded-lg transition-all duration-200 flex items-center justify-center gap-2 ${
             isSending || isStreaming
               ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30 cursor-wait'
               : chatError && chatError.includes('Streaming error')
               ? 'bg-red-500/20 text-red-300 border border-red-500/30 hover:bg-red-500/30'
-              : (!chatMessage.trim() && stagedFiles.length === 0) || activeAgents.length === 0
+              : (!chatMessage.trim() && stagedFiles.length === 0)
               ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
               : 'bg-[#6B6B3A] hover:bg-[#6B6B3A]/80 text-black hover:scale-[1.02] active:scale-[0.98]'
           }`}

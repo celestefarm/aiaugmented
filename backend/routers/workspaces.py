@@ -72,12 +72,28 @@ async def create_workspace(
     
     # Create workspace document
     now = datetime.utcnow()
+    
+    # Ensure all new workspaces have active agents by default
+    default_settings = {
+        "active_agents": ["strategist"],
+        "theme": "dark",
+        "auto_save": True
+    }
+    
+    # Merge user-provided settings with defaults, ensuring active_agents is always present
+    final_settings = default_settings.copy()
+    if workspace_data.settings:
+        final_settings.update(workspace_data.settings)
+        # Ensure active_agents is always present, even if user provided settings
+        if not final_settings.get("active_agents"):
+            final_settings["active_agents"] = ["strategist"]
+    
     workspace_create = WorkspaceCreate(
         title=workspace_data.title,
         owner_id=current_user.id,  # Keep as string (PyObjectId)
         created_at=now,
         updated_at=now,
-        settings=workspace_data.settings or {},
+        settings=final_settings,
         transform=workspace_data.transform or {"x": 0, "y": 0, "scale": 1}
     )
     

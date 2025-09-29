@@ -337,6 +337,12 @@ async def send_message(
     Raises:
         HTTPException: If workspace not found or access denied
     """
+    # 🔍 DIAGNOSTIC LOGGING - Add comprehensive logging to trace POST message flow
+    print(f"🚀 [DIAGNOSTIC] POST /workspaces/{workspace_id}/messages called!")
+    print(f"🚀 [DIAGNOSTIC] Message content: {message_data.content}")
+    print(f"🚀 [DIAGNOSTIC] User: {current_user.name} ({current_user.id})")
+    print(f"🚀 [DIAGNOSTIC] Workspace ID: {workspace_id}")
+    
     # PERFORMANCE MONITORING: Time the entire message processing pipeline
     message_timer = perf_monitor.start_timer("send_message_pipeline")
     # Validate ObjectId format
