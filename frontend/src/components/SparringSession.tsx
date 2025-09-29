@@ -894,7 +894,7 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
             >
               {message.type === 'document' ? (
                 // Document Message Display
-                <div className="max-w-[90%] glass-pane-no-glow rounded-lg p-2.5 border-[#6B6B3A]/30 bg-[#6B6B3A]/5">
+                <div className="max-w-[90%] rounded-lg p-2.5 border border-[#6B6B3A]/30 bg-transparent">
                   <div className="flex items-center gap-2 mb-2">
                     <Upload className="w-4 h-4 text-[#6B6B3A]" />
                     <span className="text-xs font-medium text-[#6B6B3A]">Document Upload</span>
@@ -912,10 +912,10 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
               ) : (
                 // Regular Text Message Display
                 <div
-                  className={`max-w-[90%] glass-pane-no-glow rounded-lg p-2.5 ${
+                  className={`max-w-[90%] p-2.5 ${
                     message.type === 'human'
-                      ? 'border-[#6B6B3A]/30 bg-[#6B6B3A]/5'
-                      : 'border-blue-400/30 bg-blue-500/5'
+                      ? 'rounded-2xl border border-gray-600/30 bg-transparent shadow-lg shadow-gray-600/20 backdrop-blur-sm'
+                      : 'bg-transparent rounded-lg'
                   }`}
                 >
                   {/* Message Header */}
@@ -952,12 +952,12 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
                   </div>
                   
                   {/* Bottom section with Add to Map button and Thumbs Up/Down for AI messages */}
-                  <div className="flex items-center justify-between">
+                  <div className="space-y-2">
                     {/* Enhanced Add to Map Button Implementation - Now supports both AI and Human messages */}
                     <div>
                       {(message.type === 'ai' || message.type === 'human') && (
                         messageMapStatus[message.id] ? (
-                          <div className={`flex items-center space-x-1 text-[10px] px-2 py-1 rounded border ${
+                          <div className={`inline-flex items-center space-x-1 text-[10px] px-2 py-1 rounded border ${
                             message.type === 'human'
                               ? 'bg-green-500/20 text-green-300 border-green-500/30'
                               : 'bg-green-500/20 text-green-300 border-green-500/30'
@@ -966,7 +966,7 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
                             <span>Added to Map</span>
                           </div>
                         ) : addingToMap.has(message.id) ? (
-                          <div className={`flex items-center space-x-1 text-[10px] px-2 py-1 rounded border ${
+                          <div className={`inline-flex items-center space-x-1 text-[10px] px-2 py-1 rounded border ${
                             message.type === 'human'
                               ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30'
                               : 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30'
@@ -991,7 +991,7 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
                       )}
                     </div>
                     
-                    {/* Thumbs Up/Down buttons for AI messages only */}
+                    {/* Thumbs Up/Down buttons for AI messages only - moved below Add to Map */}
                     {message.type === 'ai' && !message.id.startsWith('temp_ai_') && (
                       <div className="flex items-center gap-1">
                         <button

@@ -442,7 +442,7 @@ const OptimizedExplorationMap: React.FC = () => {
   const NODE_WIDTH = 240;
   const NODE_HEIGHT = 120;
   const GRID_SIZE = 20;
-  const MIN_SCALE = 0.5;
+  const MIN_SCALE = 0.3;
   const MAX_SCALE = 2;
 
   // Show notification helper
