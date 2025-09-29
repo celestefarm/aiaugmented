@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Plus, ChevronLeft, ChevronRight, X, User, Target, Trash2, ZoomIn, ZoomOut, Link, RefreshCw, Info, Users, Briefcase, Check, HelpCircle } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, X, User, Target, Trash2, ZoomIn, ZoomOut, Link, RefreshCw, Info, Users, Briefcase, Check, HelpCircle, Palette } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useMap } from '@/contexts/MapContext';
@@ -241,6 +241,12 @@ const UnifiedExplorationMap: React.FC = () => {
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
   const [rightSidebarWidth, setRightSidebarWidth] = useState(320);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  
+  // Canvas background theme state with localStorage persistence
+  const [canvasTheme, setCanvasTheme] = useState<'charcoal' | 'black' | 'navy'>(() => {
+    const saved = localStorage.getItem('explorationMapCanvasTheme');
+    return (saved === 'black' || saved === 'navy') ? saved as 'black' | 'navy' : 'charcoal'; // Default to charcoal
+  });
   const [notification, setNotification] = useState<string | null>(null);
   const [showAgentDetailsModal, setShowAgentDetailsModal] = useState<string | null>(null);
   const [showContextMenu, setShowContextMenu] = useState<{ x: number; y: number; nodeId?: string } | null>(null);
@@ -280,6 +286,48 @@ const UnifiedExplorationMap: React.FC = () => {
     setNotification(message);
     setTimeout(() => setNotification(null), 3000);
   }, []);
+
+  // Canvas theme toggle handler with persistence - cycles through 3 themes
+  const toggleCanvasTheme = useCallback(() => {
+    const themeOrder: Array<'charcoal' | 'black' | 'navy'> = ['charcoal', 'black', 'navy'];
+    const currentIndex = themeOrder.indexOf(canvasTheme);
+    const nextIndex = (currentIndex + 1) % themeOrder.length;
+    const newTheme = themeOrder[nextIndex];
+    
+    setCanvasTheme(newTheme);
+    localStorage.setItem('explorationMapCanvasTheme', newTheme);
+    showNotification(`Canvas theme changed to ${newTheme}`);
+  }, [canvasTheme, showNotification]);
+
+  // Get canvas background styles based on theme
+  const getCanvasBackgroundStyle = useCallback(() => {
+    switch (canvasTheme) {
+      case 'charcoal':
+        return {
+          backgroundColor: '#1a1a1a',
+          backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0)',
+          boxShadow: 'inset 0 0 40px -10px rgba(64, 64, 64, 0.3)'
+        };
+      case 'black':
+        return {
+          backgroundColor: '#0A0A0A',
+          backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.04) 1px, transparent 0)',
+          boxShadow: 'inset 0 0 40px -10px rgba(107, 107, 58, 0.3)'
+        };
+      case 'navy':
+        return {
+          backgroundColor: '#0f1419',
+          backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.02) 1px, transparent 0)',
+          boxShadow: 'inset 0 0 40px -10px rgba(59, 130, 246, 0.2)'
+        };
+      default:
+        return {
+          backgroundColor: '#1a1a1a',
+          backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0)',
+          boxShadow: 'inset 0 0 40px -10px rgba(64, 64, 64, 0.3)'
+        };
+    }
+  }, [canvasTheme]);
 
   // Coordinate conversion helpers
   const screenToCanvas = useCallback((screenX: number, screenY: number) => {
@@ -791,7 +839,7 @@ const UnifiedExplorationMap: React.FC = () => {
       <div className="w-full h-full flex relative overflow-hidden bg-[#0A0A0A] text-[#E5E7EB]">
         {/* Notification */}
         {notification && (
-          <div className="absolute top-4 right-4 z-50 glass-pane px-4 py-2 text-sm text-[#E5E7EB] border border-[#6B6B3A]/30 rounded-lg">
+          <div className="absolute top-16 right-4 z-50 glass-pane px-4 py-2 text-sm text-[#E5E7EB] border border-[#6B6B3A]/30 rounded-lg">
             {notification}
           </div>
         )}
@@ -902,7 +950,7 @@ const UnifiedExplorationMap: React.FC = () => {
                           <div className="leading-tight">
                             <span className={`text-xs font-medium ${
                               activeAgents.includes(agent.agent_id) ? 'glow-olive-text' : 'text-[#E5E7EB]'
-                            }`}>
+                            }`} style={{ fontSize: '9px', lineHeight: '1.3' }}>
                               {agent.name}{' '}
                               <button
                                 onClick={() => setShowAgentDetailsModal(agent.agent_id)}
@@ -960,7 +1008,7 @@ const UnifiedExplorationMap: React.FC = () => {
           ref={canvasRef}
           className="flex-1 select-none overflow-hidden relative"
           style={{
-            boxShadow: 'inset 0 0 40px -10px rgba(107, 107, 58, 0.3)',
+            ...getCanvasBackgroundStyle(),
             height: '100%',
             paddingTop: '4px',
             cursor: isPanning ? 'grabbing' : 'grab',
@@ -1032,6 +1080,26 @@ const UnifiedExplorationMap: React.FC = () => {
                 <TooltipContent>Delete Node</TooltipContent>
               </Tooltip>
             )}
+          </div>
+
+          {/* Theme Toggle Button - Positioned in Right Corner */}
+          <div className="absolute top-4 right-4 z-50">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={toggleCanvasTheme}
+                  className={`glass-pane px-3 py-2 text-sm font-medium transition-colors flex items-center space-x-2 ${
+                    canvasTheme === 'charcoal' ? 'bg-gray-500/20 text-gray-300' :
+                    canvasTheme === 'black' ? 'bg-gray-800/20 text-gray-200' :
+                    canvasTheme === 'navy' ? 'bg-blue-500/20 text-blue-300' : 'text-[#E5E7EB] hover:text-[#6B6B3A]'
+                  }`}
+                  title={`Current: ${canvasTheme} theme - Click to cycle themes`}
+                >
+                  <Palette className="w-4 h-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Change Background Theme</TooltipContent>
+            </Tooltip>
           </div>
 
           {/* Canvas Content Container */}

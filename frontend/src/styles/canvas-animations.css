@@ -12,7 +12,7 @@
 
 .node-hover-effect:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(107, 107, 58, 0.3);
+  box-shadow: 0 4px 12px rgba(75, 85, 99, 0.3);
 }
 
 /* Selection ring animation */
@@ -136,17 +136,17 @@
   content: '';
   position: absolute;
   inset: -4px;
-  border: 2px solid rgba(107, 107, 58, 0.5);
+  border: 2px solid rgba(75, 85, 99, 0.5);
   border-radius: inherit;
   animation: drag-glow 1s ease-in-out infinite alternate;
 }
 
 @keyframes drag-glow {
   from {
-    box-shadow: 0 0 8px rgba(107, 107, 58, 0.3);
+    box-shadow: 0 0 8px rgba(75, 85, 99, 0.3);
   }
   to {
-    box-shadow: 0 0 16px rgba(107, 107, 58, 0.6);
+    box-shadow: 0 0 16px rgba(75, 85, 99, 0.6);
   }
 }
 
@@ -206,9 +206,9 @@
 .loading-shimmer {
   background: linear-gradient(
     90deg,
-    rgba(107, 107, 58, 0.1) 0%,
-    rgba(107, 107, 58, 0.2) 50%,
-    rgba(107, 107, 58, 0.1) 100%
+    rgba(75, 85, 99, 0.1) 0%,
+    rgba(75, 85, 99, 0.2) 50%,
+    rgba(75, 85, 99, 0.1) 100%
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
@@ -225,7 +225,7 @@
 
 /* Focus indicators for accessibility */
 .canvas-element:focus-visible {
-  outline: 2px solid rgba(107, 107, 58, 0.8);
+  outline: 2px solid rgba(75, 85, 99, 0.8);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -263,4 +263,10 @@
   .tooltip-smart-position {
     border: 1px solid white;
   }
+}
+
+/* Custom font sizes for UI elements */
+.text-xxs {
+  font-size: 9px;
+  line-height: 1.3;
 }

@@ -85,7 +85,7 @@ const OptimizedNode: React.FC<{
   const getNodeIcon = (type: string) => {
     switch (type) {
       case 'human':
-        return <User className="w-4 h-4 text-[#6B6B3A]" />;
+        return <User className="w-4 h-4 text-[#75859F]" />;
       case 'ai':
         return <Target className="w-4 h-4 text-blue-400" />;
       case 'risk':
@@ -177,12 +177,12 @@ const OptimizedNode: React.FC<{
         <div className="flex justify-between items-center text-xs">
           <div className="flex items-center gap-2">
             {node.confidence && (
-              <span className="text-[#6B6B3A] bg-[#6B6B3A]/10 px-1.5 py-0.5 rounded">
+              <span className="text-[#75859F] bg-[#75859F]/10 px-1.5 py-0.5 rounded">
                 {node.confidence}%
               </span>
             )}
             <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-              node.type === 'human' ? 'bg-[#6B6B3A]/20 text-[#6B6B3A]' :
+              node.type === 'human' ? 'bg-[#75859F]/20 text-[#75859F]' :
               node.type === 'ai' ? 'bg-blue-500/20 text-blue-300' :
               node.type === 'risk' ? 'bg-red-500/20 text-red-300' :
               node.type === 'dependency' ? 'bg-gray-500/20 text-gray-300' :
@@ -1552,7 +1552,7 @@ const OptimizedExplorationMap: React.FC = () => {
     return (
       <div className="flex-1 flex items-center justify-center bg-gray-900">
         <div className="text-center">
-          <RefreshCw className="w-8 h-8 animate-spin text-[#6B6B3A] mx-auto mb-4" />
+          <RefreshCw className="w-8 h-8 animate-spin text-[#75859F] mx-auto mb-4" />
           <p className="text-gray-300">Loading exploration map...</p>
         </div>
       </div>
@@ -1604,39 +1604,42 @@ const OptimizedExplorationMap: React.FC = () => {
                 <div className="flex-1 p-4 space-y-3 overflow-y-auto">
                   {agents.map(agent => (
                     <div key={agent.agent_id} className="glass-pane-no-glow p-3 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <div className={`w-2 h-2 rounded-full ${
-                            activeAgents.includes(agent.agent_id) ? 'bg-green-400' : 'bg-gray-500'
+                            activeAgents.includes(agent.agent_id) ? 'bg-[#6B6B3A]' : 'bg-gray-500'
                           }`} />
-                          <span className="text-sm font-medium text-white">{agent.name}</span>
+                          <span className={`font-medium ${
+                            activeAgents.includes(agent.agent_id) ? 'text-white' : 'text-gray-400'
+                          }`} style={{ fontSize: '11px', lineHeight: '1.3' }}>{agent.name}</span>
                         </div>
-                        <button
-                          onClick={() => setShowAgentDetailsModal(agent.agent_id)}
-                          className="text-xs text-gray-400 hover:text-white transition-colors"
-                        >
-                          Details
-                        </button>
-                      </div>
-                      <div className="flex items-center justify-end">
-                        <button
-                          onClick={() => activeAgents.includes(agent.agent_id) ? deactivateAgent(agent.agent_id) : activateAgent(agent.agent_id)}
-                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#6B6B3A]/50 focus:ring-offset-2 focus:ring-offset-gray-800 ${
-                            activeAgents.includes(agent.agent_id)
-                              ? 'bg-[#6B6B3A] hover:bg-[#7B7B4A]'
-                              : 'bg-gray-600 hover:bg-gray-500'
-                          }`}
-                          role="switch"
-                          aria-checked={activeAgents.includes(agent.agent_id)}
-                          aria-label={`${activeAgents.includes(agent.agent_id) ? 'Deactivate' : 'Activate'} ${agent.name}`}
-                          title={`${activeAgents.includes(agent.agent_id) ? 'Deactivate' : 'Activate'} ${agent.name}`}
-                        >
-                          <span
-                            className={`inline-block h-3 w-3 transform rounded-full bg-white shadow-lg transition-transform duration-200 ease-in-out ${
-                              activeAgents.includes(agent.agent_id) ? 'translate-x-5' : 'translate-x-1'
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setShowAgentDetailsModal(agent.agent_id)}
+                            className="text-gray-400 hover:text-white transition-colors"
+                            style={{ fontSize: '11px' }}
+                          >
+                            Details
+                          </button>
+                          <button
+                            onClick={() => activeAgents.includes(agent.agent_id) ? deactivateAgent(agent.agent_id) : activateAgent(agent.agent_id)}
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 ${
+                              activeAgents.includes(agent.agent_id)
+                                ? 'bg-[#6B6B3A] hover:bg-[#7A7A42] focus:ring-[#6B6B3A]/50'
+                                : 'bg-gray-600 hover:bg-gray-500 focus:ring-gray-500/50'
                             }`}
-                          />
-                        </button>
+                            role="switch"
+                            aria-checked={activeAgents.includes(agent.agent_id)}
+                            aria-label={`${activeAgents.includes(agent.agent_id) ? 'Deactivate' : 'Activate'} ${agent.name}`}
+                            title={`${activeAgents.includes(agent.agent_id) ? 'Deactivate' : 'Activate'} ${agent.name}`}
+                          >
+                            <span
+                              className={`inline-block h-3 w-3 transform rounded-full bg-white shadow-lg transition-transform duration-200 ease-in-out ${
+                                activeAgents.includes(agent.agent_id) ? 'translate-x-5' : 'translate-x-1'
+                              }`}
+                            />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1669,7 +1672,7 @@ const OptimizedExplorationMap: React.FC = () => {
 
           {/* Main Canvas Area */}
           <div className="flex-1 relative overflow-hidden">
-            {/* Canvas Controls */}
+            {/* Canvas Controls - Left Side */}
             <div className="absolute top-4 left-4 z-40 flex gap-2">
               <button
                 onClick={() => handleZoom(1)}
@@ -1703,17 +1706,6 @@ const OptimizedExplorationMap: React.FC = () => {
                 <Link className="w-4 h-4" />
               </button>
               <button
-                onClick={toggleCanvasTheme}
-                className={`p-2 glass-pane-no-glow hover:bg-white/10 transition-colors rounded ${
-                  canvasTheme === 'charcoal' ? 'bg-gray-500/20 text-gray-300' :
-                  canvasTheme === 'black' ? 'bg-gray-800/20 text-gray-200' :
-                  canvasTheme === 'navy' ? 'bg-blue-500/20 text-blue-300' : 'text-white'
-                }`}
-                title={`Current: ${canvasTheme} theme - Click to cycle themes`}
-              >
-                <Palette className="w-4 h-4" />
-              </button>
-              <button
                 onClick={handleDeleteSelected}
                 onDrop={handleDropOnTrash}
                 onDragOver={(e) => e.preventDefault()}
@@ -1726,6 +1718,21 @@ const OptimizedExplorationMap: React.FC = () => {
                 disabled={selectedNodes.size === 0 && selectedEdges.size === 0}
               >
                 <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Theme Toggle Button - Right Corner */}
+            <div className="absolute top-4 right-4 z-40">
+              <button
+                onClick={toggleCanvasTheme}
+                className={`p-2 glass-pane-no-glow hover:bg-white/10 transition-colors rounded ${
+                  canvasTheme === 'charcoal' ? 'bg-gray-500/20 text-gray-300' :
+                  canvasTheme === 'black' ? 'bg-gray-800/20 text-gray-200' :
+                  canvasTheme === 'navy' ? 'bg-blue-500/20 text-blue-300' : 'text-white'
+                }`}
+                title={`Current: ${canvasTheme} theme - Click to cycle themes`}
+              >
+                <Palette className="w-4 h-4" />
               </button>
             </div>
 

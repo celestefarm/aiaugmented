@@ -678,7 +678,10 @@ const EnhancedExplorationMap: React.FC = () => {
                         <User className="w-3 h-3 text-[#6B6B3A] flex-shrink-0 mt-0.5" />
                         <div className="flex-1 min-w-0">
                           <div className="leading-tight">
-                            <span className="text-xs font-medium text-[#E5E7EB]">
+                            <span
+                              className="font-medium text-[#E5E7EB]"
+                              style={{ fontSize: '9px', lineHeight: '1.3' }}
+                            >
                               {agent.name}
                             </span>
                           </div>
