@@ -137,12 +137,17 @@ const LandingPageHeader: React.FC<LandingPageHeaderProps> = ({
             </div>
             
             {/* Company Name */}
-            <button
-              onClick={() => navigate('/')}
-              className="text-xl font-bold text-white hover:text-gray-300 transition-colors duration-200 cursor-pointer"
-            >
-              AI-Augmented
-            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => navigate('/')}
+                className="text-xl font-bold text-white hover:text-gray-300 transition-colors duration-200 cursor-pointer"
+              >
+                AI-Augmented
+              </button>
+              <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-black text-xs font-bold px-2 py-1 rounded-full uppercase tracking-wide">
+                BETA
+              </span>
+            </div>
           </div>
 
           {/* Right Section - Navigation Links and Authentication Buttons */}
