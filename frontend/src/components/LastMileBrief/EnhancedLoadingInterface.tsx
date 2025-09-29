@@ -30,6 +30,7 @@ const EnhancedLoadingInterface: React.FC<EnhancedLoadingInterfaceProps> = ({
   const [finalStepStartTime, setFinalStepStartTime] = useState<number | null>(null);
   const [animationCompleted, setAnimationCompleted] = useState(false);
 
+
   // Define the AI workflow steps with dynamic content based on data size
   const getWorkflowSteps = (): ProgressStep[] => {
     const baseSteps: ProgressStep[] = [
@@ -163,33 +164,22 @@ const EnhancedLoadingInterface: React.FC<EnhancedLoadingInterfaceProps> = ({
   // Separate effect to handle completion when both animation and data are ready
   useEffect(() => {
     if (animationCompleted && isDataReady) {
+      // Complete immediately without delay
       console.log('🎯 Both animation and data are ready - completing immediately');
-      setTimeout(() => {
-        onComplete?.();
-      }, 200); // Very minimal delay for smooth transition
+      onComplete?.();
     }
   }, [animationCompleted, isDataReady, onComplete]);
 
   const getElapsedTime = () => {
-    // Only show elapsed time if we're in the final step
-    if (finalStepStartTime === null) {
-      return '--';
-    }
-    const elapsed = Date.now() - finalStepStartTime;
+    // Show elapsed time from the start of the process
+    const elapsed = Date.now() - startTime;
     return `${Math.floor(elapsed / 1000)}s`;
   };
 
   const getEstimatedTimeRemaining = () => {
-    // Only show remaining time if we're in the final step
-    if (finalStepStartTime === null) {
-      return 'Analyzing...';
-    }
-    
-    const finalStep = steps.find(step => step.id === 'compiling_brief');
-    if (!finalStep) return '--';
-    
-    const elapsed = Date.now() - finalStepStartTime;
-    const remaining = Math.max(0, finalStep.duration - elapsed);
+    // Calculate remaining time based on overall progress
+    const elapsed = Date.now() - startTime;
+    const remaining = Math.max(0, totalDuration - elapsed);
     return `~${Math.ceil(remaining / 1000)}s`;
   };
 
@@ -275,7 +265,7 @@ const EnhancedLoadingInterface: React.FC<EnhancedLoadingInterfaceProps> = ({
         {/* Progress Bar */}
         <div className="progress-bar-container">
           <div className="progress-bar">
-            <div 
+            <div
               className="progress-bar-fill"
               style={{ width: `${progress}%` }}
             ></div>
@@ -283,22 +273,6 @@ const EnhancedLoadingInterface: React.FC<EnhancedLoadingInterfaceProps> = ({
           <div className="progress-stats">
             <span className="elapsed-time">Elapsed: {getElapsedTime()}</span>
             <span className="estimated-time">Remaining: {getEstimatedTimeRemaining()}</span>
-          </div>
-        </div>
-
-        {/* AI Sophistication Indicators */}
-        <div className="ai-indicators">
-          <div className="ai-indicator">
-            <Sparkles className="w-4 h-4" />
-            <span>Advanced Pattern Recognition</span>
-          </div>
-          <div className="ai-indicator">
-            <Brain className="w-4 h-4" />
-            <span>Strategic Intelligence Engine</span>
-          </div>
-          <div className="ai-indicator">
-            <Network className="w-4 h-4" />
-            <span>Network Analysis Algorithms</span>
           </div>
         </div>
 
