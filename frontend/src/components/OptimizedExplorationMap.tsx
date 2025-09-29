@@ -1582,7 +1582,7 @@ const OptimizedExplorationMap: React.FC = () => {
       <TooltipProvider>
         <div className="flex h-full w-full bg-gray-900 overflow-hidden">
           {/* Left Sidebar */}
-          <div className={`transition-all duration-300 glass-pane-sidebar border-r border-gray-600/30 flex flex-col ${
+          <div className={`transition-all duration-300 glass-pane-sidebar border-r border-gray-600/30 flex flex-col shadow-2xl shadow-gray-400/30 ${
             leftSidebarCollapsed ? 'w-16' : 'w-80'
           }`}>
             <div className="flex-shrink-0 p-4 border-b border-gray-600/30 glass-pane">
