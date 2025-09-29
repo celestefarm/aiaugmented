@@ -401,9 +401,9 @@ const OptimizedExplorationMap: React.FC = () => {
   });
   
   // Canvas background color state with localStorage persistence
-  const [canvasTheme, setCanvasTheme] = useState<'charcoal' | 'black' | 'navy'>(() => {
+  const [canvasTheme, setCanvasTheme] = useState<'charcoal' | 'black' | 'navy' | 'olive'>(() => {
     const saved = localStorage.getItem('explorationMapCanvasTheme');
-    return (saved === 'black' || saved === 'navy') ? saved as 'black' | 'navy' : 'charcoal'; // Default to charcoal
+    return (saved === 'black' || saved === 'navy' || saved === 'olive') ? saved as 'black' | 'navy' | 'olive' : 'charcoal'; // Default to charcoal
   });
   const [isResizingRightSidebar, setIsResizingRightSidebar] = useState(false);
   const [resizeStartX, setResizeStartX] = useState(0);
@@ -451,9 +451,9 @@ const OptimizedExplorationMap: React.FC = () => {
     setTimeout(() => setNotification(null), 3000);
   }, []);
 
-  // Canvas theme toggle handler with persistence - cycles through 3 themes
+  // Canvas theme toggle handler with persistence - cycles through 4 themes
   const toggleCanvasTheme = useCallback(() => {
-    const themeOrder: Array<'charcoal' | 'black' | 'navy'> = ['charcoal', 'black', 'navy'];
+    const themeOrder: Array<'charcoal' | 'black' | 'navy' | 'olive'> = ['charcoal', 'black', 'navy', 'olive'];
     const currentIndex = themeOrder.indexOf(canvasTheme);
     const nextIndex = (currentIndex + 1) % themeOrder.length;
     const newTheme = themeOrder[nextIndex];
@@ -483,6 +483,12 @@ const OptimizedExplorationMap: React.FC = () => {
           backgroundColor: '#0f1419',
           backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.02) 1px, transparent 0)',
           boxShadow: 'inset 0 0 40px -10px rgba(59, 130, 246, 0.2)'
+        };
+      case 'olive':
+        return {
+          backgroundColor: '#0F0F08',
+          backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.02) 1px, transparent 0)',
+          boxShadow: 'inset 0 0 40px -10px rgba(15, 15, 8, 0.3)'
         };
       default:
         return {
@@ -1728,7 +1734,8 @@ const OptimizedExplorationMap: React.FC = () => {
                 className={`p-2 glass-pane-no-glow hover:bg-white/10 transition-colors rounded ${
                   canvasTheme === 'charcoal' ? 'bg-gray-500/20 text-gray-300' :
                   canvasTheme === 'black' ? 'bg-gray-800/20 text-gray-200' :
-                  canvasTheme === 'navy' ? 'bg-blue-500/20 text-blue-300' : 'text-white'
+                  canvasTheme === 'navy' ? 'bg-blue-500/20 text-blue-300' :
+                  canvasTheme === 'olive' ? 'bg-[#6B6B3A]/20 text-[#6B6B3A]' : 'text-white'
                 }`}
                 title={`Current: ${canvasTheme} theme - Click to cycle themes`}
               >
