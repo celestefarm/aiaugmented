@@ -29,6 +29,10 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
   const [unreadCount, setUnreadCount] = useState(0);
   const [isUserAtBottom, setIsUserAtBottom] = useState(true);
   const [previousMessageCount, setPreviousMessageCount] = useState(0);
+  // ENHANCED: Add user intent tracking with streaming priority
+  const [userIsManuallyScrolling, setUserIsManuallyScrolling] = useState(false);
+  const [lastUserScrollTime, setLastUserScrollTime] = useState<number>(0);
+  const [userHasScrolledUpDuringStreaming, setUserHasScrolledUpDuringStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -86,124 +90,183 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
     }
   }, [messages, initializeStatus]);
 
-  // Check if user is at bottom of chat
+  // SIMPLIFIED: Only checks position, minimal state updates
   const checkIfUserAtBottom = useCallback(() => {
     const container = messagesContainerRef.current;
     if (!container) return false;
     
     const { scrollTop, scrollHeight, clientHeight } = container;
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 50; // 50px threshold
-    setIsUserAtBottom(isAtBottom);
+    const threshold = 50;
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < threshold;
+    
+    // Only update state if not actively scrolling and not streaming
+    if (!userIsManuallyScrolling && !isStreaming) {
+      setIsUserAtBottom(isAtBottom);
+    }
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('📍 [POSITION-CHECK] Position check:', {
+        scrollTop,
+        scrollHeight,
+        clientHeight,
+        distanceFromBottom: scrollHeight - scrollTop - clientHeight,
+        isAtBottom,
+        userIsManuallyScrolling,
+        isStreaming
+      });
+    }
+    
     return isAtBottom;
-  }, []);
+  }, [userIsManuallyScrolling, isStreaming]);
 
-  // Monitor scroll position to track if user is at bottom
+  // STREAMING-AWARE: Track scroll position with special streaming behavior
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
 
-    const handleScroll = () => {
-      const wasAtBottom = isUserAtBottom;
-      const nowAtBottom = checkIfUserAtBottom();
+    let scrollTimeout: NodeJS.Timeout;
+
+    const handleScroll = (event: Event) => {
+      const now = Date.now();
+      const isUserInitiated = event.isTrusted;
       
-      // STREAMING AUTO-SCROLL: If user scrolled back to bottom during streaming, resume auto-scroll
-      if (!wasAtBottom && nowAtBottom && isStreaming) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('🌊 [STREAMING AUTO-SCROLL] User returned to bottom during streaming - resuming auto-scroll');
+      if (isUserInitiated) {
+        setUserIsManuallyScrolling(true);
+        setLastUserScrollTime(now);
+        
+        // ENHANCED: Track if user scrolled up during streaming
+        let hasScrolledUpDuringStreaming = false;
+        if (isStreaming) {
+          const { scrollTop, scrollHeight, clientHeight } = container;
+          const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+          
+          if (distanceFromBottom > 100) { // User scrolled significantly up
+            hasScrolledUpDuringStreaming = true;
+            setUserHasScrolledUpDuringStreaming(true);
+            if (process.env.NODE_ENV === 'development') {
+              console.log('👆 [STREAMING-SCROLL] User scrolled up during streaming - respecting intent');
+            }
+          }
         }
         
-        const scrollToBottom = () => {
-          messagesEndRef.current?.scrollIntoView({
-            behavior: 'smooth',
-            block: 'end'
+        if (process.env.NODE_ENV === 'development') {
+          console.log('👆 [USER-SCROLL] Manual scroll detected:', {
+            isStreaming,
+            hasScrolledUpDuringStreaming
           });
-        };
+        }
         
-        // Small delay to ensure smooth transition
-        setTimeout(() => {
-          requestAnimationFrame(scrollToBottom);
-        }, 100);
+        if (scrollTimeout) {
+          clearTimeout(scrollTimeout);
+        }
+        
+        scrollTimeout = setTimeout(() => {
+          setUserIsManuallyScrolling(false);
+          checkIfUserAtBottom();
+          if (process.env.NODE_ENV === 'development') {
+            console.log('⏰ [USER-SCROLL] Manual scroll timeout - checking position');
+          }
+        }, 2000);
       }
     };
 
-    container.addEventListener('scroll', handleScroll);
-    
-    // Check initial state
-    checkIfUserAtBottom();
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    setTimeout(() => checkIfUserAtBottom(), 100);
 
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, [checkIfUserAtBottom, isUserAtBottom, isStreaming]);
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+      }
+    };
+  }, [isStreaming]); // Include isStreaming in dependencies
 
-  // CONSOLIDATED AUTO-SCROLL: Single effect to handle all scroll scenarios
+  // SIMPLIFIED AUTO-SCROLL: Remove complex streaming logic that might cause issues
   useEffect(() => {
     const hasNewMessages = messages.length > previousMessageCount;
     setPreviousMessageCount(messages.length);
 
     if (messages.length === 0) return;
 
-    // DIAGNOSTIC: Log auto-scroll decisions for debugging (development only)
+    const now = Date.now();
+    const timeSinceLastUserScroll = now - lastUserScrollTime;
+    const userRecentlyScrolled = userIsManuallyScrolling || timeSinceLastUserScroll < 2000;
+
     if (process.env.NODE_ENV === 'development') {
-      console.log('🔄 [CONSOLIDATED-SCROLL] Auto-scroll effect triggered:', {
+      console.log('🔄 [SIMPLIFIED-SCROLL] Auto-scroll check:', {
         messagesLength: messages.length,
-        previousMessageCount,
         hasNewMessages,
         isInitialLoad,
         isUserAtBottom,
         isStreaming,
-        isLoadingMessages
+        userIsManuallyScrolling,
+        userRecentlyScrolled,
+        timeSinceLastUserScroll
       });
     }
 
     const scrollToBottom = (behavior: 'auto' | 'smooth' = 'smooth') => {
       if (process.env.NODE_ENV === 'development') {
-        console.log('📜 [CONSOLIDATED-SCROLL] Executing scroll to bottom with behavior:', behavior);
+        console.log('📜 [SIMPLIFIED-SCROLL] Executing scroll:', { behavior });
       }
+      
       messagesEndRef.current?.scrollIntoView({
         behavior,
         block: 'end'
       });
     };
 
-    // PRIORITY 1: Initial load - always scroll immediately with no animation
+    // PRIORITY 1: Initial load
     if (isInitialLoad && !isLoadingMessages) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('📜 [CONSOLIDATED-SCROLL] Initial load complete - scrolling immediately');
+        console.log('📜 [SIMPLIFIED-SCROLL] Initial load - scrolling');
       }
-      // Use setTimeout to ensure DOM is fully rendered
-      setTimeout(() => scrollToBottom('auto'), 100);
+      setTimeout(() => scrollToBottom('auto'), 200);
       return;
     }
 
-    // PRIORITY 2: Streaming content - smooth scroll if user is at bottom
-    if (isStreaming && isUserAtBottom) {
-      const streamingMessage = messages.find(msg =>
-        msg.id.startsWith('streaming_ai_') || msg.id.startsWith('temp_ai_')
-      );
+    // PRIORITY 2: New messages - only if user is at bottom and not manually scrolling
+    if (hasNewMessages && !isInitialLoad && !isLoadingMessages &&
+        !userRecentlyScrolled && !userIsManuallyScrolling && isUserAtBottom) {
       
-      if (streamingMessage) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('🌊 [CONSOLIDATED-SCROLL] Streaming content update - smooth scroll');
-        }
-        // Debounced scroll for streaming
-        const timeoutId = setTimeout(() => scrollToBottom('smooth'), 50);
-        return () => clearTimeout(timeoutId);
-      }
-    }
-
-    // PRIORITY 3: New messages - only scroll if user is at bottom
-    if (hasNewMessages && isUserAtBottom && !isInitialLoad && !isLoadingMessages) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('📜 [CONSOLIDATED-SCROLL] New messages and user at bottom - smooth scroll');
+        console.log('📜 [SIMPLIFIED-SCROLL] New message and user at bottom - scrolling');
       }
+      
       const timeoutId = setTimeout(() => scrollToBottom('smooth'), 100);
       return () => clearTimeout(timeoutId);
     }
 
-    // DIAGNOSTIC: Log when auto-scroll is skipped (development only)
-    if (process.env.NODE_ENV === 'development' && hasNewMessages && !isUserAtBottom) {
-      console.log('📜 [CONSOLIDATED-SCROLL] New messages but user not at bottom - skipping scroll');
+    // DIAGNOSTIC: Log why we're not scrolling
+    if (process.env.NODE_ENV === 'development' && hasNewMessages) {
+      const reasons = [];
+      if (userRecentlyScrolled) reasons.push('user recently scrolled');
+      if (userIsManuallyScrolling) reasons.push('user currently scrolling');
+      if (!isUserAtBottom) reasons.push('user not at bottom');
+      if (isLoadingMessages) reasons.push('loading messages');
+      
+      if (reasons.length > 0) {
+        console.log('🚫 [SIMPLIFIED-SCROLL] Not scrolling because:', reasons.join(', '));
+      }
     }
-  }, [messages, isInitialLoad, isUserAtBottom, previousMessageCount, isStreaming, isLoadingMessages]);
+  }, [messages, isInitialLoad, isUserAtBottom, previousMessageCount, isLoadingMessages, userIsManuallyScrolling, lastUserScrollTime]);
+
+  // MINIMAL RESET: Only reset streaming state when absolutely necessary
+  useEffect(() => {
+    if (!isStreaming && userHasScrolledUpDuringStreaming) {
+      // ULTRA-MINIMAL: Just reset the flag, no other actions
+      const timeoutId = setTimeout(() => {
+        setUserHasScrolledUpDuringStreaming(false);
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🔄 [MINIMAL-RESET] Streaming state reset');
+        }
+      }, 2000); // Longer delay to ensure no interference
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isStreaming, userHasScrolledUpDuringStreaming]);
+
+  // REMOVED: This was causing the flickering. Need to find what's causing the snap to top instead.
 
   // Load last read message ID from localStorage
   useEffect(() => {
@@ -301,29 +364,8 @@ const SparringSession: React.FC<SparringSessionProps> = ({ onAddToMap, onNodeDel
     };
   }, [messages]);
 
-  // Auto-mark messages as read when user is at bottom
-  useEffect(() => {
-    const container = messagesContainerRef.current;
-    if (!container || messages.length === 0) return;
-
-    const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
-      
-      if (isAtBottom && messages.length > 0) {
-        // Mark the last message as read when user is at bottom
-        const lastMessage = messages[messages.length - 1];
-        markMessageAsRead(lastMessage.id);
-      }
-    };
-
-    container.addEventListener('scroll', handleScroll);
-    
-    // Check initial state
-    handleScroll();
-
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, [messages, markMessageAsRead]);
+  // REMOVED: Auto-mark messages as read scroll handler - this might be causing scroll conflicts
+  // The intersection observer already handles message read tracking
 
   // Function to manually scroll to bottom
   const scrollToBottom = useCallback(() => {

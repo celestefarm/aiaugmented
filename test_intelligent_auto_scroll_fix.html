@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intelligent Auto-Scroll Fix Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: white;
+        }
+        .test-container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: #2a2a2a;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .test-section {
+            margin-bottom: 25px;
+            padding: 15px;
+            border: 1px solid #444;
+            border-radius: 6px;
+        }
+        .test-title {
+            color: #6B6B3A;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .test-description {
+            color: #ccc;
+            margin-bottom: 15px;
+            line-height: 1.4;
+            font-size: 14px;
+        }
+        .test-button {
+            background-color: #6B6B3A;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+        .test-button:hover {
+            background-color: #5A5A2F;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+        .status.success {
+            background-color: #0f5132;
+            border: 1px solid #198754;
+        }
+        .status.error {
+            background-color: #842029;
+            border: 1px solid #dc3545;
+        }
+        .status.info {
+            background-color: #055160;
+            border: 1px solid #0dcaf0;
+        }
+        .instructions {
+            background-color: #1e3a5f;
+            border: 1px solid #0d6efd;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        .code-block {
+            background-color: #000;
+            border: 1px solid #444;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .highlight {
+            background-color: #6B6B3A;
+            color: white;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .scenario {
+            background-color: #333;
+            padding: 12px;
+            border-radius: 4px;
+            margin: 10px 0;
+            border-left: 3px solid #6B6B3A;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🧠 Intelligent Auto-Scroll Fix Test</h1>
+        
+        <div class="instructions">
+            <h3>🎯 What This Fix Solves</h3>
+            <p>The previous fix was too aggressive and prevented manual scrolling. This new <span class="highlight">intelligent auto-scroll</span> system:</p>
+            <ul>
+                <li>✅ <strong>Respects user intent</strong> - Won't auto-scroll when you're manually scrolling</li>
+                <li>✅ <strong>Provides seamless experience</strong> - Auto-scrolls when you're at the bottom</li>
+                <li>✅ <strong>Smart timing</strong> - Uses a 2-second grace period after manual scrolling</li>
+                <li>✅ <strong>User-initiated detection</strong> - Distinguishes between user and programmatic scrolling</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">🔧 Step 1: Load Enhanced Diagnostic Script</div>
+            <div class="test-description">
+                Copy and paste this enhanced script to monitor the intelligent auto-scroll behavior:
+            </div>
+            <div class="code-block" id="enhancedScript">
+// Enhanced Intelligent Auto-Scroll Test Script
+console.log('🧠 [INTELLIGENT-SCROLL-TEST] Starting enhanced monitoring...');
+
+function startIntelligentScrollTest() {
+  const messagesContainer = document.querySelector('[class*="overflow-y-auto"]');
+  
+  if (!messagesContainer) {
+    console.error('❌ [TEST] Messages container not found');
+    return null;
+  }
+
+  console.log('✅ [TEST] Found messages container');
+
+  let testResults = {
+    manualScrollRespected: false,
+    autoScrollWhenAtBottom: false,
+    gracePeriodWorking: false,
+    streamingScrollIntelligent: false
+  };
+
+  let lastScrollTime = 0;
+  let userScrollCount = 0;
+  let autoScrollCount = 0;
+
+  // Monitor all scroll events
+  const handleScroll = (event) => {
+    const now = Date.now();
+    const isUserInitiated = event.isTrusted;
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainer;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    const isAtBottom = distanceFromBottom < 100;
+
+    if (isUserInitiated) {
+      userScrollCount++;
+      lastScrollTime = now;
+      console.log(`👆 [TEST-USER-SCROLL-${userScrollCount}] Manual scroll detected:`, {
+        scrollTop,
+        distanceFromBottom,
+        isAtBottom,
+        timestamp: new Date().toLocaleTimeString()
+      });
+      
+      // Test: Check if auto-scroll is properly blocked after manual scroll
+      setTimeout(() => {
+        const timeSinceScroll = Date.now() - lastScrollTime;
+        if (timeSinceScroll < 2000) {
+          console.log('✅ [TEST] Grace period active - auto-scroll should be blocked');
+          testResults.gracePeriodWorking = true;
+        }
+      }, 500);
+      
+    } else {
+      autoScrollCount++;
+      console.log(`🤖 [TEST-AUTO-SCROLL-${autoScrollCount}] Programmatic scroll detected:`, {
+        scrollTop,
+        distanceFromBottom,
+        isAtBottom,
+        timeSinceLastUserScroll: now - lastScrollTime
+      });
+    }
+  };
+
+  // Monitor for content changes
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+        const now = Date.now();
+        const timeSinceUserScroll = now - lastScrollTime;
+        
+        console.log('🆕 [TEST-CONTENT-ADDED] New content detected:', {
+          addedNodes: mutation.addedNodes.length,
+          timeSinceUserScroll,
+          shouldRespectUserScroll: timeSinceUserScroll < 2000
+        });
+        
+        // Check if auto-scroll behavior is intelligent
+        setTimeout(() => {
+          const { scrollTop, scrollHeight, clientHeight } = messagesContainer;
+          const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
+          
+          if (timeSinceUserScroll < 2000 && !isAtBottom) {
+            console.log('✅ [TEST] Auto-scroll correctly blocked - user recently scrolled');
+            testResults.manualScrollRespected = true;
+          } else if (timeSinceUserScroll >= 2000 && isAtBottom) {
+            console.log('✅ [TEST] Auto-scroll correctly triggered - user at bottom');
+            testResults.autoScrollWhenAtBottom = true;
+          }
+        }, 300);
+      }
+    });
+  });
+
+  messagesContainer.addEventListener('scroll', handleScroll, { passive: true });
+  observer.observe(messagesContainer, { childList: true, subtree: true });
+
+  // Test helper functions
+  window.intelligentScrollTest = {
+    results: testResults,
+    stats: () => ({
+      userScrollCount,
+      autoScrollCount,
+      lastScrollTime: new Date(lastScrollTime).toLocaleTimeString()
+    }),
+    testManualScroll: () => {
+      console.log('🧪 [TEST] Simulating manual scroll up...');
+      messagesContainer.scrollTop = messagesContainer.scrollTop - 200;
+    },
+    testScrollToBottom: () => {
+      console.log('🧪 [TEST] Scrolling to bottom...');
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    },
+    stop: () => {
+      messagesContainer.removeEventListener('scroll', handleScroll);
+      observer.disconnect();
+      console.log('🛑 [TEST] Monitoring stopped');
+    }
+  };
+
+  return window.intelligentScrollTest;
+}
+
+// Start the enhanced test
+const testInstance = startIntelligentScrollTest();
+console.log('🎮 [TEST] Use window.intelligentScrollTest.stop() to stop monitoring');
+console.log('🎮 [TEST] Use window.intelligentScrollTest.stats() to see statistics');
+            </div>
+            <button class="test-button" onclick="copyToClipboard('enhancedScript')">📋 Copy Enhanced Script</button>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">🧪 Step 2: Test Intelligent Behavior</div>
+            <div class="test-description">
+                Test these specific scenarios to verify the intelligent auto-scroll is working:
+            </div>
+            
+            <div class="scenario">
+                <h4>🎯 Scenario 1: Manual Scroll Respect Test</h4>
+                <p><strong>Action:</strong> Scroll up manually in the chat history</p>
+                <p><strong>Expected:</strong> You should be able to scroll up freely without snapping back</p>
+                <p><strong>Verify:</strong> Console shows "👆 [TEST-USER-SCROLL] Manual scroll detected"</p>
+            </div>
+            
+            <div class="scenario">
+                <h4>🤖 Scenario 2: Grace Period Test</h4>
+                <p><strong>Action:</strong> Scroll up, then immediately send a message</p>
+                <p><strong>Expected:</strong> Chat should NOT auto-scroll for 2 seconds after your manual scroll</p>
+                <p><strong>Verify:</strong> Console shows "✅ [TEST] Auto-scroll correctly blocked - user recently scrolled"</p>
+            </div>
+            
+            <div class="scenario">
+                <h4>📜 Scenario 3: Smart Auto-Scroll Test</h4>
+                <p><strong>Action:</strong> Scroll to bottom, wait 3 seconds, then send a message</p>
+                <p><strong>Expected:</strong> Chat should auto-scroll to show the new message</p>
+                <p><strong>Verify:</strong> Console shows "✅ [TEST] Auto-scroll correctly triggered - user at bottom"</p>
+            </div>
+            
+            <div class="scenario">
+                <h4>🌊 Scenario 4: Streaming Intelligence Test</h4>
+                <p><strong>Action:</strong> Be at bottom, send AI message, then try scrolling up during response</p>
+                <p><strong>Expected:</strong> Should stop auto-scrolling when you scroll up during streaming</p>
+                <p><strong>Verify:</strong> Console shows "🚫 [INTELLIGENT-SCROLL] Skipping auto-scroll - user is manually scrolling"</p>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">📊 Step 3: Verify Key Improvements</div>
+            <div class="test-description">
+                Check that these specific improvements are working:
+            </div>
+            
+            <div style="margin: 15px 0;">
+                <h4>🧠 User Intent Detection</h4>
+                <p>The system now detects when YOU are scrolling vs when the system is auto-scrolling.</p>
+                <div class="code-block">
+Look for: "👆 [TEST-USER-SCROLL] Manual scroll detected" vs "🤖 [TEST-AUTO-SCROLL] Programmatic scroll"
+                </div>
+            </div>
+            
+            <div style="margin: 15px 0;">
+                <h4>⏰ Grace Period Protection</h4>
+                <p>After you scroll manually, auto-scroll is blocked for 2 seconds to respect your intent.</p>
+                <div class="code-block">
+Look for: "🚫 [INTELLIGENT-SCROLL] Skipping auto-scroll - user recently scrolled"
+                </div>
+            </div>
+            
+            <div style="margin: 15px 0;">
+                <h4>🎯 Smart Triggering</h4>
+                <p>Auto-scroll only happens when you're genuinely at the bottom and not manually scrolling.</p>
+                <div class="code-block">
+Look for: "📜 [INTELLIGENT-SCROLL] New messages and user at bottom - scrolling"
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">✅ Step 4: Final Validation</div>
+            <div class="test-description">
+                Mark each behavior as working:
+            </div>
+            
+            <div style="margin: 10px 0;">
+                <input type="checkbox" id="check1"> <label for="check1">I can scroll up manually without it snapping back</label>
+            </div>
+            <div style="margin: 10px 0;">
+                <input type="checkbox" id="check2"> <label for="check2">Auto-scroll is blocked for 2 seconds after I scroll manually</label>
+            </div>
+            <div style="margin: 10px 0;">
+                <input type="checkbox" id="check3"> <label for="check3">Auto-scroll works when I'm at the bottom and not manually scrolling</label>
+            </div>
+            <div style="margin: 10px 0;">
+                <input type="checkbox" id="check4"> <label for="check4">I can read chat history without interruption</label>
+            </div>
+            <div style="margin: 10px 0;">
+                <input type="checkbox" id="check5"> <label for="check5">Streaming responses respect my scroll position</label>
+            </div>
+            <div style="margin: 10px 0;">
+                <input type="checkbox" id="check6"> <label for="check6">Console logs show intelligent behavior messages</label>
+            </div>
+            
+            <button class="test-button" onclick="validateIntelligentResults()" style="margin-top: 15px;">🎯 Validate Intelligent Behavior</button>
+            <div id="intelligentValidationResult"></div>
+        </div>
+    </div>
+
+    <script>
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.textContent;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                alert('✅ Enhanced script copied! Paste it into your browser console.');
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+                alert('❌ Failed to copy. Please manually select and copy the script.');
+            });
+        }
+        
+        function validateIntelligentResults() {
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+            const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+            const totalCount = checkboxes.length;
+            
+            const resultDiv = document.getElementById('intelligentValidationResult');
+            
+            if (checkedCount === totalCount) {
+                resultDiv.innerHTML = `
+                    <div class="status success">
+                        <strong>🎉 Intelligent Auto-Scroll Working Perfectly!</strong><br>
+                        The chat now behaves intelligently - respecting user intent while providing seamless auto-scroll when appropriate.
+                        Users can freely navigate chat history without interruption.
+                    </div>
+                `;
+            } else if (checkedCount >= totalCount * 0.8) {
+                resultDiv.innerHTML = `
+                    <div class="status info">
+                        <strong>⚠️ Mostly Working (${checkedCount}/${totalCount})</strong><br>
+                        The intelligent behavior is mostly working. Check console logs for any remaining issues.
+                    </div>
+                `;
+            } else {
+                resultDiv.innerHTML = `
+                    <div class="status error">
+                        <strong>❌ Issues Detected (${checkedCount}/${totalCount})</strong><br>
+                        The intelligent auto-scroll may need further adjustment. Review console logs and test scenarios.
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

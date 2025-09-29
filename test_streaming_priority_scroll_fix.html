@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streaming Priority Scroll Fix Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: white;
+        }
+        .test-container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: #2a2a2a;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .streaming-fix {
+            background-color: #1e3a5f;
+            border: 2px solid #0d6efd;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        .test-section {
+            margin-bottom: 25px;
+            padding: 15px;
+            border: 1px solid #444;
+            border-radius: 6px;
+        }
+        .test-title {
+            color: #6B6B3A;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .test-description {
+            color: #ccc;
+            margin-bottom: 15px;
+            line-height: 1.4;
+            font-size: 14px;
+        }
+        .test-button {
+            background-color: #6B6B3A;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+        .test-button:hover {
+            background-color: #5A5A2F;
+        }
+        .code-block {
+            background-color: #000;
+            border: 1px solid #444;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .highlight {
+            background-color: #0d6efd;
+            color: white;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .success {
+            background-color: #0f5132;
+            border: 1px solid #198754;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .scenario {
+            background-color: #333;
+            padding: 12px;
+            border-radius: 4px;
+            margin: 10px 0;
+            border-left: 3px solid #0d6efd;
+        }
+        .streaming-scenario {
+            background-color: #1e3a5f;
+            border-left: 3px solid #0d6efd;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🌊 Streaming Priority Scroll Fix</h1>
+        
+        <div class="streaming-fix">
+            <h3>🎯 STREAMING-PRIORITY FIX APPLIED</h3>
+            <p>This fix ensures <span class="highlight">continuous streaming follow</span> while respecting manual scroll:</p>
+            <ul>
+                <li>🌊 <strong>Streaming Priority</strong> - Always follows AI responses during streaming</li>
+                <li>👆 <strong>Manual Scroll Respect</strong> - If you scroll up during streaming, it stops following</li>
+                <li>⏰ <strong>Smart Grace Periods</strong> - 1 second during streaming, 5 seconds for regular messages</li>
+                <li>🔄 <strong>State Reset</strong> - Streaming scroll state resets when streaming ends</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">🔧 Step 1: Load Streaming Priority Test Script</div>
+            <div class="test-description">
+                This script monitors the new streaming-priority behavior:
+            </div>
+            <div class="code-block" id="streamingPriorityScript">
+// Streaming Priority Scroll Fix Test
+console.log('🌊 [STREAMING-PRIORITY-TEST] Starting streaming behavior monitoring...');
+
+function startStreamingPriorityTest() {
+  const messagesContainer = document.querySelector('[class*="overflow-y-auto"]');
+  
+  if (!messagesContainer) {
+    console.error('❌ [TEST] Messages container not found');
+    return null;
+  }
+
+  console.log('✅ [TEST] Found messages container - testing streaming priority behavior');
+
+  let streamingEvents = [];
+  let streamingFollowCount = 0;
+  let streamingStopCount = 0;
+  let manualScrollDuringStreaming = 0;
+  let isCurrentlyStreaming = false;
+  let lastScrollTop = messagesContainer.scrollTop;
+
+  // Monitor for streaming indicators
+  const checkForStreaming = () => {
+    const streamingIndicators = document.querySelectorAll('[class*="animate-bounce"], [class*="typing"]');
+    const aiProcessingText = document.querySelector('*:contains("AI is typing")');
+    const wasStreaming = isCurrentlyStreaming;
+    isCurrentlyStreaming = streamingIndicators.length > 0 || !!aiProcessingText;
+    
+    if (wasStreaming !== isCurrentlyStreaming) {
+      console.log(`🌊 [STREAMING-STATE] Streaming ${isCurrentlyStreaming ? 'STARTED' : 'ENDED'}`);
+      
+      if (!isCurrentlyStreaming) {
+        // Reset counters when streaming ends
+        streamingFollowCount = 0;
+        streamingStopCount = 0;
+        manualScrollDuringStreaming = 0;
+      }
+    }
+    
+    return isCurrentlyStreaming;
+  };
+
+  const handleScroll = (event) => {
+    const currentScrollTop = messagesContainer.scrollTop;
+    const isUserInitiated = event.isTrusted;
+    const scrollDirection = currentScrollTop > lastScrollTop ? 'down' : 'up';
+    const streaming = checkForStreaming();
+    
+    if (isUserInitiated && streaming) {
+      manualScrollDuringStreaming++;
+      console.log(`👆 [STREAMING-MANUAL-SCROLL-${manualScrollDuringStreaming}] User scrolled ${scrollDirection} during streaming:`, {
+        scrollTop: currentScrollTop,
+        streaming: true
+      });
+    } else if (!isUserInitiated && streaming) {
+      streamingFollowCount++;
+      console.log(`🌊 [STREAMING-FOLLOW-${streamingFollowCount}] Auto-scroll during streaming:`, {
+        scrollTop: currentScrollTop,
+        direction: scrollDirection
+      });
+    }
+
+    lastScrollTop = currentScrollTop;
+  };
+
+  // Monitor for content changes during streaming
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+        const streaming = checkForStreaming();
+        
+        if (streaming) {
+          console.log('🆕 [STREAMING-CONTENT] New content during streaming - checking follow behavior');
+          
+          setTimeout(() => {
+            const { scrollTop, scrollHeight, clientHeight } = messagesContainer;
+            const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
+            
+            if (isAtBottom) {
+              console.log('✅ [STREAMING-SUCCESS] Successfully following streaming content');
+            } else {
+              streamingStopCount++;
+              console.log(`⚠️ [STREAMING-STOP-${streamingStopCount}] Stopped following streaming content - user may have scrolled up`);
+            }
+          }, 100);
+        }
+      }
+    });
+  });
+
+  messagesContainer.addEventListener('scroll', handleScroll, { passive: true });
+  observer.observe(messagesContainer, { childList: true, subtree: true });
+
+  // Periodic streaming check
+  const streamingCheckInterval = setInterval(checkForStreaming, 500);
+
+  // Test functions
+  window.streamingPriorityTest = {
+    getStats: () => ({
+      streamingFollowCount,
+      streamingStopCount,
+      manualScrollDuringStreaming,
+      isCurrentlyStreaming,
+      streamingFollowRatio: streamingFollowCount > 0 ? streamingFollowCount / (streamingFollowCount + streamingStopCount) : 0
+    }),
+    testStreamingScroll: () => {
+      console.log('🧪 [TEST] Testing scroll during streaming - should respect user intent');
+      if (isCurrentlyStreaming) {
+        messagesContainer.scrollTop = Math.max(0, messagesContainer.scrollTop - 200);
+        console.log('👆 [TEST] Scrolled up during streaming - auto-scroll should stop');
+      } else {
+        console.log('⚠️ [TEST] No active streaming detected');
+      }
+    },
+    checkStreamingBehavior: () => {
+      const stats = window.streamingPriorityTest.getStats();
+      console.log('📊 [STREAMING-ANALYSIS] Behavior analysis:', stats);
+      
+      if (stats.streamingFollowCount > 0 && stats.streamingFollowRatio > 0.8) {
+        console.log('✅ [SUCCESS] Streaming follow behavior is working well');
+        return true;
+      } else if (stats.streamingFollowCount === 0) {
+        console.log('⚠️ [WARNING] No streaming follow detected - may need to test during active AI response');
+        return false;
+      } else {
+        console.log('❌ [ISSUE] Streaming follow is inconsistent');
+        return false;
+      }
+    },
+    stop: () => {
+      messagesContainer.removeEventListener('scroll', handleScroll);
+      observer.disconnect();
+      clearInterval(streamingCheckInterval);
+      console.log('🛑 [TEST] Streaming priority monitoring stopped');
+    }
+  };
+
+  return window.streamingPriorityTest;
+}
+
+// Start the test
+const testInstance = startStreamingPriorityTest();
+console.log('🎮 [TEST] Use window.streamingPriorityTest.getStats() to see streaming stats');
+console.log('🎮 [TEST] Use window.streamingPriorityTest.testStreamingScroll() to test during streaming');
+console.log('🎮 [TEST] Use window.streamingPriorityTest.checkStreamingBehavior() to analyze behavior');
+            </div>
+            <button class="test-button" onclick="copyToClipboard('streamingPriorityScript')">📋 Copy Test Script</button>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">🧪 Step 2: Critical Streaming Tests</div>
+            <div class="test-description">
+                Test these scenarios to verify streaming priority behavior:
+            </div>
+            
+            <div class="scenario streaming-scenario">
+                <h4>🌊 CRITICAL: Continuous Streaming Follow</h4>
+                <p><strong>Action:</strong> Send a message to an AI agent and watch the streaming response</p>
+                <p><strong>Expected:</strong> Chat should continuously follow the AI's output from start to finish</p>
+                <p><strong>Verify:</strong> Console shows "🌊 [STREAMING-FOLLOW] Auto-scroll during streaming" messages</p>
+                <p><strong>Success Criteria:</strong> You never miss any part of the AI's response</p>
+            </div>
+            
+            <div class="scenario streaming-scenario">
+                <h4>👆 Manual Scroll Respect During Streaming</h4>
+                <p><strong>Action:</strong> While AI is streaming, scroll up to read previous messages</p>
+                <p><strong>Expected:</strong> Auto-scroll should stop, letting you read history</p>
+                <p><strong>Verify:</strong> Console shows "👆 [STREAMING-MANUAL-SCROLL] User scrolled up during streaming"</p>
+                <p><strong>Success Criteria:</strong> You can read previous messages without interference</p>
+            </div>
+            
+            <div class="scenario">
+                <h4>🔄 State Reset After Streaming</h4>
+                <p><strong>Action:</strong> After AI finishes streaming, send another message</p>
+                <p><strong>Expected:</strong> Streaming behavior should reset for the next response</p>
+                <p><strong>Verify:</strong> Console shows "🌊 [STREAMING-STATE] Streaming ENDED" then "STARTED"</p>
+            </div>
+            
+            <div class="scenario">
+                <h4>⏰ Grace Period Differences</h4>
+                <p><strong>Action:</strong> Compare scroll behavior during streaming vs regular messages</p>
+                <p><strong>Expected:</strong> 1-second grace during streaming, 5-second for regular messages</p>
+                <p><strong>Verify:</strong> Console shows different grace periods in logs</p>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">✅ Step 3: Validate Streaming Priority Fix</div>
+            <div class="test-description">
+                Check these specific streaming behaviors:
+            </div>
+            
+            <div style="margin: 15px 0;">
+                <input type="checkbox" id="check1"> <label for="check1"><strong>CRITICAL:</strong> I can continuously follow AI streaming responses without missing content</label>
+            </div>
+            <div style="margin: 15px 0;">
+                <input type="checkbox" id="check2"> <label for="check2">If I scroll up during streaming, auto-scroll stops and respects my position</label>
+            </div>
+            <div style="margin: 15px 0;">
+                <input type="checkbox" id="check3"> <label for="check3">I can still manually scroll through chat history without snap-back</label>
+            </div>
+            <div style="margin: 15px 0;">
+                <input type="checkbox" id="check4"> <label for="check4">Streaming behavior resets properly between AI responses</label>
+            </div>
+            <div style="margin: 15px 0;">
+                <input type="checkbox" id="check5"> <label for="check5">Console shows streaming priority behavior messages</label>
+            </div>
+            
+            <button class="test-button" onclick="validateStreamingFix()" style="margin-top: 15px;">🌊 Validate Streaming Priority</button>
+            <div id="streamingValidationResult"></div>
+        </div>
+    </div>
+
+    <script>
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.textContent;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                alert('✅ Streaming priority test script copied! Paste it into your browser console.');
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+                alert('❌ Failed to copy. Please manually select and copy the script.');
+            });
+        }
+        
+        function validateStreamingFix() {
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+            const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+            const totalCount = checkboxes.length;
+            const streamingCheck = document.getElementById('check1').checked;
+            const manualScrollCheck = document.getElementById('check3').checked;
+            
+            const resultDiv = document.getElementById('streamingValidationResult');
+            
+            if (streamingCheck && manualScrollCheck && checkedCount === totalCount) {
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        <strong>🎉 STREAMING PRIORITY FIX SUCCESSFUL!</strong><br>
+                        Perfect balance achieved: continuous streaming follow + manual scroll respect.
+                        Users can now follow AI responses in real-time while maintaining full control over chat navigation.
+                    </div>
+                `;
+            } else if (!streamingCheck) {
+                resultDiv.innerHTML = `
+                    <div style="background-color: #842029; border: 1px solid #dc3545; padding: 10px; border-radius: 4px; margin-top: 10px;">
+                        <strong>🚨 STREAMING FOLLOW ISSUE</strong><br>
+                        The continuous streaming follow is not working properly. Check console logs during AI responses.
+                    </div>
+                `;
+            } else if (!manualScrollCheck) {
+                resultDiv.innerHTML = `
+                    <div style="background-color: #842029; border: 1px solid #dc3545; padding: 10px; border-radius: 4px; margin-top: 10px;">
+                        <strong>🚨 MANUAL SCROLL ISSUE</strong><br>
+                        Manual scrolling is still not working properly. The snap-back issue may persist.
+                    </div>
+                `;
+            } else {
+                resultDiv.innerHTML = `
+                    <div style="background-color: #055160; border: 1px solid #0dcaf0; padding: 10px; border-radius: 4px; margin-top: 10px;">
+                        <strong>⚠️ Partial Success (${checkedCount}/${totalCount})</strong><br>
+                        Most behaviors are working but some fine-tuning may be needed. Check console logs for details.
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

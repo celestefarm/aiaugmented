@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>No Flickering Fix Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: white;
+        }
+        .test-container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: #2a2a2a;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .no-flicker-fix {
+            background-color: #0f5132;
+            border: 2px solid #198754;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        .test-section {
+            margin-bottom: 25px;
+            padding: 15px;
+            border: 1px solid #444;
+            border-radius: 6px;
+        }
+        .test-title {
+            color: #6B6B3A;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .test-description {
+            color: #ccc;
+            margin-bottom: 15px;
+            line-height: 1.4;
+            font-size: 14px;
+        }
+        .test-button {
+            background-color: #6B6B3A;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+        .test-button:hover {
+            background-color: #5A5A2F;
+        }
+        .code-block {
+            background-color: #000;
+            border: 1px solid #444;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .highlight {
+            background-color: #198754;
+            color: white;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .success {
+            background-color: #0f5132;
+            border: 1px solid #198754;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .scenario {
+            background-color: #333;
+            padding: 12px;
+            border-radius: 4px;
+            margin: 10px 0;
+            border-left: 3px solid #198754;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>✨ No Flickering Fix</h1>
+        
+        <div class="no-flicker-fix">
+            <h3>✅ FLICKERING ELIMINATED</h3>
+            <p>This fix eliminates the <span class="highlight">jump-to-top-then-snap-back</span> flickering effect:</p>
+            <ul>
+                <li>🚫 <strong>Removed problematic streaming end handler</strong> - No additional scroll actions</li>
+                <li>⏰ <strong>Minimal state resets</strong> - Longer delays prevent interference</li>
+                <li>🎯 <strong>Natural streaming completion</strong> - Let streaming end naturally at bottom</li>
+                <li>✨ <strong>Smooth, stable experience</strong> - No jarring screen movements</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">🔧 Step 1: Load No-Flickering Test Script</div>
+            <div class="test-description">
+                This script detects any flickering or rapid position changes:
+            </div>
+            <div class="code-block" id="noFlickerScript">
+// No Flickering Fix Test
+console.log('✨ [NO-FLICKER-TEST] Starting flickering detection monitoring...');
+
+function startNoFlickerTest() {
+  const messagesContainer = document.querySelector('[class*="overflow-y-auto"]');
+  
+  if (!messagesContainer) {
+    console.error('❌ [TEST] Messages container not found');
+    return null;
+  }
+
+  console.log('✅ [TEST] Found messages container - monitoring for flickering');
+
+  let scrollEvents = [];
+  let flickerCount = 0;
+  let rapidMovementCount = 0;
+  let isCurrentlyStreaming = false;
+  let lastScrollTop = messagesContainer.scrollTop;
+  let lastScrollTime = Date.now();
+
+  // Detect flickering patterns
+  const detectFlicker = (currentScrollTop, currentTime) => {
+    const timeDiff = currentTime - lastScrollTime;
+    const positionDiff = Math.abs(currentScrollTop - lastScrollTop);
+    
+    // Flickering detection: rapid large position changes
+    if (timeDiff < 500 && positionDiff > 300) {
+      flickerCount++;
+      console.error(`⚡ [FLICKER-${flickerCount}] Flickering detected!`, {
+        timeDiff,
+        positionDiff,
+        from: lastScrollTop,
+        to: currentScrollTop,
+        possibleJumpToTop: currentScrollTop < 100,
+        possibleSnapBack: lastScrollTop < 100 && currentScrollTop > 300
+      });
+      
+      return true;
+    }
+    
+    // Rapid movement detection: multiple quick position changes
+    if (timeDiff < 200 && positionDiff > 100) {
+      rapidMovementCount++;
+      console.warn(`🏃 [RAPID-MOVEMENT-${rapidMovementCount}] Rapid scroll movement:`, {
+        timeDiff,
+        positionDiff,
+        from: lastScrollTop,
+        to: currentScrollTop
+      });
+    }
+    
+    return false;
+  };
+
+  // Monitor streaming state
+  const checkStreamingState = () => {
+    const streamingIndicators = document.querySelectorAll('[class*="animate-bounce"], [class*="typing"]');
+    const aiProcessingText = Array.from(document.querySelectorAll('*')).find(el => 
+      el.textContent && el.textContent.includes('AI is typing')
+    );
+    
+    const wasStreaming = isCurrentlyStreaming;
+    isCurrentlyStreaming = streamingIndicators.length > 0 || !!aiProcessingText;
+    
+    if (wasStreaming && !isCurrentlyStreaming) {
+      console.log('🏁 [STREAMING-END] Streaming ended - monitoring for flickering in next 3 seconds');
+      
+      // Enhanced monitoring for 3 seconds after streaming ends
+      const endTime = Date.now();
+      const endPosition = messagesContainer.scrollTop;
+      
+      setTimeout(() => {
+        const finalPosition = messagesContainer.scrollTop;
+        const totalMovement = Math.abs(finalPosition - endPosition);
+        
+        if (totalMovement > 50) {
+          console.warn('⚠️ [POST-STREAMING-MOVEMENT] Position changed after streaming end:', {
+            endPosition,
+            finalPosition,
+            totalMovement
+          });
+        } else {
+          console.log('✅ [STABLE-END] Position remained stable after streaming end');
+        }
+      }, 3000);
+    }
+    
+    return isCurrentlyStreaming;
+  };
+
+  const handleScroll = (event) => {
+    const currentScrollTop = messagesContainer.scrollTop;
+    const currentTime = Date.now();
+    const isUserInitiated = event.isTrusted;
+    
+    // Detect flickering
+    const isFlicker = detectFlicker(currentScrollTop, currentTime);
+    
+    scrollEvents.push({
+      time: currentTime,
+      scrollTop: currentScrollTop,
+      isUserInitiated,
+      isStreaming: checkStreamingState(),
+      isFlicker,
+      timeSinceLastScroll: currentTime - lastScrollTime,
+      positionChange: Math.abs(currentScrollTop - lastScrollTop)
+    });
+    
+    // Keep only recent events
+    if (scrollEvents.length > 100) {
+      scrollEvents = scrollEvents.slice(-100);
+    }
+    
+    lastScrollTop = currentScrollTop;
+    lastScrollTime = currentTime;
+  };
+
+  // Monitor for content changes
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+        checkStreamingState();
+      }
+    });
+  });
+
+  messagesContainer.addEventListener('scroll', handleScroll, { passive: true });
+  observer.observe(messagesContainer, { childList: true, subtree: true });
+
+  // Periodic streaming check
+  const stateCheckInterval = setInterval(checkStreamingState, 300);
+
+  // Test functions
+  window.noFlickerTest = {
+    getStats: () => ({
+      flickerCount,
+      rapidMovementCount,
+      recentEvents: scrollEvents.slice(-20),
+      isFlickerFree: flickerCount === 0,
+      currentScrollTop: messagesContainer.scrollTop,
+      isCurrentlyStreaming
+    }),
+    analyzeFlickering: () => {
+      const stats = window.noFlickerTest.getStats();
+      console.log('📊 [FLICKER-ANALYSIS] Flickering analysis:', stats);
+      
+      if (stats.flickerCount === 0) {
+        console.log('✅ [SUCCESS] No flickering detected - smooth scrolling achieved!');
+        return true;
+      } else {
+        console.error(`❌ [FAILURE] ${stats.flickerCount} flickering events detected`);
+        return false;
+      }
+    },
+    getFlickerEvents: () => {
+      return scrollEvents.filter(event => event.isFlicker);
+    },
+    testStability: () => {
+      console.log('🧪 [TEST] Testing scroll stability over 5 seconds...');
+      const startPos = messagesContainer.scrollTop;
+      const startTime = Date.now();
+      
+      setTimeout(() => {
+        const endPos = messagesContainer.scrollTop;
+        const endTime = Date.now();
+        const totalMovement = Math.abs(endPos - startPos);
+        
+        console.log('📊 [STABILITY-TEST] Results:', {
+          startPosition: startPos,
+          endPosition: endPos,
+          totalMovement,
+          duration: endTime - startTime,
+          isStable: totalMovement < 50
+        });
+        
+        if (totalMovement < 50) {
+          console.log('✅ [STABLE] Position remained stable during test');
+        } else {
+          console.warn('⚠️ [UNSTABLE] Significant position changes detected');
+        }
+      }, 5000);
+    },
+    stop: () => {
+      messagesContainer.removeEventListener('scroll', handleScroll);
+      observer.disconnect();
+      clearInterval(stateCheckInterval);
+      console.log('🛑 [TEST] No-flicker monitoring stopped');
+    }
+  };
+
+  return window.noFlickerTest;
+}
+
+// Start the test
+const testInstance = startNoFlickerTest();
+console.log('🎮 [TEST] Use window.noFlickerTest.getStats() to see flickering stats');
+console.log('🎮 [TEST] Use window.noFlickerTest.analyzeFlickering() to analyze behavior');
+console.log('🎮 [TEST] Use window.noFlickerTest.testStability() to test position stability');
+            </div>
+            <button class="test-button" onclick="copyToClipboard('noFlickerScript')">📋 Copy Test Script</button>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">🧪 Step 2: Critical No-Flickering Tests</div>
+            <div class="test-description">
+                Test these scenarios to verify flickering is eliminated:
+            </div>
+            
+            <div class="scenario">
+                <h4>✨ CRITICAL: No Flickering When Streaming Ends</h4>
+                <p><strong>Action:</strong> Send a message to AI and watch carefully when streaming completes</p>
+                <p><strong>Expected:</strong> Smooth transition with no jumping or flickering</p>
+                <p><strong>Verify:</strong> Console shows "✅ [STABLE-END] Position remained stable after streaming end"</p>
+                <p><strong>FAILURE:</strong> If console shows "⚡ [FLICKER] Flickering detected!"</p>
+            </div>
+            
+            <div class="scenario">
+                <h4>🎯 Smooth Visual Experience</h4>
+                <p><strong>Action:</strong> Watch the screen during multiple AI responses</p>
+                <p><strong>Expected:</strong> No jarring movements, jumps, or screen flashing</p>
+                <p><strong>Verify:</strong> Visual experience feels stable and polished</p>
+            </div>
+            
+            <div class="scenario">
+                <h4>📊 Position Stability Test</h4>
+                <p><strong>Action:</strong> Use the stability test function in console</p>
+                <p><strong>Expected:</strong> Position should remain stable when not actively scrolling</p>
+                <p><strong>Verify:</strong> Console shows "✅ [STABLE] Position remained stable during test"</p>
+            </div>
+            
+            <div class="scenario">
+                <h4>🔄 Multiple Response Test</h4>
+                <p><strong>Action:</strong> Send several messages in sequence</p>
+                <p><strong>Expected:</strong> Each response should complete smoothly without flickering</p>
+                <p><strong>Verify:</strong> Flicker count remains at 0 throughout testing</p>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">✅ Step 3: Validate No-Flickering Fix</div>
+            <div class="test-description">
+                Check these specific behaviors:
+            </div>
+            
+            <div style="margin: 15px 0;">
+                <input type="checkbox" id="check1"> <label for="check1"><strong>CRITICAL:</strong> No flickering or jumping when AI finishes streaming</label>
+            </div>
+            <div style="margin: 15px 0;">
+                <input type="checkbox" id="check2"> <label for="check2">Visual experience is smooth and stable throughout AI responses</label>
+            </div>
+            <div style="margin: 15px 0;">
+                <input type="checkbox" id="check3"> <label for="check3">No jarring screen movements or position jumps</label>
+            </div>
+            <div style="margin: 15px 0;">
+                <input type="checkbox" id="check4"> <label for="check4">Chat feels polished and professional</label>
+            </div>
+            <div style="margin: 15px 0;">
+                <input type="checkbox" id="check5"> <label for="check5">Console shows zero flicker events</label>
+            </div>
+            
+            <button class="test-button" onclick="validateNoFlickerFix()" style="margin-top: 15px;">✨ Validate No-Flickering</button>
+            <div id="noFlickerValidationResult"></div>
+        </div>
+    </div>
+
+    <script>
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.textContent;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                alert('✅ No-flicker test script copied! Paste it into your browser console.');
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+                alert('❌ Failed to copy. Please manually select and copy the script.');
+            });
+        }
+        
+        function validateNoFlickerFix() {
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+            const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+            const totalCount = checkboxes.length;
+            const criticalCheck = document.getElementById('check1').checked;
+            const visualCheck = document.getElementById('check2').checked;
+            
+            const resultDiv = document.getElementById('noFlickerValidationResult');
+            
+            if (criticalCheck && visualCheck && checkedCount === totalCount) {
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        <strong>🎉 NO-FLICKERING FIX SUCCESSFUL!</strong><br>
+                        The chat now provides a smooth, stable experience with no flickering or jarring movements.
+                        AI responses complete naturally at the bottom without any visual disruptions.
+                        The interface feels polished and professional.
+                    </div>
+                `;
+            } else if (!criticalCheck) {
+                resultDiv.innerHTML = `
+                    <div style="background-color: #842029; border: 1px solid #dc3545; padding: 10px; border-radius: 4px; margin-top: 10px;">
+                        <strong>🚨 FLICKERING STILL PRESENT</strong><br>
+                        Flickering or jumping is still occurring when streaming ends. Check console for flicker events.
+                        Additional scroll logic may need to be removed or adjusted.
+                    </div>
+                `;
+            } else if (!visualCheck) {
+                resultDiv.innerHTML = `
+                    <div style="background-color: #842029; border: 1px solid #dc3545; padding: 10px; border-radius: 4px; margin-top: 10px;">
+                        <strong>🚨 VISUAL EXPERIENCE ISSUE</strong><br>
+                        The visual experience is still not smooth. There may be subtle movements or instability.
+                    </div>
+                `;
+            } else {
+                resultDiv.innerHTML = `
+                    <div style="background-color: #055160; border: 1px solid #0dcaf0; padding: 10px; border-radius: 4px; margin-top: 10px;">
+                        <strong>⚠️ Partial Success (${checkedCount}/${totalCount})</strong><br>
+                        Most behaviors are working but some fine-tuning may be needed. Check console logs for details.
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

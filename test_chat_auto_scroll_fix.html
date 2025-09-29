@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Auto-Scroll Fix Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: white;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #2a2a2a;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #444;
+            border-radius: 6px;
+        }
+        .test-title {
+            color: #6B6B3A;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .test-description {
+            color: #ccc;
+            margin-bottom: 15px;
+            line-height: 1.5;
+        }
+        .test-button {
+            background-color: #6B6B3A;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        .test-button:hover {
+            background-color: #5A5A2F;
+        }
+        .test-button:disabled {
+            background-color: #444;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .status.success {
+            background-color: #0f5132;
+            border: 1px solid #198754;
+        }
+        .status.error {
+            background-color: #842029;
+            border: 1px solid #dc3545;
+        }
+        .status.info {
+            background-color: #055160;
+            border: 1px solid #0dcaf0;
+        }
+        .instructions {
+            background-color: #1e3a5f;
+            border: 1px solid #0d6efd;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        .code-block {
+            background-color: #000;
+            border: 1px solid #444;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🔧 Chat Auto-Scroll Fix Test Suite</h1>
+        
+        <div class="instructions">
+            <h3>📋 Testing Instructions</h3>
+            <p>This test suite helps verify that the chat auto-scroll functionality is working correctly in the OptimizedExplorationMap component.</p>
+            <ol>
+                <li><strong>Open the application</strong> and navigate to the Exploration Map page</li>
+                <li><strong>Open browser DevTools</strong> (F12) and go to the Console tab</li>
+                <li><strong>Run the diagnostic script</strong> by copying and pasting the code below into the console</li>
+                <li><strong>Test each scenario</strong> using the buttons below</li>
+                <li><strong>Observe the console logs</strong> to verify auto-scroll behavior</li>
+            </ol>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">🎯 Step 1: Load Diagnostic Script</div>
+            <div class="test-description">
+                Copy and paste this script into your browser console to start monitoring chat scroll behavior:
+            </div>
+            <div class="code-block" id="diagnosticScript">
+// Chat Auto-Scroll Diagnostic Script
+console.log('🔍 [CHAT SCROLL TEST] Starting enhanced diagnostic monitoring...');
+
+function startChatScrollTest() {
+  const messagesContainer = document.querySelector('[class*="overflow-y-auto"]');
+  const messagesEnd = document.querySelector('div[class*="messagesEnd"]');
+  
+  if (!messagesContainer) {
+    console.error('❌ [TEST] Messages container not found. Make sure you are on the Exploration Map page.');
+    return null;
+  }
+
+  console.log('✅ [TEST] Found messages container:', messagesContainer);
+
+  let testResults = {
+    initialLoad: false,
+    streamingScroll: false,
+    newMessageScroll: false,
+    userScrollUp: false,
+    userScrollDown: false
+  };
+
+  const logScrollState = (event) => {
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainer;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    const isAtBottom = distanceFromBottom < 100;
+    
+    console.log(`📜 [TEST-${event}] Scroll state:`, {
+      scrollTop,
+      scrollHeight,
+      clientHeight,
+      distanceFromBottom,
+      isAtBottom,
+      timestamp: new Date().toLocaleTimeString()
+    });
+    
+    return isAtBottom;
+  };
+
+  // Monitor for auto-scroll during content changes
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+        console.log('🆕 [TEST] New content detected, checking auto-scroll...');
+        
+        setTimeout(() => {
+          const isAtBottom = logScrollState('CONTENT-ADDED');
+          if (isAtBottom) {
+            console.log('✅ [TEST] Auto-scroll working - user is at bottom after content addition');
+            testResults.newMessageScroll = true;
+          } else {
+            console.log('⚠️ [TEST] Auto-scroll may not be working - user not at bottom after content addition');
+          }
+        }, 200);
+      }
+    });
+  });
+
+  observer.observe(messagesContainer, { childList: true, subtree: true });
+  
+  // Initial state check
+  logScrollState('INITIAL');
+  
+  return {
+    testResults,
+    logScrollState,
+    stop: () => {
+      observer.disconnect();
+      console.log('🛑 [TEST] Monitoring stopped.');
+    }
+  };
+}
+
+// Start the test
+window.chatScrollTest = startChatScrollTest();
+console.log('🎮 [TEST] Use window.chatScrollTest.stop() to stop monitoring');
+            </div>
+            <button class="test-button" onclick="copyToClipboard('diagnosticScript')">📋 Copy Script</button>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">🧪 Step 2: Test Scenarios</div>
+            <div class="test-description">
+                After loading the diagnostic script, test these scenarios in the chat:
+            </div>
+            
+            <div style="margin: 15px 0;">
+                <h4>Scenario 1: Initial Load Test</h4>
+                <p>✅ <strong>Expected:</strong> Chat should auto-scroll to bottom when first loaded</p>
+                <p>🔍 <strong>Action:</strong> Refresh the page and observe console logs</p>
+            </div>
+            
+            <div style="margin: 15px 0;">
+                <h4>Scenario 2: AI Streaming Response Test</h4>
+                <p>✅ <strong>Expected:</strong> Chat should auto-scroll during AI response generation</p>
+                <p>🔍 <strong>Action:</strong> Send a message to an AI agent and watch the streaming response</p>
+            </div>
+            
+            <div style="margin: 15px 0;">
+                <h4>Scenario 3: New Message Test</h4>
+                <p>✅ <strong>Expected:</strong> Chat should auto-scroll when new messages arrive (if user is at bottom)</p>
+                <p>🔍 <strong>Action:</strong> Send multiple messages while staying at the bottom</p>
+            </div>
+            
+            <div style="margin: 15px 0;">
+                <h4>Scenario 4: User Scroll Up Test</h4>
+                <p>✅ <strong>Expected:</strong> Chat should NOT auto-scroll when user has scrolled up</p>
+                <p>🔍 <strong>Action:</strong> Scroll up in chat history, then send a message</p>
+            </div>
+            
+            <div style="margin: 15px 0;">
+                <h4>Scenario 5: Document Upload Test</h4>
+                <p>✅ <strong>Expected:</strong> Chat should auto-scroll when documents are uploaded</p>
+                <p>🔍 <strong>Action:</strong> Upload a document and observe scroll behavior</p>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">📊 Step 3: Verify Fix Implementation</div>
+            <div class="test-description">
+                Check that these specific improvements are working:
+            </div>
+            
+            <div style="margin: 15px 0;">
+                <h4>✨ Enhanced Streaming Auto-Scroll</h4>
+                <p>The chat should now auto-scroll during AI streaming responses, even if the user was slightly scrolled up.</p>
+                <div class="code-block">
+Look for console logs: "🌊 [ENHANCED-SCROLL] Streaming content update - forcing smooth scroll"
+                </div>
+            </div>
+            
+            <div style="margin: 15px 0;">
+                <h4>🎯 Improved AI Response Handling</h4>
+                <p>New AI messages should trigger auto-scroll even if user scrolled up slightly (within 100px threshold).</p>
+                <div class="code-block">
+Look for console logs: "📜 [ENHANCED-SCROLL] New messages - scrolling: { isUserAtBottom, isNewAIMessage }"
+                </div>
+            </div>
+            
+            <div style="margin: 15px 0;">
+                <h4>📍 Better Position Tracking</h4>
+                <p>The system should use dynamic thresholds (100px during streaming, 50px normally) for better UX.</p>
+                <div class="code-block">
+Look for console logs: "📍 [SCROLL-POSITION] User position check: { threshold, isAtBottom, isStreaming }"
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">🏁 Step 4: Validation Checklist</div>
+            <div class="test-description">
+                Mark each item as ✅ when verified:
+            </div>
+            
+            <div style="margin: 10px 0;">
+                <input type="checkbox" id="check1"> <label for="check1">Chat auto-scrolls to bottom on initial load</label>
+            </div>
+            <div style="margin: 10px 0;">
+                <input type="checkbox" id="check2"> <label for="check2">Chat auto-scrolls during AI streaming responses</label>
+            </div>
+            <div style="margin: 10px 0;">
+                <input type="checkbox" id="check3"> <label for="check3">Chat auto-scrolls for new AI messages (even when slightly scrolled up)</label>
+            </div>
+            <div style="margin: 10px 0;">
+                <input type="checkbox" id="check4"> <label for="check4">Chat does NOT auto-scroll when user has scrolled up significantly</label>
+            </div>
+            <div style="margin: 10px 0;">
+                <input type="checkbox" id="check5"> <label for="check5">Chat auto-scrolls when documents are uploaded</label>
+            </div>
+            <div style="margin: 10px 0;">
+                <input type="checkbox" id="check6"> <label for="check6">Console logs show enhanced scroll behavior messages</label>
+            </div>
+            
+            <button class="test-button" onclick="validateResults()" style="margin-top: 15px;">🎯 Validate Results</button>
+            <div id="validationResult"></div>
+        </div>
+    </div>
+
+    <script>
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.textContent;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                alert('✅ Script copied to clipboard! Paste it into your browser console.');
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+                alert('❌ Failed to copy. Please manually select and copy the script.');
+            });
+        }
+        
+        function validateResults() {
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+            const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+            const totalCount = checkboxes.length;
+            
+            const resultDiv = document.getElementById('validationResult');
+            
+            if (checkedCount === totalCount) {
+                resultDiv.innerHTML = `
+                    <div class="status success">
+                        <strong>🎉 All tests passed!</strong><br>
+                        The chat auto-scroll functionality is working correctly.
+                        The fix has been successfully implemented and verified.
+                    </div>
+                `;
+            } else if (checkedCount >= totalCount * 0.8) {
+                resultDiv.innerHTML = `
+                    <div class="status info">
+                        <strong>⚠️ Most tests passed (${checkedCount}/${totalCount})</strong><br>
+                        The fix is mostly working. Review the failed tests and check console logs for issues.
+                    </div>
+                `;
+            } else {
+                resultDiv.innerHTML = `
+                    <div class="status error">
+                        <strong>❌ Tests failed (${checkedCount}/${totalCount})</strong><br>
+                        The auto-scroll fix may not be working correctly. 
+                        Check the console logs and verify the implementation.
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

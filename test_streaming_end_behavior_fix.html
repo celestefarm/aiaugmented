@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streaming End Behavior Fix Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: white;
+        }
+        .test-container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: #2a2a2a;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .critical-fix {
+            background-color: #8B0000;
+            border: 2px solid #FF4444;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        .test-section {
+            margin-bottom: 25px;
+            padding: 15px;
+            border: 1px solid #444;
+            border-radius: 6px;
+        }
+        .test-title {
+            color: #6B6B3A;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .test-description {
+            color: #ccc;
+            margin-bottom: 15px;
+            line-height: 1.4;
+            font-size: 14px;
+        }
+        .test-button {
+            background-color: #6B6B3A;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+        .test-button:hover {
+            background-color: #5A5A2F;
+        }
+        .code-block {
+            background-color: #000;
+            border: 1px solid #444;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .highlight {
+            background-color: #FF4444;
+            color: white;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .success {
+            background-color: #0f5132;
+            border: 1px solid #198754;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .scenario {
+            background-color: #333;
+            padding: 12px;
+            border-radius: 4px;
+            margin: 10px 0;
+            border-left: 3px solid #FF4444;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🏁 Streaming End Behavior Fix</h1>
+        
+        <div class="critical-fix">
+            <h3>🚨 CRITICAL ISSUE FIXED</h3>
+            <p>This fix addresses the <span class="highlight">chat jumping to beginning</span> when streaming ends:</p>
+            <ul>
+                <li>🏁 <strong>Safe streaming end handling</strong> - Ensures chat stays at bottom after AI completes</li>
+                <li>⏰ <strong>Delayed state resets</strong> - Prevents interference with final streaming position</li>
+                <li>🛡️ <strong>Position protection</strong> - No state updates during streaming transitions</li>
+                <li>📍 <strong>Gentle final positioning</strong> - Smooth scroll to show complete AI response</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">🔧 Step 1: Load Streaming End Test Script</div>
+            <div class="test-description">
+                This script monitors streaming end behavior to detect jumping issues:
+            </div>
+            <div class="code-block" id="streamingEndScript">
+// Streaming End Behavior Fix Test
+console.log('🏁 [STREAMING-END-TEST] Starting streaming end behavior monitoring...');
+
+function startStreamingEndTest() {
+  const messagesContainer = document.querySelector('[class*="overflow-y-auto"]');
+  
+  if (!messagesContainer) {
+    console.error('❌ [TEST] Messages container not found');
+    return null;
+  }
+
+  console.log('✅ [TEST] Found messages container - monitoring streaming end behavior');
+
+  let streamingStates = [];
+  let positionJumps = [];
+  let isCurrentlyStreaming = false;
+  let lastScrollTop = messagesContainer.scrollTop;
+  let streamingEndCount = 0;
+  let jumpToTopCount = 0;
+
+  // Monitor for streaming state changes
+  const checkStreamingState = () => {
+    const streamingIndicators = document.querySelectorAll('[class*="animate-bounce"], [class*="typing"]');
+    const aiProcessingText = Array.from(document.querySelectorAll('*')).find(el => 
+      el.textContent && el.textContent.includes('AI is typing')
+    );
+    
+    const wasStreaming = isCurrentlyStreaming;
+    isCurrentlyStreaming = streamingIndicators.length > 0 || !!aiProcessingText;
+    
+    if (wasStreaming && !isCurrentlyStreaming) {
+      streamingEndCount++;
+      console.log(`🏁 [STREAMING-END-${streamingEndCount}] Streaming ended - monitoring for position jumps`);
+      
+      // Monitor scroll position for next 3 seconds after streaming ends
+      const endPosition = messagesContainer.scrollTop;
+      const endTime = Date.now();
+      
+      setTimeout(() => {
+        const newPosition = messagesContainer.scrollTop;
+        const positionDiff = Math.abs(newPosition - endPosition);
+        
+        if (positionDiff > 100) {
+          jumpToTopCount++;
+          console.error(`🚨 [JUMP-TO-TOP-${jumpToTopCount}] Position jump detected after streaming end!`, {
+            endPosition,
+            newPosition,
+            difference: positionDiff,
+            jumpedToTop: newPosition < 100
+          });
+          
+          positionJumps.push({
+            time: endTime,
+            endPosition,
+            newPosition,
+            difference: positionDiff,
+            jumpedToTop: newPosition < 100
+          });
+        } else {
+          console.log('✅ [STREAMING-END-SUCCESS] Position remained stable after streaming end');
+        }
+      }, 1000);
+    }
+    
+    return isCurrentlyStreaming;
+  };
+
+  const handleScroll = (event) => {
+    const currentScrollTop = messagesContainer.scrollTop;
+    const isUserInitiated = event.isTrusted;
+    const scrollDirection = currentScrollTop > lastScrollTop ? 'down' : 'up';
+    const scrollDistance = Math.abs(currentScrollTop - lastScrollTop);
+    
+    // Detect large position jumps that might indicate the bug
+    if (!isUserInitiated && scrollDistance > 500) {
+      console.warn('⚠️ [LARGE-SCROLL-JUMP] Large programmatic scroll detected:', {
+        from: lastScrollTop,
+        to: currentScrollTop,
+        distance: scrollDistance,
+        direction: scrollDirection,
+        possibleJumpToTop: currentScrollTop < 100
+      });
+    }
+    
+    streamingStates.push({
+      time: Date.now(),
+      scrollTop: currentScrollTop,
+      isUserInitiated,
+      isStreaming: checkStreamingState(),
+      scrollDistance
+    });
+    
+    // Keep only recent states
+    if (streamingStates.length > 50) {
+      streamingStates = streamingStates.slice(-50);
+    }
+    
+    lastScrollTop = currentScrollTop;
+  };
+
+  // Monitor for content changes
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+        checkStreamingState();
+      }
+    });
+  });
+
+  messagesContainer.addEventListener('scroll', handleScroll, { passive: true });
+  observer.observe(messagesContainer, { childList: true, subtree: true });
+
+  // Periodic streaming state check
+  const stateCheckInterval = setInterval(checkStreamingState, 500);
+
+  // Test functions
+  window.streamingEndTest = {
+    getStats: () => ({
+      streamingEndCount,
+      jumpToTopCount,
+      positionJumps: positionJumps.slice(-5), // Last 5 jumps
+      recentStates: streamingStates.slice(-10), // Last 10 scroll states
+      isStreamingEndFixed: jumpToTopCount === 0,
+      currentScrollTop: messagesContainer.scrollTop
+    }),
+    checkForJumps: () => {
+      const stats = window.streamingEndTest.getStats();
+      console.log('📊 [STREAMING-END-ANALYSIS] Behavior analysis:', stats);
+      
+      if (stats.jumpToTopCount === 0 && stats.streamingEndCount > 0) {
+        console.log('✅ [SUCCESS] No position jumps detected after streaming ends!');
+        return true;
+      } else if (stats.streamingEndCount === 0) {
+        console.log('⚠️ [WARNING] No streaming end events detected yet - test during AI response');
+        return null;
+      } else {
+        console.error(`❌ [FAILURE] ${stats.jumpToTopCount} position jumps detected after streaming`);
+        return false;
+      }
+    },
+    simulateStreamingEnd: () => {
+      console.log('🧪 [TEST] Simulating streaming end behavior check');
+      const currentPos = messagesContainer.scrollTop;
+      console.log('Current position:', currentPos);
+      
+      setTimeout(() => {
+        const newPos = messagesContainer.scrollTop;
+        const diff = Math.abs(newPos - currentPos);
+        console.log('Position after 1 second:', newPos, 'Difference:', diff);
+        
+        if (diff > 100) {
+          console.error('🚨 [SIMULATED-JUMP] Position jump detected in simulation!');
+        } else {
+          console.log('✅ [SIMULATED-SUCCESS] Position remained stable');
+        }
+      }, 1000);
+    },
+    stop: () => {
+      messagesContainer.removeEventListener('scroll', handleScroll);
+      observer.disconnect();
+      clearInterval(stateCheckInterval);
+      console.log('🛑 [TEST] Streaming end monitoring stopped');
+    }
+  };
+
+  return window.streamingEndTest;
+}
+
+// Start the test
+const testInstance = startStreamingEndTest();
+console.log('🎮 [TEST] Use window.streamingEndTest.getStats() to see streaming end stats');
+console.log('🎮 [TEST] Use window.streamingEndTest.checkForJumps() to analyze behavior');
+console.log('🎮 [TEST] Use window.streamingEndTest.simulateStreamingEnd() to test current position');
+            </div>
+            <button class="test-button" onclick="copyToClipboard('streamingEndScript')">📋 Copy Test Script</button>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">🧪 Step 2: Critical Streaming End Tests</div>
+            <div class="test-description">
+                Test these scenarios to verify streaming end behavior is fixed:
+            </div>
+            
+            <div class="scenario">
+                <h4>🚨 CRITICAL: No Jump to Beginning</h4>
+                <p><strong>Action:</strong> Send a message to AI and watch until streaming completely finishes</p>
+                <p><strong>Expected:</strong> Chat should stay at the bottom showing the complete AI response</p>
+                <p><strong>Verify:</strong> Console shows "✅ [STREAMING-END-SUCCESS] Position remained stable"</p>
+                <p><strong>FAILURE:</strong> If console shows "🚨 [JUMP-TO-TOP] Position jump detected"</p>
+            </div>
+            
+            <div class="scenario">
+                <h4>📍 Final Position Verification</h4>
+                <p><strong>Action:</strong> After AI completes response, check if you can see the full answer</p>
+                <p><strong>Expected:</strong> Complete AI response should be visible without manual scrolling</p>
+                <p><strong>Verify:</strong> Console shows "🏁 [STREAMING-END] Ensuring final position at bottom"</p>
+            </div>
+            
+            <div class="scenario">
+                <h4>🔄 Multiple Response Test</h4>
+                <p><strong>Action:</strong> Send multiple messages in sequence and watch each streaming end</p>
+                <p><strong>Expected:</strong> Each response should end at the bottom without jumping</p>
+                <p><strong>Verify:</strong> No jump-to-top errors accumulate in console</p>
+            </div>
+            
+            <div class="scenario">
+                <h4>👆 Manual Scroll During End</h4>
+                <p><strong>Action:</strong> Scroll up just as AI is finishing its response</p>
+                <p><strong>Expected:</strong> Should respect your scroll position, not force to bottom</p>
+                <p><strong>Verify:</strong> Your scroll position is maintained</p>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">✅ Step 3: Validate Streaming End Fix</div>
+            <div class="test-description">
+                Check these specific behaviors:
+            </div>
+            
+            <div style="margin: 15px 0;">
+                <input type="checkbox" id="check1"> <label for="check1"><strong>CRITICAL:</strong> Chat does NOT jump to beginning when AI finishes streaming</label>
+            </div>
+            <div style="margin: 15px 0;">
+                <input type="checkbox" id="check2"> <label for="check2">Complete AI response is visible at the bottom after streaming ends</label>
+            </div>
+            <div style="margin: 15px 0;">
+                <input type="checkbox" id="check3"> <label for="check3">Multiple AI responses all end properly at the bottom</label>
+            </div>
+            <div style="margin: 15px 0;">
+                <input type="checkbox" id="check4"> <label for="check4">Manual scrolling during streaming end is respected</label>
+            </div>
+            <div style="margin: 15px 0;">
+                <input type="checkbox" id="check5"> <label for="check5">Console shows no jump-to-top error messages</label>
+            </div>
+            
+            <button class="test-button" onclick="validateStreamingEndFix()" style="margin-top: 15px;">🏁 Validate Streaming End Fix</button>
+            <div id="streamingEndValidationResult"></div>
+        </div>
+    </div>
+
+    <script>
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.textContent;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                alert('✅ Streaming end test script copied! Paste it into your browser console.');
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+                alert('❌ Failed to copy. Please manually select and copy the script.');
+            });
+        }
+        
+        function validateStreamingEndFix() {
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+            const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+            const totalCount = checkboxes.length;
+            const criticalCheck = document.getElementById('check1').checked;
+            const visibilityCheck = document.getElementById('check2').checked;
+            
+            const resultDiv = document.getElementById('streamingEndValidationResult');
+            
+            if (criticalCheck && visibilityCheck && checkedCount === totalCount) {
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        <strong>🎉 STREAMING END FIX SUCCESSFUL!</strong><br>
+                        Chat no longer jumps to beginning when AI finishes streaming.
+                        Complete AI responses remain visible at the bottom, creating a seamless chat experience.
+                    </div>
+                `;
+            } else if (!criticalCheck) {
+                resultDiv.innerHTML = `
+                    <div style="background-color: #842029; border: 1px solid #dc3545; padding: 10px; border-radius: 4px; margin-top: 10px;">
+                        <strong>🚨 CRITICAL ISSUE PERSISTS</strong><br>
+                        Chat is still jumping to beginning when streaming ends. Check console for jump-to-top errors.
+                        The streaming end state reset logic may need further adjustment.
+                    </div>
+                `;
+            } else if (!visibilityCheck) {
+                resultDiv.innerHTML = `
+                    <div style="background-color: #842029; border: 1px solid #dc3545; padding: 10px; border-radius: 4px; margin-top: 10px;">
+                        <strong>🚨 VISIBILITY ISSUE</strong><br>
+                        Complete AI responses are not staying visible. The final positioning logic needs adjustment.
+                    </div>
+                `;
+            } else {
+                resultDiv.innerHTML = `
+                    <div style="background-color: #055160; border: 1px solid #0dcaf0; padding: 10px; border-radius: 4px; margin-top: 10px;">
+                        <strong>⚠️ Partial Success (${checkedCount}/${totalCount})</strong><br>
+                        Most behaviors are working but some fine-tuning may be needed. Check console logs for details.
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

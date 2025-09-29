@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Root Cause Fix Test - Chat Auto-Scroll</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: #e5e7eb;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .test-section {
+            background-color: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .test-title {
+            color: #60a5fa;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        .fix-item {
+            background-color: #1e3a8a;
+            border: 1px solid #3b82f6;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        .fix-title {
+            color: #93c5fd;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .fix-description {
+            color: #d1d5db;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .removed-code {
+            background-color: #7f1d1d;
+            border: 1px solid #dc2626;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            color: #fca5a5;
+        }
+        .expected-result {
+            background-color: #14532d;
+            border: 1px solid #16a34a;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            color: #86efac;
+        }
+        .test-instructions {
+            background-color: #451a03;
+            border: 1px solid #ea580c;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        .instruction-title {
+            color: #fed7aa;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .instruction-list {
+            color: #fdba74;
+            margin-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 style="color: #60a5fa; text-align: center; margin-bottom: 30px;">
+            🔧 Root Cause Fix Test - Chat Auto-Scroll
+        </h1>
+
+        <div class="test-section">
+            <div class="test-title">🎯 Root Cause Analysis & Fixes Applied</div>
+            
+            <div class="fix-item">
+                <div class="fix-title">1. Removed Conflicting Auto-Mark Scroll Handler</div>
+                <div class="fix-description">
+                    The auto-mark messages as read scroll handler was creating a second scroll event listener that could interfere with the main scroll logic and cause unexpected scroll behavior when streaming ends.
+                </div>
+                <div class="removed-code">
+                    // REMOVED: Auto-mark messages as read scroll handler
+                    useEffect(() => {
+                        const handleScroll = () => {
+                            // This was potentially causing scroll conflicts
+                        };
+                        container.addEventListener('scroll', handleScroll);
+                    }, [messages, markMessageAsRead]);
+                </div>
+                <div class="expected-result">
+                    ✅ Expected Result: No more conflicting scroll handlers interfering with streaming end behavior
+                </div>
+            </div>
+
+            <div class="fix-item">
+                <div class="fix-title">2. Simplified Position Check Function</div>
+                <div class="fix-description">
+                    Removed complex timing logic and state update conditions that could cause unexpected behavior during streaming transitions. Now only updates state when not actively scrolling or streaming.
+                </div>
+                <div class="removed-code">
+                    // REMOVED: Complex timing and streaming transition logic
+                    const timeSinceLastUserScroll = now - lastUserScrollTime;
+                    const shouldUpdateState = !userIsManuallyScrolling &&
+                                             !isStreaming &&
+                                             timeSinceLastUserScroll > 3000;
+                </div>
+                <div class="expected-result">
+                    ✅ Expected Result: Cleaner state management without timing-based interference
+                </div>
+            </div>
+
+            <div class="fix-item">
+                <div class="fix-title">3. Simplified Main Auto-Scroll Logic</div>
+                <div class="fix-description">
+                    Removed complex streaming-priority logic that was adding multiple layers of scroll handling. Now uses a single, simple auto-scroll approach that only scrolls when user is at bottom and not manually scrolling.
+                </div>
+                <div class="removed-code">
+                    // REMOVED: Complex streaming priority logic with multiple conditions
+                    // REMOVED: Streaming-specific scroll handlers
+                    // REMOVED: Grace periods and streaming exceptions
+                </div>
+                <div class="expected-result">
+                    ✅ Expected Result: Single, predictable auto-scroll behavior without conflicting logic
+                </div>
+            </div>
+
+            <div class="fix-item">
+                <div class="fix-title">4. Simplified Streaming End Handler</div>
+                <div class="fix-description">
+                    Removed all scrolling logic from the streaming end handler. Now it only resets state flags without attempting to scroll, eliminating the source of snap-to-top behavior.
+                </div>
+                <div class="removed-code">
+                    // REMOVED: Streaming end scroll logic
+                    if (isUserAtBottom && !userRecentlyScrolled) {
+                        messagesEndRef.current?.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'end'
+                        });
+                    }
+                </div>
+                <div class="expected-result">
+                    ✅ Expected Result: No more snap-to-top when AI finishes streaming
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">🧪 What Should Now Work</div>
+            <div style="color: #d1d5db; line-height: 1.6;">
+                <p><strong>✅ Auto-scroll during streaming:</strong> Chat should smoothly follow AI responses as they stream in</p>
+                <p><strong>✅ Respect manual scroll:</strong> If user scrolls up during streaming, auto-scroll should stop</p>
+                <p><strong>✅ No snap-to-top:</strong> When AI finishes streaming, user should remain at their current position</p>
+                <p><strong>✅ Clean streaming end:</strong> No flickering or jumping when streaming completes</p>
+                <p><strong>✅ Single scroll handler:</strong> No conflicting scroll event listeners</p>
+            </div>
+        </div>
+
+        <div class="test-instructions">
+            <div class="instruction-title">🔍 Testing Instructions</div>
+            <ol class="instruction-list">
+                <li>Open the OptimizedExplorationMap page</li>
+                <li>Start a conversation with the AI in the chat panel</li>
+                <li>Observe that the chat follows the streaming response smoothly</li>
+                <li>Try scrolling up during streaming - auto-scroll should stop</li>
+                <li>Let the AI finish its response - you should stay where you scrolled to</li>
+                <li>Send another message while at the bottom - it should auto-scroll normally</li>
+                <li>Verify no snap-to-top behavior when streaming ends</li>
+            </ol>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px; padding: 20px; background-color: #14532d; border: 1px solid #16a34a; border-radius: 8px;">
+            <div style="color: #86efac; font-weight: bold; font-size: 16px;">
+                🎯 Root Cause Addressed: Removed conflicting scroll handlers and simplified logic
+            </div>
+            <div style="color: #bbf7d0; margin-top: 10px;">
+                The snap-to-top behavior should now be eliminated by removing the source of the problem rather than adding compensating logic.
+            </div>
+        </div>
+    </div>
+</body>
+</html>

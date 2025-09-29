@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultra-Conservative Scroll Fix Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: white;
+        }
+        .test-container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: #2a2a2a;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .critical-fix {
+            background-color: #8B0000;
+            border: 2px solid #FF4444;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        .test-section {
+            margin-bottom: 25px;
+            padding: 15px;
+            border: 1px solid #444;
+            border-radius: 6px;
+        }
+        .test-title {
+            color: #6B6B3A;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .test-description {
+            color: #ccc;
+            margin-bottom: 15px;
+            line-height: 1.4;
+            font-size: 14px;
+        }
+        .test-button {
+            background-color: #6B6B3A;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+        .test-button:hover {
+            background-color: #5A5A2F;
+        }
+        .code-block {
+            background-color: #000;
+            border: 1px solid #444;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .highlight {
+            background-color: #FF4444;
+            color: white;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .success {
+            background-color: #0f5132;
+            border: 1px solid #198754;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .scenario {
+            background-color: #333;
+            padding: 12px;
+            border-radius: 4px;
+            margin: 10px 0;
+            border-left: 3px solid #FF4444;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🚨 Ultra-Conservative Scroll Fix</h1>
+        
+        <div class="critical-fix">
+            <h3>🔧 CRITICAL FIX APPLIED</h3>
+            <p>This fix addresses the <span class="highlight">immediate snap-back</span> issue by implementing an ultra-conservative approach:</p>
+            <ul>
+                <li>🚫 <strong>No scroll functions called from scroll handlers</strong> - Eliminates immediate snap-back</li>
+                <li>⏰ <strong>5-second grace period</strong> - Much longer protection after manual scrolling</li>
+                <li>🛡️ <strong>Multiple safety checks</strong> - Auto-scroll only when absolutely safe</li>
+                <li>📍 <strong>Passive position tracking</strong> - Never interferes with user scrolling</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">🔧 Step 1: Load Ultra-Conservative Test Script</div>
+            <div class="test-description">
+                This script will monitor the new ultra-conservative behavior:
+            </div>
+            <div class="code-block" id="ultraConservativeScript">
+// Ultra-Conservative Scroll Fix Test
+console.log('🚨 [ULTRA-CONSERVATIVE-TEST] Starting critical fix monitoring...');
+
+function startUltraConservativeTest() {
+  const messagesContainer = document.querySelector('[class*="overflow-y-auto"]');
+  
+  if (!messagesContainer) {
+    console.error('❌ [TEST] Messages container not found');
+    return null;
+  }
+
+  console.log('✅ [TEST] Found messages container - testing ultra-conservative behavior');
+
+  let scrollEvents = [];
+  let autoScrollAttempts = 0;
+  let userScrollCount = 0;
+  let snapBackCount = 0;
+  let lastScrollTop = messagesContainer.scrollTop;
+
+  const handleScroll = (event) => {
+    const now = Date.now();
+    const currentScrollTop = messagesContainer.scrollTop;
+    const isUserInitiated = event.isTrusted;
+    const scrollDirection = currentScrollTop > lastScrollTop ? 'down' : 'up';
+    
+    scrollEvents.push({
+      time: now,
+      isUserInitiated,
+      scrollTop: currentScrollTop,
+      direction: scrollDirection
+    });
+
+    if (isUserInitiated) {
+      userScrollCount++;
+      console.log(`👆 [ULTRA-TEST-${userScrollCount}] User scroll ${scrollDirection}:`, {
+        scrollTop: currentScrollTop,
+        timestamp: new Date().toLocaleTimeString()
+      });
+      
+      // Check for snap-back (rapid scroll in opposite direction)
+      setTimeout(() => {
+        const newScrollTop = messagesContainer.scrollTop;
+        if (Math.abs(newScrollTop - currentScrollTop) > 100) {
+          snapBackCount++;
+          console.error(`🚨 [SNAP-BACK-${snapBackCount}] Detected snap-back behavior!`, {
+            beforeScroll: currentScrollTop,
+            afterScroll: newScrollTop,
+            difference: Math.abs(newScrollTop - currentScrollTop)
+          });
+        }
+      }, 100);
+      
+    } else {
+      autoScrollAttempts++;
+      console.log(`🤖 [AUTO-SCROLL-${autoScrollAttempts}] Programmatic scroll detected:`, {
+        scrollTop: currentScrollTop,
+        direction: scrollDirection
+      });
+    }
+
+    lastScrollTop = currentScrollTop;
+  };
+
+  // Monitor for content changes
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+        console.log('🆕 [CONTENT-ADDED] New content detected - checking if auto-scroll is properly blocked');
+        
+        setTimeout(() => {
+          const recentUserScroll = scrollEvents.filter(e => 
+            e.isUserInitiated && (Date.now() - e.time) < 5000
+          ).length > 0;
+          
+          if (recentUserScroll) {
+            console.log('✅ [ULTRA-CONSERVATIVE] Auto-scroll should be blocked - user scrolled within 5 seconds');
+          } else {
+            console.log('⚠️ [ULTRA-CONSERVATIVE] Auto-scroll may be allowed - no recent user scrolling');
+          }
+        }, 200);
+      }
+    });
+  });
+
+  messagesContainer.addEventListener('scroll', handleScroll, { passive: true });
+  observer.observe(messagesContainer, { childList: true, subtree: true });
+
+  // Test functions
+  window.ultraConservativeTest = {
+    getStats: () => ({
+      userScrollCount,
+      autoScrollAttempts,
+      snapBackCount,
+      recentScrollEvents: scrollEvents.slice(-10),
+      isSnapBackFixed: snapBackCount === 0
+    }),
+    testManualScroll: () => {
+      console.log('🧪 [TEST] Testing manual scroll - should NOT snap back');
+      messagesContainer.scrollTop = Math.max(0, messagesContainer.scrollTop - 300);
+    },
+    checkForSnapBack: () => {
+      const stats = window.ultraConservativeTest.getStats();
+      if (stats.snapBackCount === 0) {
+        console.log('✅ [SUCCESS] No snap-back behavior detected!');
+        return true;
+      } else {
+        console.error(`❌ [FAILURE] ${stats.snapBackCount} snap-back events detected`);
+        return false;
+      }
+    },
+    stop: () => {
+      messagesContainer.removeEventListener('scroll', handleScroll);
+      observer.disconnect();
+      console.log('🛑 [TEST] Ultra-conservative monitoring stopped');
+    }
+  };
+
+  return window.ultraConservativeTest;
+}
+
+// Start the test
+const testInstance = startUltraConservativeTest();
+console.log('🎮 [TEST] Use window.ultraConservativeTest.getStats() to see results');
+console.log('🎮 [TEST] Use window.ultraConservativeTest.testManualScroll() to test scrolling');
+console.log('🎮 [TEST] Use window.ultraConservativeTest.checkForSnapBack() to verify fix');
+            </div>
+            <button class="test-button" onclick="copyToClipboard('ultraConservativeScript')">📋 Copy Test Script</button>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">🧪 Step 2: Critical Test - Manual Scrolling</div>
+            <div class="test-description">
+                The most important test - verify you can scroll manually without snap-back:
+            </div>
+            
+            <div class="scenario">
+                <h4>🚨 CRITICAL TEST: Manual Scroll Freedom</h4>
+                <p><strong>Action:</strong> Try to scroll up in the chat history</p>
+                <p><strong>Expected:</strong> You should be able to scroll up and stay there - NO snap-back</p>
+                <p><strong>Verify:</strong> Console shows "👆 [ULTRA-TEST] User scroll up" with no snap-back errors</p>
+                <p><strong>If it still snaps back:</strong> There may be another scroll handler we need to identify</p>
+            </div>
+            
+            <div class="scenario">
+                <h4>⏰ Grace Period Test</h4>
+                <p><strong>Action:</strong> Scroll up, then send a message within 5 seconds</p>
+                <p><strong>Expected:</strong> Chat should NOT auto-scroll (5-second protection)</p>
+                <p><strong>Verify:</strong> Console shows "🚫 [ULTRA-CONSERVATIVE-SCROLL] Not scrolling because: user recently scrolled"</p>
+            </div>
+            
+            <div class="scenario">
+                <h4>📜 Conservative Auto-Scroll Test</h4>
+                <p><strong>Action:</strong> Scroll to bottom, wait 6+ seconds, then send a message</p>
+                <p><strong>Expected:</strong> Chat should auto-scroll (only after grace period)</p>
+                <p><strong>Verify:</strong> Console shows "📜 [ULTRA-CONSERVATIVE-SCROLL] Perfect conditions - scrolling"</p>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">✅ Step 3: Verify Critical Fix</div>
+            <div class="test-description">
+                Check these specific improvements:
+            </div>
+            
+            <div style="margin: 15px 0;">
+                <input type="checkbox" id="check1"> <label for="check1"><strong>CRITICAL:</strong> I can scroll up without immediate snap-back</label>
+            </div>
+            <div style="margin: 15px 0;">
+                <input type="checkbox" id="check2"> <label for="check2">Auto-scroll is blocked for 5 seconds after manual scrolling</label>
+            </div>
+            <div style="margin: 15px 0;">
+                <input type="checkbox" id="check3"> <label for="check3">I can read chat history without interruption</label>
+            </div>
+            <div style="margin: 15px 0;">
+                <input type="checkbox" id="check4"> <label for="check4">Auto-scroll only works when I'm genuinely at bottom for 5+ seconds</label>
+            </div>
+            <div style="margin: 15px 0;">
+                <input type="checkbox" id="check5"> <label for="check5">Console shows no snap-back error messages</label>
+            </div>
+            
+            <button class="test-button" onclick="validateCriticalFix()" style="margin-top: 15px;">🚨 Validate Critical Fix</button>
+            <div id="criticalValidationResult"></div>
+        </div>
+    </div>
+
+    <script>
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.textContent;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                alert('✅ Ultra-conservative test script copied! Paste it into your browser console.');
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+                alert('❌ Failed to copy. Please manually select and copy the script.');
+            });
+        }
+        
+        function validateCriticalFix() {
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+            const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+            const totalCount = checkboxes.length;
+            const criticalCheck = document.getElementById('check1').checked;
+            
+            const resultDiv = document.getElementById('criticalValidationResult');
+            
+            if (criticalCheck && checkedCount === totalCount) {
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        <strong>🎉 CRITICAL FIX SUCCESSFUL!</strong><br>
+                        Manual scrolling is now working without snap-back. The ultra-conservative approach has resolved the issue.
+                        Users can freely navigate chat history while still getting auto-scroll when appropriate.
+                    </div>
+                `;
+            } else if (!criticalCheck) {
+                resultDiv.innerHTML = `
+                    <div style="background-color: #842029; border: 1px solid #dc3545; padding: 10px; border-radius: 4px; margin-top: 10px;">
+                        <strong>🚨 CRITICAL ISSUE PERSISTS</strong><br>
+                        Manual scrolling is still not working. There may be another scroll handler or CSS issue causing the snap-back.
+                        Please check browser console for additional scroll events or errors.
+                    </div>
+                `;
+            } else {
+                resultDiv.innerHTML = `
+                    <div style="background-color: #055160; border: 1px solid #0dcaf0; padding: 10px; border-radius: 4px; margin-top: 10px;">
+                        <strong>⚠️ Partial Success (${checkedCount}/${totalCount})</strong><br>
+                        Manual scrolling works but some other behaviors need adjustment. Check console logs for details.
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
