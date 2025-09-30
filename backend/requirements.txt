@@ -17,3 +17,5 @@ pytesseract==0.3.13
 opencv-python==4.8.1.78
 pandas>=2.2.0
 numpy>=1.26.0
+easyocr>=1.7.0
+openai>=1.0.0
