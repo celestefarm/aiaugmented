@@ -15,7 +15,7 @@ from dataclasses import dataclass, asdict
 from collections import defaultdict, Counter
 import statistics
 
-from backend.database_memory import get_database
+from backend.database import get_database
 from backend.utils.cognitive_analysis import CognitiveAnalyzer, MentorshipEngine
 from backend.utils.memory_service import memory_service, MemoryType
 from backend.utils.outcome_analysis_service import outcome_analysis_service
@@ -735,7 +735,7 @@ class MetaCognitiveService:
         """Store reflection session in database"""
         try:
             database = get_database()
-            if not database:
+            if database is None:
                 return
             
             session_doc = asdict(session)
@@ -751,7 +751,7 @@ class MetaCognitiveService:
         """Get reflection session from database"""
         try:
             database = get_database()
-            if not database:
+            if database is None:
                 return None
             
             session_doc = await database.reflection_sessions.find_one({
@@ -777,7 +777,7 @@ class MetaCognitiveService:
         """Update reflection session in database"""
         try:
             database = get_database()
-            if not database:
+            if database is None:
                 return
             
             session_doc = asdict(session)
@@ -798,7 +798,7 @@ class MetaCognitiveService:
         """Get user's reflection sessions"""
         try:
             database = get_database()
-            if not database:
+            if database is None:
                 return []
             
             query = {"user_id": user_id}

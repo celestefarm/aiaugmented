@@ -1,4 +1,4 @@
-from database_memory import get_database
+from database import get_database
 from models.node import NodeCreate, NodeInDB
 from datetime import datetime
 from bson import ObjectId
@@ -221,7 +221,7 @@ async def get_test_node_info():
 if __name__ == "__main__":
     # For testing the seeding function
     async def main():
-        from database_memory import connect_to_mongo, close_mongo_connection
+        from database import connect_to_mongo, close_mongo_connection
         await connect_to_mongo()
         
         # Seed users first (required for workspace creation)

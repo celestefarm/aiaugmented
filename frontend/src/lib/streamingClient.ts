@@ -149,8 +149,19 @@ export class StreamingChatClient {
                   case 'error':
                     const error = parsed.message || 'Unknown streaming error';
                     console.error('❌ [STREAMING] Stream error:', error);
-                    options.onError?.(error);
-                    throw new Error(error);
+                    
+                    // Provide user-friendly error messages
+                    let userFriendlyError = error;
+                    if (error.includes('429') || error.toLowerCase().includes('rate limit')) {
+                      userFriendlyError = '⏱️ Rate limit reached. OpenAI API is temporarily limiting requests. Please wait 60 seconds and try again, or check your OpenAI API quota at platform.openai.com.';
+                    } else if (error.includes('401') || error.toLowerCase().includes('unauthorized')) {
+                      userFriendlyError = '🔑 OpenAI API key is invalid or missing. Please check your API configuration.';
+                    } else if (error.includes('500') || error.includes('502') || error.includes('503')) {
+                      userFriendlyError = '🔥 OpenAI service is experiencing issues. Please try again in a moment.';
+                    }
+                    
+                    options.onError?.(userFriendlyError);
+                    throw new Error(userFriendlyError);
                 }
               } catch (parseError) {
                 console.warn('⚠️ [STREAMING] Failed to parse chunk:', data, parseError);

@@ -15,7 +15,7 @@ from models.user import UserResponse
 from utils.dependencies import get_current_active_user
 from utils.seed_agents import get_agent_by_id
 from utils.text_chunking import TokenEstimator, ModelConfig
-from database_memory import get_database
+from database import get_database
 from datetime import datetime
 from bson import ObjectId
 from typing import List, Tuple
@@ -23,6 +23,7 @@ import random
 import asyncio
 import math
 import logging
+from routers.anthropic_api import call_anthropic_api
 
 # Import AI functions from interactions router
 from routers.interactions import call_openai_api, create_system_prompt
@@ -170,6 +171,16 @@ async def get_messages(
     
     # Get database instance
     database = get_database()
+    if database is None:
+        # Try to connect if not already connected
+        from database import connect_to_mongo
+        await connect_to_mongo()
+        database = get_database()
+        if database is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database not available"
+            )
     
     # Verify workspace exists and user owns it
     print(f"=== WORKSPACE OWNERSHIP DEBUG ===")
@@ -515,14 +526,17 @@ async def send_message(
                         logger.info(f"User prompt: {user_prompt[:100]}...")
                         
                         # CRITICAL FIX: Handle both "gpt-4" and "openai/gpt-4" formats
+
                         if model_name in ["gpt-4", "gpt-3.5-turbo"] or model_name.startswith("openai/") or model_name.startswith("gpt-"):
                             ai_response_content = await call_openai_api(model_name, user_prompt, system_prompt)
                             logger.info(f"✅ AI response generated successfully: {ai_response_content[:100]}...")
+                        elif model_name.startswith("claude") or model_name.startswith("anthropic/"):
+                            ai_response_content = await call_anthropic_api(model_name, user_prompt, system_prompt)
+                            logger.info(f"✅ Claude response generated successfully: {ai_response_content[:100]}...")
                         else:
                             # Fallback for unsupported models
                             logger.warning(f"Unsupported model: {model_name}")
                             ai_response_content = f"I'm {agent_doc['name']}, specialized in {agent_doc.get('ai_role', 'assistance')}. I'd be happy to help, but my current model ({model_name}) is not yet supported in this chat interface."
-                
             except Exception as e:
                 # Log the error for debugging
                 logger.error(f"Error generating AI response for agent {agent_doc['name']}: {e}")

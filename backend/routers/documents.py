@@ -7,9 +7,15 @@ from models.edge import EdgeInDB
 from models.workspace import WorkspaceInDB
 from models.document import UploadedDocument, DocumentUploadResponse, DocumentProcessingResult, DocumentListResponse
 from utils.dependencies import get_current_active_user
-from utils.document_processor import DocumentProcessor
+# Lazy import to avoid loading heavy OCR dependencies on startup
+# from utils.document_processor import DocumentProcessor
+
+def get_document_processor():
+    """Lazy import DocumentProcessor to avoid loading heavy dependencies on startup"""
+    from utils.document_processor import DocumentProcessor
+    return DocumentProcessor
 from utils.performance_monitor import perf_monitor, monitor_performance
-from database_memory import get_database
+from database import get_database
 from bson import ObjectId
 from typing import Dict, Any, List
 import json
@@ -532,13 +538,13 @@ async def upload_documents(
             logger.info(f"Processing file: {file.filename}, size: {file_size} bytes")
             
             # Validate file
-            if not DocumentProcessor.is_supported_file(file.filename, file.content_type):
+            if not get_document_processor().is_supported_file(file.filename, file.content_type):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Unsupported file type: {file.filename}"
                 )
             
-            if not DocumentProcessor.validate_file_size(file_size):
+            if not get_document_processor().validate_file_size(file_size):
                 raise HTTPException(
                     status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                     detail=f"File too large: {file.filename}. Maximum size is 20MB."
@@ -571,7 +577,7 @@ async def upload_documents(
                 original_filename=file.filename,
                 file_size=file_size,
                 content_type=file.content_type,
-                file_extension=DocumentProcessor.get_file_extension(file.filename),
+                file_extension=get_document_processor().get_file_extension(file.filename),
                 gridfs_file_id=str(gridfs_file_id),  # Convert to string for Pydantic validation
                 processing_status="pending",
                 created_at=now,
@@ -586,7 +592,7 @@ async def upload_documents(
             
             # Process document asynchronously (in background)
             try:
-                processing_result = await DocumentProcessor.process_document(
+                processing_result = await get_document_processor().process_document(
                     file_content, file.filename, file.content_type
                 )
                 

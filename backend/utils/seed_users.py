@@ -1,4 +1,4 @@
-from database_memory import get_database
+from database import get_database
 from models.user import UserCreate, UserInDB
 from utils.auth import hash_password
 from datetime import datetime
@@ -154,7 +154,7 @@ async def create_user(user_data: UserCreate) -> UserInDB | None:
 if __name__ == "__main__":
     # For testing the seeding function
     async def main():
-        from database_memory import connect_to_mongo, close_mongo_connection
+        from database import connect_to_mongo, close_mongo_connection
         await connect_to_mongo()
         await seed_users()
         

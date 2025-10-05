@@ -5,8 +5,17 @@ from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 from database import connect_to_mongo, close_mongo_connection
 
-# Load environment variables
-load_dotenv()
+
+# Load environment variables with explicit path
+from pathlib import Path
+env_path = Path(__file__).parent / '.env'
+print(f"🔑 Loading .env from: {env_path}")
+print(f"🔑 .env exists: {env_path.exists()}")
+load_dotenv(dotenv_path=env_path, override=True)
+api_key = os.getenv('ANTHROPIC_API_KEY')
+print(f"🔑 ANTHROPIC_API_KEY loaded: {'✅ YES' if api_key else '❌ NO'}")
+if api_key:
+    print(f"🔑 Key starts with: {api_key[:15]}...")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -52,11 +61,12 @@ print(f"DEBUG: CORS Origins configured: {final_origins}")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=final_origins,
+    allow_origins=["*"],  # Allow all origins for development
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
     allow_headers=["*"],
     expose_headers=["*"],
+    max_age=3600,
 )
 
 # Root endpoint

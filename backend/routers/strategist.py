@@ -12,7 +12,7 @@ from models.strategic_analysis import (
     RedTeamChallengeResponse, AnalysisPhase, EvidenceQuality
 )
 from utils.dependencies import get_current_active_user
-from database_memory import get_database
+from database import get_database
 import logging
 
 # Configure logging

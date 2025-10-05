@@ -11,7 +11,7 @@ from models.node import (
 from models.user import UserResponse
 from utils.dependencies import get_current_active_user
 from utils.summarization import summarize_node_title, summarize_conversation
-from database_memory import get_database
+from database import get_database
 from datetime import datetime
 from bson import ObjectId
 from typing import List, Optional
@@ -66,18 +66,29 @@ async def verify_workspace_access(workspace_id: str, current_user: UserResponse)
             detail="Invalid workspace ID format"
         )
     
+    # Get database instance
     database = get_database()
+    if database is None:
+        # Try to connect if not already connected
+        from database import connect_to_mongo
+        await connect_to_mongo()
+        database = get_database()
+        if database is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database not available"
+            )
     
-    print(f"🔍 [WORKSPACE ACCESS] Verifying access for workspace: {workspace_id}")
-    print(f"🔍 [WORKSPACE ACCESS] Current user ID: {current_user.id} (type: {type(current_user.id)})")
+    print(f"[WORKSPACE ACCESS] Verifying access for workspace: {workspace_id}")
+    print(f"[WORKSPACE ACCESS] Current user ID: {current_user.id} (type: {type(current_user.id)})")
     
     # First, check if workspace exists at all
     workspace_any = await database.workspaces.find_one({"_id": ObjectId(workspace_id)})
     if workspace_any:
-        print(f"🔍 [WORKSPACE ACCESS] Workspace found with owner_id: {workspace_any.get('owner_id')} (type: {type(workspace_any.get('owner_id'))})")
-        print(f"🔍 [WORKSPACE ACCESS] Direct comparison: {workspace_any.get('owner_id') == current_user.id}")
+        print(f"[WORKSPACE ACCESS] Workspace found with owner_id: {workspace_any.get('owner_id')} (type: {type(workspace_any.get('owner_id'))})")
+        print(f"[WORKSPACE ACCESS] Direct comparison: {workspace_any.get('owner_id') == current_user.id}")
     else:
-        print(f"🔍 [WORKSPACE ACCESS] ❌ Workspace {workspace_id} does not exist at all")
+        print(f"[WORKSPACE ACCESS] Workspace {workspace_id} does not exist at all")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Workspace not found or access denied"
@@ -91,14 +102,14 @@ async def verify_workspace_access(workspace_id: str, current_user: UserResponse)
     })
     
     if not workspace:
-        print(f"🔍 [WORKSPACE ACCESS] ❌ Access denied - user {current_user.id} is not owner of workspace {workspace_id}")
-        print(f"🔍 [WORKSPACE ACCESS] ❌ Actual owner: {workspace_any.get('owner_id')}")
+        print(f"[WORKSPACE ACCESS] Access denied - user {current_user.id} is not owner of workspace {workspace_id}")
+        print(f"[WORKSPACE ACCESS] Actual owner: {workspace_any.get('owner_id')}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Workspace not found or access denied"
         )
     
-    print(f"🔍 [WORKSPACE ACCESS] ✅ Access granted for user {current_user.id} to workspace {workspace_id}")
+    print(f"[WORKSPACE ACCESS] Access granted for user {current_user.id} to workspace {workspace_id}")
 
 
 @router.get("/workspaces/{workspace_id}/nodes", response_model=NodeListResponse)

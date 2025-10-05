@@ -166,7 +166,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
             
             // Poll for processing completion with extended timeout for OCR
             let attempts = 0;
-            const maxAttempts = 60; // 60 seconds max for OCR processing (EasyOCR can be slow on CPU)
+            const maxAttempts = 60; // 60 seconds max for OCR processing (Tesseract OCR)
             
             while (attempts < maxAttempts) {
               const content = await getDocumentContent(currentWorkspace.id, doc.id);

@@ -3,7 +3,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 from models.user import UserInDB, UserResponse
 from utils.auth import verify_token
-from database_memory import get_database
+from database import get_database
 from bson import ObjectId
 
 # HTTP Bearer token scheme
@@ -23,6 +23,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     Raises:
         HTTPException: If token is invalid or user not found
     """
+    
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -41,6 +42,13 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     
     # Get database instance
     database = get_database()
+    if database is None:
+        # Try to connect if not already connected
+        from database import connect_to_mongo
+        await connect_to_mongo()
+        database = get_database()
+        if database is None:
+            raise credentials_exception
     
     # Get user from database
     try:

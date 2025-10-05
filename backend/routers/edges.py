@@ -8,7 +8,7 @@ from models.edge import (
 )
 from models.user import UserResponse
 from utils.dependencies import get_current_active_user
-from database_memory import get_database
+from database import get_database
 from datetime import datetime
 from bson import ObjectId
 from typing import List
@@ -34,6 +34,17 @@ async def verify_workspace_access(workspace_id: str, current_user: UserResponse)
         )
     
     database = get_database()
+    if database is None:
+        # Try to connect if not already connected
+        from database import connect_to_mongo
+        await connect_to_mongo()
+        database = get_database()
+        if database is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database not available"
+            )
+    
     workspace = await database.workspaces.find_one({
         "_id": ObjectId(workspace_id),
         "owner_id": current_user.id
@@ -65,6 +76,16 @@ async def verify_nodes_exist_in_workspace(workspace_id: str, from_node_id: str, 
         )
     
     database = get_database()
+    if database is None:
+        # Try to connect if not already connected
+        from database import connect_to_mongo
+        await connect_to_mongo()
+        database = get_database()
+        if database is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database not available"
+            )
     
     # Check if both nodes exist in the workspace - use string format to match nodes.py
     from_node = await database.nodes.find_one({
@@ -110,6 +131,16 @@ async def get_edges(
     
     # Get database instance
     database = get_database()
+    if database is None:
+        # Try to connect if not already connected
+        from database import connect_to_mongo
+        await connect_to_mongo()
+        database = get_database()
+        if database is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database not available"
+            )
     
     # Find all edges in the workspace - use string format to match nodes.py
     cursor = database.edges.find({"workspace_id": workspace_id})

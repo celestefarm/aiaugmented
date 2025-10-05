@@ -1,4 +1,4 @@
-from database_memory import get_database
+from database import get_database
 from models.workspace import WorkspaceCreate, WorkspaceInDB
 from models.message import MessageCreate, MessageInDB
 from datetime import datetime
@@ -200,7 +200,7 @@ async def get_test_workspace_info():
 if __name__ == "__main__":
     # For testing the seeding function
     async def main():
-        from database_memory import connect_to_mongo, close_mongo_connection
+        from database import connect_to_mongo, close_mongo_connection
         await connect_to_mongo()
         
         # Seed users first

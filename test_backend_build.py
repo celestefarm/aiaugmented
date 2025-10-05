@@ -12,12 +12,7 @@ def test_basic_imports():
     """Test basic Python package imports"""
     print("Testing basic imports...")
     
-    try:
-        import easyocr
-        print(f"✓ easyocr {easyocr.__version__ if hasattr(easyocr, '__version__') else 'installed'}")
-    except ImportError as e:
-        print(f"✗ easyocr: {e}")
-        return False
+    # EasyOCR removed from project
     
     try:
         import openai
@@ -51,7 +46,6 @@ def test_backend_modules():
         ("utils.meta_cognitive_service", "Meta-cognitive service"),
         ("utils.cognitive_analysis", "Cognitive analysis"),
         ("utils.document_processor", "Document processor"),
-        ("utils.easyocr_service", "EasyOCR service"),
         ("utils.performance_monitor", "Performance monitor"),
     ]
     

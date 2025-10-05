@@ -22,8 +22,19 @@ This implementation covers the basic setup and health check endpoint as specifie
    ```
 
 3. **Configure environment variables:**
-   - Copy `.env` file and update MongoDB URI if needed
-   - Default configuration uses local MongoDB: `mongodb://localhost:27017/agentic_boardroom`
+   ```bash
+   # Copy the example file
+   copy .env.example .env
+   
+   # Edit .env and add your Anthropic API key
+   # Get your key from: https://console.anthropic.com/
+   ```
+   
+   **Required variables:**
+   - `ANTHROPIC_API_KEY` - Your Anthropic API key (required for AI features)
+   - `MONGODB_URI` - MongoDB connection string (default: `mongodb://localhost:27017/agentic_boardroom`)
+   
+   See [../ANTHROPIC_API_KEY_SETUP.md](../ANTHROPIC_API_KEY_SETUP.md) for detailed setup instructions.
 
 4. **Run the server:**
    ```bash
@@ -57,11 +68,13 @@ This implementation covers the basic setup and health check endpoint as specifie
 ## Configuration
 
 Environment variables in `.env`:
+- `ANTHROPIC_API_KEY`: **Required** - Your Anthropic API key for Claude AI
+- `MONGODB_URI`: MongoDB connection string (default: `mongodb://localhost:27017/agentic_boardroom`)
 - `APP_ENV`: Application environment (development/production)
 - `PORT`: Server port (default: 8000)
-- `MONGODB_URI`: MongoDB connection string
 - `CORS_ORIGINS`: Comma-separated list of allowed origins
-- `JWT_SECRET`: JWT signing secret (for future sprints)
+- `JWT_SECRET`: JWT signing secret
+- `OPENAI_API_KEY`: Optional - OpenAI API key if using OpenAI models
 
 ## Development
 

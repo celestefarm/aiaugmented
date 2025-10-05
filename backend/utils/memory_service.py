@@ -12,7 +12,7 @@ from enum import Enum
 from dataclasses import dataclass, asdict
 from collections import defaultdict, deque
 
-from backend.database_memory import get_database
+from backend.database import get_database
 from bson import ObjectId
 
 logger = logging.getLogger(__name__)
@@ -197,7 +197,7 @@ class MemoryService:
         """Search for memory items based on criteria"""
         try:
             database = get_database()
-            if not database:
+            if database is None:
                 return []
             
             # Build query
@@ -424,7 +424,7 @@ class MemoryService:
             current_time = datetime.utcnow()
             database = get_database()
             
-            if not database:
+            if database is None:
                 return 0
             
             # Find expired memories
@@ -454,7 +454,7 @@ class MemoryService:
         """Get memory usage statistics for a user"""
         try:
             database = get_database()
-            if not database:
+            if database is None:
                 return {}
             
             # Aggregate statistics

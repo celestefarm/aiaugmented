@@ -19,9 +19,9 @@ import io
 import csv
 from urllib.parse import urlparse, parse_qs
 
-from backend.database_memory import get_database
+from backend.database import get_database
 from backend.utils.document_processor import DocumentProcessor
-from backend.utils.easyocr_service import easyocr_service
+# EasyOCR service removed from project
 from backend.utils.performance_monitor import perf_monitor
 from bson import ObjectId
 
@@ -431,7 +431,7 @@ class DataIntegrationService:
         """Get integration history for a user/session"""
         try:
             database = get_database()
-            if not database:
+            if database is None:
                 return []
             
             query = {"user_id": user_id}
@@ -840,7 +840,7 @@ class DataIntegrationService:
         """Store integration result in database"""
         try:
             database = get_database()
-            if not database:
+            if database is None:
                 return
             
             result_doc = {

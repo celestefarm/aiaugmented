@@ -40,14 +40,10 @@ except ImportError:
     PANDAS_AVAILABLE = False
     pd = None
 
-# Import EasyOCR service as fallback
-try:
-    from .easyocr_service import easyocr_service, EasyOCRResult
-    EASYOCR_AVAILABLE = True
-except ImportError:
-    EASYOCR_AVAILABLE = False
-    easyocr_service = None
-    EasyOCRResult = None
+# EasyOCR has been removed from the project
+EASYOCR_AVAILABLE = False
+easyocr_service = None
+EasyOCRResult = None
 
 logger = logging.getLogger(__name__)
 
@@ -171,8 +167,8 @@ class EnhancedOCRService:
             return False
     
     def _check_easyocr_availability(self) -> bool:
-        """Check if EasyOCR is available as fallback"""
-        return EASYOCR_AVAILABLE and easyocr_service and easyocr_service.is_available()
+        """Check if EasyOCR is available as fallback (always False - EasyOCR removed)"""
+        return False
     
     def _check_opencv_availability(self) -> bool:
         """Check if OpenCV is available for advanced image processing"""
@@ -241,24 +237,18 @@ class EnhancedOCRService:
             # Set up language configuration
             lang_config = self._setup_language_config(languages)
             
-            # Perform OCR with timeout - try Tesseract first, fallback to EasyOCR
+            # Perform OCR with timeout - Tesseract only (EasyOCR removed)
             try:
                 if self.tesseract_available:
                     ocr_result = await asyncio.wait_for(
                         self._perform_comprehensive_ocr(processed_image, content_type, quality, lang_config),
                         timeout=timeout
                     )
-                elif self._check_easyocr_availability():
-                    logger.info("Using EasyOCR as fallback for OCR processing")
-                    ocr_result = await self._perform_easyocr_processing(image_data, lang_config, timeout)
                 else:
-                    raise RuntimeError("No OCR engine available (neither Tesseract nor EasyOCR)")
+                    raise RuntimeError("No OCR engine available - Tesseract is required")
             except Exception as e:
-                if self._check_easyocr_availability() and self.tesseract_available:
-                    logger.warning(f"Tesseract failed, falling back to EasyOCR: {e}")
-                    ocr_result = await self._perform_easyocr_processing(image_data, lang_config, timeout)
-                else:
-                    raise
+                logger.error(f"OCR processing failed: {e}")
+                raise
             
             # Post-process and enhance results
             enhanced_result = await self._enhance_ocr_results(ocr_result, image, filename)
@@ -298,61 +288,9 @@ class EnhancedOCRService:
     
     async def _perform_easyocr_processing(self, image_data: bytes, lang_config: Dict, timeout: int) -> OCRResult:
         """
-        Process image using EasyOCR as fallback
+        EasyOCR processing method (removed - EasyOCR no longer available)
         """
-        try:
-            # Extract languages from config
-            languages = lang_config.get('languages', ['en'])
-            
-            # Process with EasyOCR
-            easyocr_result = await easyocr_service.process_image(
-                image_data=image_data,
-                languages=languages,
-                timeout=timeout
-            )
-            
-            # Convert EasyOCR result to our OCRResult format
-            regions = []
-            for region_data in easyocr_result.regions:
-                region = ImageRegion(
-                    x=region_data['coordinates']['x'],
-                    y=region_data['coordinates']['y'],
-                    width=region_data['coordinates']['width'],
-                    height=region_data['coordinates']['height'],
-                    content_type=ContentType.TEXT,
-                    text=region_data['text'],
-                    confidence=region_data['confidence'],
-                    metadata={
-                        'bbox': region_data['bbox'],
-                        'region_type': region_data.get('region_type', 'text_block')
-                    }
-                )
-                regions.append(region)
-            
-            # Map quality score
-            quality_map = {
-                'Low': OCRQuality.LOW,
-                'Medium': OCRQuality.MEDIUM,
-                'High': OCRQuality.HIGH,
-                'Excellent': OCRQuality.EXCELLENT
-            }
-            quality = quality_map.get(easyocr_result.quality_score, OCRQuality.MEDIUM)
-            
-            return OCRResult(
-                original_text=easyocr_result.text,
-                regions=regions,
-                tables=[],  # EasyOCR doesn't provide table detection
-                chart_elements=[],  # EasyOCR doesn't provide chart parsing
-                quality_assessment=quality,
-                processing_time=easyocr_result.processing_time,
-                language_detected=easyocr_result.language_detected,
-                confidence_score=easyocr_result.avg_confidence,
-                error_message=None
-            )
-            
-        except Exception as e:
-            logger.error(f"EasyOCR processing failed: {e}")
-            raise RuntimeError(f"EasyOCR fallback failed: {str(e)}")
+        raise RuntimeError("EasyOCR has been removed from the project. Please use Tesseract OCR instead.")
     
     def _assess_image_quality(self, image: Image.Image) -> OCRQuality:
         """Assess image quality for OCR processing"""
@@ -511,25 +449,7 @@ class EnhancedOCRService:
         # Validate and filter supported languages for Tesseract
         valid_tesseract_langs = [lang for lang in languages if lang in self.SUPPORTED_LANGUAGES]
         
-        # Map to EasyOCR language codes
-        easyocr_lang_map = {
-            'eng': 'en',
-            'chi_sim': 'ch_sim',
-            'chi_tra': 'ch_tra',
-            'jpn': 'ja',
-            'kor': 'ko',
-            'ara': 'ar',
-            'hin': 'hi',
-            'rus': 'ru',
-            'deu': 'de',
-            'fra': 'fr',
-            'spa': 'es'
-        }
-        
-        easyocr_langs = []
-        for lang in valid_tesseract_langs:
-            if lang in easyocr_lang_map:
-                easyocr_langs.append(easyocr_lang_map[lang])
+        # EasyOCR language mapping removed (EasyOCR no longer available)
         
         if not valid_tesseract_langs:
             logger.warning(f"No supported languages found in {languages}, using English")
@@ -540,7 +460,7 @@ class EnhancedOCRService:
         
         return {
             'tesseract_config': '+'.join(valid_tesseract_langs),
-            'languages': easyocr_langs if easyocr_langs else ['en']
+            'languages': valid_tesseract_langs if valid_tesseract_langs else ['eng']
         }
     
     async def _perform_comprehensive_ocr(

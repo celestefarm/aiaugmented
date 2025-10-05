@@ -16,12 +16,13 @@ from models.strategic_analysis import (
     create_strategic_option, generate_lightning_brief,
     create_red_team_challenge, EvidenceQuality
 )
-from database_memory import get_database
+from database import get_database
 from bson import ObjectId
 from datetime import datetime
 import httpx
 import json
 import os
+from routers.anthropic_api import call_anthropic_api
 import logging
 
 router = APIRouter(tags=["interactions"])
@@ -479,8 +480,11 @@ async def interact_with_agent(
             user_prompt = f"Context: {context_str}\n\nQuery: {request.prompt}"
         
         # Call the appropriate AI model
+                # Call the appropriate AI model
         if agent.model_name.startswith("openai/") or agent.model_name.startswith("gpt-"):
             ai_response = await call_openai_api(agent.model_name, user_prompt, system_prompt)
+        elif agent.model_name.startswith("claude") or agent.model_name.startswith("anthropic/"):
+            ai_response = await call_anthropic_api(agent.model_name, user_prompt, system_prompt)
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

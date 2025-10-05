@@ -4,7 +4,7 @@ from typing import List, Dict, Optional, Tuple
 from models.user import UserResponse
 from utils.dependencies import get_current_active_user
 from utils.text_chunking import chunk_large_analysis, result_consolidator, TokenEstimator
-from database_memory import get_database
+from database import get_database
 from bson import ObjectId
 from datetime import datetime
 import httpx

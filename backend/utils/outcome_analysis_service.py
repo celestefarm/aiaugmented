@@ -15,7 +15,7 @@ from dataclasses import dataclass, asdict
 import numpy as np
 from collections import defaultdict, Counter
 
-from backend.database_memory import get_database
+from backend.database import get_database
 from backend.utils.performance_monitor import perf_monitor
 from bson import ObjectId
 
@@ -421,7 +421,7 @@ class OutcomeAnalysisService:
         """Track a specific metric value over time"""
         try:
             database = get_database()
-            if not database:
+            if database is None:
                 return False
             
             tracking_record = {
@@ -1017,7 +1017,7 @@ class OutcomeAnalysisService:
         
         try:
             database = get_database()
-            if not database:
+            if database is None:
                 return None
             
             outcome_doc = await database.outcome_records.find_one({
@@ -1043,7 +1043,7 @@ class OutcomeAnalysisService:
         """Get outcomes for analysis based on criteria"""
         try:
             database = get_database()
-            if not database:
+            if database is None:
                 return []
             
             query = {"user_id": user_id}
@@ -1083,7 +1083,7 @@ class OutcomeAnalysisService:
         """Store outcome record in database"""
         try:
             database = get_database()
-            if not database:
+            if database is None:
                 return
             
             outcome_doc = asdict(outcome)
@@ -1099,7 +1099,7 @@ class OutcomeAnalysisService:
         """Update outcome record in database"""
         try:
             database = get_database()
-            if not database:
+            if database is None:
                 return
             
             outcome_doc = asdict(outcome)
@@ -1118,7 +1118,7 @@ class OutcomeAnalysisService:
         """Store analysis result in database"""
         try:
             database = get_database()
-            if not database:
+            if database is None:
                 return
             
             result_doc = asdict(result)

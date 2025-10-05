@@ -1,4 +1,4 @@
-from database_memory import get_database
+from database import get_database
 from models.agent import AgentCreate, AgentInDB
 from typing import List
 import asyncio
@@ -13,7 +13,7 @@ DEFAULT_AGENTS = [
         "human_role": "Provide strategic context, validate insights, and apply judgment to personalized recommendations",
         "is_custom": False,
         "is_active": True,
-        "model_name": "gpt-4",  # Use GPT-4 (corrected model name)
+        "model_name": "claude-3-5-sonnet",  # Use Claude 3.5 Sonnet
         "full_description": {
             "role": "The Noble Mentor - Elite Strategic Co-Pilot",
             "mission": "Guide high-stakes professional decisions through structured strategic analysis with conversational mentorship that prioritizes clarity and conviction above all else",
@@ -130,7 +130,7 @@ DEFAULT_AGENTS = [
         "human_role": "Validate regulatory interpretation, assess risk tolerance",
         "is_custom": False,
         "is_active": True,
-        "model_name": "gpt-4",  # Add model configuration
+        "model_name": "claude-3-5-sonnet",  # Use Claude 3.5 Sonnet
         "full_description": {
             "role": "Risk Assessment Specialist",
             "mission": "Ensure strategic decisions account for regulatory and operational risks",
@@ -145,7 +145,7 @@ DEFAULT_AGENTS = [
         "human_role": "Provide execution context, validate implementation approaches",
         "is_custom": False,
         "is_active": True,
-        "model_name": "gpt-4",  # Add model configuration
+        "model_name": "claude-3-5-sonnet",  # Use Claude 3.5 Sonnet
         "full_description": {
             "role": "Execution Excellence Specialist",
             "mission": "Transform strategic plans into actionable results through disciplined execution",
@@ -376,7 +376,7 @@ async def update_strategist_agent():
 if __name__ == "__main__":
     # For testing the seeding function
     async def main():
-        from database_memory import connect_to_mongo, close_mongo_connection
+        from database import connect_to_mongo, close_mongo_connection
         await connect_to_mongo()
         await seed_agents()
         await update_strategist_agent()  # Update existing strategist

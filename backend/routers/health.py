@@ -18,7 +18,8 @@ async def health_check():
     Health check endpoint that verifies system status and database connectivity.
     Returns JSON with status, timestamp, database connectivity, and version info.
     """
-    from database_memory import memory_client as db_client
+    from database import get_database
+    db_client = get_database()
     
     health_data = {
         "status": "healthy",
@@ -32,10 +33,11 @@ async def health_check():
     }
     
     # Test database connectivity
-    if db_client:
+    if db_client is not None:
         try:
             start_time = asyncio.get_event_loop().time()
-            await db_client.admin.command('ping')
+            # Test with a simple database operation
+            await db_client.users.count_documents({})
             end_time = asyncio.get_event_loop().time()
             
             response_time_ms = round((end_time - start_time) * 1000, 2)

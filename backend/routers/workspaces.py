@@ -9,8 +9,8 @@ from models.workspace import (
 )
 from models.user import UserResponse
 from utils.dependencies import get_current_active_user
-from database_memory import get_database
-from datetime import datetime
+from database import get_database
+from datetime import datetime, timezone
 from bson import ObjectId
 from typing import List
 
@@ -67,50 +67,61 @@ async def create_workspace(
     Returns:
         Created workspace data
     """
-    # Get database instance
-    database = get_database()
-    
-    # Create workspace document
-    now = datetime.utcnow()
-    
-    # Ensure all new workspaces have active agents by default
-    default_settings = {
-        "active_agents": ["strategist"],
-        "theme": "dark",
-        "auto_save": True
-    }
-    
-    # Merge user-provided settings with defaults, ensuring active_agents is always present
-    final_settings = default_settings.copy()
-    if workspace_data.settings:
-        final_settings.update(workspace_data.settings)
-        # Ensure active_agents is always present, even if user provided settings
-        if not final_settings.get("active_agents"):
-            final_settings["active_agents"] = ["strategist"]
-    
-    workspace_create = WorkspaceCreate(
-        title=workspace_data.title,
-        owner_id=current_user.id,  # Keep as string (PyObjectId)
-        created_at=now,
-        updated_at=now,
-        settings=final_settings,
-        transform=workspace_data.transform or {"x": 0, "y": 0, "scale": 1}
-    )
-    
-    # Insert workspace into database
-    result = await database.workspaces.insert_one(workspace_create.model_dump())
-    workspace_id = result.inserted_id
-    
-    # Get the created workspace
-    workspace_doc = await database.workspaces.find_one({"_id": workspace_id})
-    
-    # Convert ObjectId to string for Pydantic compatibility
-    if workspace_doc and "_id" in workspace_doc:
-        workspace_doc["_id"] = str(workspace_doc["_id"])
-    
-    workspace_in_db = WorkspaceInDB(**workspace_doc)
-    
-    return workspace_in_db.to_response()
+    try:
+        # Get database instance
+        database = get_database()
+        if database is None:
+            # Try to connect if not already connected
+            from database import connect_to_mongo
+            await connect_to_mongo()
+            database = get_database()
+            if database is None:
+                raise HTTPException(status_code=500, detail="Database not available")
+        
+        # Create workspace document
+        now = datetime.now(timezone.utc)
+        
+        # Ensure all new workspaces have active agents by default
+        default_settings = {
+            "active_agents": ["strategist"],
+            "theme": "dark",
+            "auto_save": True
+        }
+        
+        # Merge user-provided settings with defaults, ensuring active_agents is always present
+        final_settings = default_settings.copy()
+        if workspace_data.settings:
+            final_settings.update(workspace_data.settings)
+            # Ensure active_agents is always present, even if user provided settings
+            if not final_settings.get("active_agents"):
+                final_settings["active_agents"] = ["strategist"]
+        
+        workspace_create = WorkspaceCreate(
+            title=workspace_data.title,
+            owner_id=current_user.id,  # Keep as string (PyObjectId)
+            created_at=now,
+            updated_at=now,
+            settings=final_settings,
+            transform=workspace_data.transform or {"x": 0, "y": 0, "scale": 1}
+        )
+        
+        # Insert workspace into database
+        result = await database.workspaces.insert_one(workspace_create.model_dump())
+        workspace_id = result.inserted_id
+        
+        # Get the created workspace
+        workspace_doc = await database.workspaces.find_one({"_id": workspace_id})
+        
+        # Convert ObjectId to string for Pydantic compatibility
+        if workspace_doc and "_id" in workspace_doc:
+            workspace_doc["_id"] = str(workspace_doc["_id"])
+        
+        workspace_in_db = WorkspaceInDB(**workspace_doc)
+        
+        return workspace_in_db.to_response()
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @router.get("/workspaces/{workspace_id}", response_model=WorkspaceResponse)

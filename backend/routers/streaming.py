@@ -9,7 +9,8 @@ from utils.performance_monitor import perf_monitor
 from utils.text_chunking import TokenEstimator, ModelConfig
 from routers.messages import get_workspace_documents_content
 from routers.interactions import create_system_prompt
-from database_memory import get_database
+from database import get_database
+from routers.anthropic_api import stream_anthropic_response
 from bson import ObjectId
 import httpx
 import json
@@ -106,7 +107,18 @@ async def stream_openai_response(
                 if response.status_code != 200:
                     error_text = await response.aread()
                     logger.error(f"❌ [STREAMING] OpenAI API error: {response.status_code} - {error_text}")
-                    yield f"data: {json.dumps({'type': 'error', 'message': f'API Error: {response.status_code}'})}\n\n"
+                    
+                    # Provide user-friendly error messages based on status code
+                    if response.status_code == 429:
+                        error_message = "Rate limit exceeded. OpenAI API is temporarily limiting requests. Please wait 60 seconds and try again, or check your API quota at platform.openai.com/account/usage."
+                    elif response.status_code == 401:
+                        error_message = "Authentication failed. Please check your OpenAI API key configuration."
+                    elif response.status_code == 500:
+                        error_message = "OpenAI service error. Please try again in a moment."
+                    else:
+                        error_message = f"API Error: {response.status_code}"
+                    
+                    yield f"data: {json.dumps({'type': 'error', 'message': error_message})}\n\n"
                     return
                 
                 logger.info(f"✅ [STREAMING] Successfully connected to OpenAI streaming API")
@@ -172,6 +184,22 @@ async def stream_openai_response(
         perf_monitor.end_timer(stream_timer, {'error': str(e), 'success': False})
         logger.error(f"❌ [STREAMING] Unexpected error: {e}")
         yield f"data: {json.dumps({'type': 'error', 'message': f'Unexpected error: {str(e)}'})}\n\n"
+
+@router.options("/workspaces/{workspace_id}/messages/stream")
+async def stream_message_options(workspace_id: str):
+    """
+    Handle CORS preflight request for streaming endpoint.
+    """
+    from fastapi.responses import Response
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+            "Access-Control-Max-Age": "3600",
+        }
+    )
 
 @router.post("/workspaces/{workspace_id}/messages/stream")
 async def stream_message_response(
@@ -266,6 +294,18 @@ async def stream_message_response(
                     yield chunk
                     
                     # CRITICAL FIX: Collect AI response content for database storage
+                    if chunk.startswith("data: "):
+                        try:
+                            chunk_data = json.loads(chunk[6:])
+                            if chunk_data.get('type') == 'content' and 'content' in chunk_data:
+                                full_ai_response += chunk_data['content']
+                        except json.JSONDecodeError:
+                            pass
+            elif agent.model_name.startswith("claude") or agent.model_name.startswith("anthropic/"):
+                async for chunk in stream_anthropic_response(agent.model_name, user_prompt, system_prompt):
+                    yield chunk
+                    
+                    # Collect AI response content for database storage
                     if chunk.startswith("data: "):
                         try:
                             chunk_data = json.loads(chunk[6:])

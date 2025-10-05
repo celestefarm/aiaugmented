@@ -31,7 +31,6 @@ def main():
     total_count = 0
     
     modules_to_test = [
-        ("easyocr", "EasyOCR for text recognition"),
         ("openai", "OpenAI API client"),
         ("cv2", "OpenCV for image processing"),
         ("numpy", "NumPy for numerical operations"),
@@ -69,7 +68,6 @@ def main():
     specific_imports = [
         ("backend.utils.cognitive_analysis", "Cognitive analysis utilities"),
         ("backend.utils.document_processor", "Document processor"),
-        ("backend.utils.easyocr_service", "EasyOCR service"),
         ("backend.utils.performance_monitor", "Performance monitor"),
         ("backend.database_memory", "Database memory module"),
     ]
